@@ -2,22 +2,70 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "DAPLink OpenOCD Debug",
+      "name": "STM32 ST-Link Debug",
+      "type": "stlinkgdbtarget",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/build/Debug/DogRobot.elf",
+      "runEntry": "main",
+      "preBuild": "",
+      "gdb": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+      "deviceName": "STM32F103C8T6",
+      "deviceCore": "Cortex-M3",
+      "deviceTrustzone": "TZ-disabled",
+      "serverExe": "ST-LINK_gdbserver.exe",
+      "serverCwd": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin",
+      "serverInterface": "SWD",
+      "serverInterfaceFrequency": "Auto",
+      "serverVerify": false,
+      "imagesAndSymbols": [
+        {
+          "imageFileName": "${workspaceFolder}/build/Debug/DogRobot.elf",
+          "symbolFileName": "${workspaceFolder}/build/Debug/DogRobot.elf"
+        }
+      ]
+    },
+    {
+      "name": "Cortex-Debug ST-Link (Peripherals)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "stlink",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/Debug/DogRobot.elf",
+      "device": "STM32F103C8",
+      "interface": "swd",
+      "runToEntryPoint": "main",
+      "svdFile": "C:/Users/zhou/AppData/Local/stm32cube/packs/STMicroelectronics/stm32f1xx_dfp/1.2.0/SVD/STM32F103.svd",
+      "armToolchainPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin",
+      "gdbPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+      "stlinkPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
+      "serverpath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
+      "showDevDebugOutput": "raw"
+    },
+    {
+      "name": "Cortex-Debug OpenOCD (Live Watch)",
       "type": "cortex-debug",
       "request": "launch",
       "servertype": "openocd",
-      "serverpath": "C:\\ST\\STM32CubeIDE_1.19.0\\STM32CubeIDE\\plugins\\com.st.stm32cube.ide.mcu.externaltools.openocd.win32_2.4.200.202505051030\\tools\\bin\\openocd.exe",
-      "searchDir": [
-        "${workspaceFolder}\\.vscode",
-        "C:\\ST\\STM32CubeIDE_1.19.0\\STM32CubeIDE\\plugins\\com.st.stm32cube.ide.mcu.debug.openocd_2.3.100.202501240831\\resources\\openocd\\st_scripts"
-      ],
       "cwd": "${workspaceFolder}",
-      "executable": "${command:cmake.launchTargetPath}",
+      "executable": "${workspaceFolder}/build/Debug/DogRobot.elf",
+      "device": "STM32F103C8",
+      "runToEntryPoint": "main",
+      "svdFile": "C:/Users/zhou/AppData/Local/stm32cube/packs/STMicroelectronics/stm32f1xx_dfp/1.2.0/SVD/STM32F103.svd",
+      "armToolchainPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin",
+      "gdbPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+      "serverpath": "C:/Users/zhou/AppData/Local/Microsoft/WinGet/Packages/xpack-dev-tools.openocd-xpack_Microsoft.Winget.Source_8wekyb3d8bbwe/xpack-openocd-0.12.0-7/bin/openocd.exe",
+      "searchDir": [
+        "C:/Users/zhou/AppData/Local/Microsoft/WinGet/Packages/xpack-dev-tools.openocd-xpack_Microsoft.Winget.Source_8wekyb3d8bbwe/xpack-openocd-0.12.0-7/openocd/scripts"
+      ],
       "configFiles": [
-        "cmsis-dap.cfg",
+        "interface/stlink.cfg",
         "target/stm32f1x.cfg"
       ],
-      // "runToEntryPoint": "main",
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 4
+      },
       "showDevDebugOutput": "raw"
     }
   ]

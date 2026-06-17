@@ -21,7 +21,7 @@
 #define DOG_TASK_THROW_TRACK_DELAY_MS  5000U
 #define DOG_TASK_VISION_ACK_TIMEOUT_MS 10U
 #define DOG_TASK_STATUS_INTERVAL_MS    200U
-#define DOG_TASK_STEP_H_MM             30.0f
+#define DOG_TASK_STEP_H_MM             45.0f
 #define DOG_TASK_FORWARD_R_MM          40.0f
 #define DOG_TASK_TURN_R_MM             15.0f
 #define DOG_TASK_SPEED_FREQ            0.25f
@@ -63,10 +63,10 @@
 #define DOG_TASK_PLATFORM_SPEED_FREQ                 0.125f
 #define DOG_TASK_PLATFORM_UPDATES_PER_CYCLE          8U
 
-#if 0
 /* Left/right turn test entry is kept only for reference. */
 #define DOG_TASK_TURN_TEST_DURATION_MS 900U
 
+#if 0
 #define DOG_TASK_AUTO_TEST_ENABLE      1U
 #define DOG_TASK_AUTO_FORWARD_MS       3000U
 #define DOG_TASK_AUTO_LEFT_MS          3000U
@@ -93,6 +93,7 @@ typedef enum
 {
     DOG_TASK_EVENT_IDLE = 0,
     DOG_TASK_EVENT_COLOR_PAUSE,
+    DOG_TASK_EVENT_FORK_TURN,
     DOG_TASK_EVENT_THROW_TRACK_DELAY,
     DOG_TASK_EVENT_THROW_FORWARD,
     DOG_TASK_EVENT_THROW_ROTATING,
@@ -228,6 +229,7 @@ static const char *DogTask_EventName(DogTaskEventState_t state)
     static const char *names[] = {
         "IDLE",
         "COLOR_PAUSE",
+        "FORK_TURN",
         "THROW_TRACK_DELAY",
         "THROW_FORWARD",
         "THROW_ROTATING",
@@ -518,6 +520,18 @@ static void DogTask_BeginThrowTrackDelay(ImageCommand_t command, uint32_t now_ms
     s_pending_event_command = command;
 }
 
+static void DogTask_BeginForkTurn(DogTaskMotion_t motion, uint32_t now_ms)
+{
+    s_event_state = DOG_TASK_EVENT_FORK_TURN;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = motion;
+    DogTask_ApplyMotion(motion);
+}
+
 static void DogTask_BeginThrowRotation(ImageCommand_t command, uint32_t now_ms)
 {
     ThrowServoDirection_t direction = THROW_SERVO_DIRECTION_CW;
@@ -543,7 +557,7 @@ static void DogTask_BeginStairSequence(uint32_t now_ms) // 开始上台阶或下
 }
 #endif
 
-static void DogTask_BeginColorPause(uint32_t now_ms, uint32_t pause_ms)
+static void __attribute__((unused)) DogTask_BeginColorPause(uint32_t now_ms, uint32_t pause_ms)
 {
     s_event_state = DOG_TASK_EVENT_COLOR_PAUSE; // 颜色事件的处理状态，机器人在这个状态下会暂停移动，等待一段时间后恢复跟踪，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
     s_event_start_ms = now_ms;
@@ -595,12 +609,12 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     if (command == IMAGE_COMMAND_TURN_LEFT)
     {
         DogTask_SendVisionAck();
-        DogTask_BeginColorPause(now_ms, DOG_TASK_COLOR_PAUSE_MS);
+        DogTask_BeginForkTurn(DOG_TASK_MOTION_TURN_LEFT, now_ms);
     }
     else if (command == IMAGE_COMMAND_TURN_RIGHT)
     {
         DogTask_SendVisionAck();
-        DogTask_BeginColorPause(now_ms, DOG_TASK_COLOR_PAUSE_MS);
+        DogTask_BeginForkTurn(DOG_TASK_MOTION_TURN_RIGHT, now_ms);
     }
     else if ((command == IMAGE_COMMAND_PURPLE) ||
              (command == IMAGE_COMMAND_BROWN))
@@ -671,7 +685,14 @@ static void DogTask_UpdateEventState(uint32_t now_ms)
 
     s_is_track_correcting = 0U;
 
-    if (s_event_state == DOG_TASK_EVENT_COLOR_PAUSE)
+    if (s_event_state == DOG_TASK_EVENT_FORK_TURN)
+    {
+        if (elapsed_ms >= DOG_TASK_TURN_TEST_DURATION_MS)
+        {
+            DogTask_ResumeTracking(now_ms);
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_COLOR_PAUSE)
     {
         if (elapsed_ms >= s_color_pause_ms)
         {
