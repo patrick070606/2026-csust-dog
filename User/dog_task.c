@@ -18,7 +18,7 @@
 #define DOG_TASK_VISION_COLOR_STOP_TEST_ENABLE 0U
 #define DOG_TASK_VISION_COLOR_STOP_MS          10000U
 #define DOG_TASK_THROW_FORWARD_MS      0U
-#define DOG_TASK_THROW_TRACK_DELAY_MS  10000U
+#define DOG_TASK_THROW_TRACK_DELAY_MS  5000U
 #define DOG_TASK_VISION_ACK_TIMEOUT_MS 10U
 #define DOG_TASK_STATUS_INTERVAL_MS    200U
 #define DOG_TASK_STEP_H_MM             30.0f
@@ -30,9 +30,9 @@
 #define DOG_TASK_TRACK_RECOVER_MS      500U
 #define DOG_TASK_TRACK_STEP_H_MM       20.0f
 #define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   20.0f
-#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  20.0f
+#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  15.0f
 #define DOG_TASK_TRACK_MAX_STEER_MM    8.0f
-#define DOG_TASK_TRACK_STEER_GAIN      0.10f
+#define DOG_TASK_TRACK_STEER_GAIN      0.08f
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          30.0f
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  30.0f
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 25.0f
@@ -43,12 +43,12 @@
 #define DOG_TASK_STAIR_LIFT_FORWARD_MM             40.0f // 上台阶抬脚阶段身体前移的距离，单位毫米，根据实际情况调整，过高可能导致步态不够稳定。
 #define DOG_TASK_STAIR_STEP_FORWARD_MM             35.0f // 上台阶落脚阶段身体前移的距离，单位毫米，根据实际情况调整，过高可能导致步态不够稳定。
 #define DOG_TASK_STAIR_BODY_ADVANCE_MM             25.0f // 前腿已经放上台阶后，让机身相对四只脚向前移动约 25 mm。
-#define DOG_TASK_STAIR_REAR_PLACE_X_MM             15.0f // 后腿上台或下台完成落脚时，后腿足端相对于机身站立基准位置的最终前向偏移量。
+#define DOG_TASK_STAIR_REAR_PLACE_X_MM             115.0f // 后腿上台或下台完成落脚时，后腿足端相对于机身站立基准位置的最终前向偏移量。
 /* Keep at zero until the physical pitch direction is verified on the robot. */
 #define DOG_TASK_STAIR_PITCH_BIAS_DEG               0.0f // 上台阶时身体前倾的角度，单位度，根据实际情况调整，过大可能导致步态不够稳定。
 #define DOG_TASK_STAIR_POSE_MOVE_MS                 700U // 上台阶时每个阶段的移动时间，单位毫秒，根据实际情况调整，过短可能导致步态不够稳定。
 #define DOG_TASK_STAIR_POSE_HOLD_MS                 900U // 上台阶时每个阶段的停顿时间，单位毫秒，根据实际情况调整，过短可能导致步态不够稳定。
-#define DOG_TASK_STAIR_SETTLE_MOVE_MS               1000U // 上台阶阶段，平台上站立等待稳定的移动时间，单位毫秒，根据实际情况调整，过短可能导致步态不够稳定。
+#define DOG_TASK_STAIR_SETTLE_MOVE_MS               000U // 上台阶阶段，平台上站立等待稳定的移动时间，单位毫秒，根据实际情况调整，过短可能导致步态不够稳定。
 #define DOG_TASK_STAIR_SETTLE_HOLD_MS               1300U // 上台阶阶段，平台上站立等待稳定的停顿时间，单位毫秒，根据实际情况调整，过短可能导致步态不够稳定。
 
 #define DOG_TASK_PLATFORM_DISTANCE_MM               600U // 表示平台距离的常量，单位毫米，根据实际情况调整，过大可能导致步态不够稳定。
@@ -522,7 +522,7 @@ static void DogTask_BeginThrowRotation(ImageCommand_t command, uint32_t now_ms)
 {
     ThrowServoDirection_t direction = THROW_SERVO_DIRECTION_CW;
 
-    if (command == IMAGE_COMMAND_BROWN)
+    if (command == IMAGE_COMMAND_PURPLE)
     {
         direction = THROW_SERVO_DIRECTION_CCW;
     }
