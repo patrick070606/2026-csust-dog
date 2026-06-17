@@ -22,8 +22,10 @@ def main() -> None:
     cmake = CMAKE.read_text(encoding="utf-8")
 
     required_source = [
-        "#define STAIR_TEST_FRONT_CLEARANCE_HEIGHT_MM    45.0f",
+        "#define STAIR_TEST_FRONT_CLEARANCE_HEIGHT_MM    55.0f",
         "#define STAIR_TEST_REAR_LIFT_FORWARD_MM         70.0f",
+        "#define STAIR_TEST_PLATFORM_HEIGHT_MM           30.0f",
+        "#define STAIR_TEST_REAR_PLACE_X_MM              45.0f",
         "#define STAIR_TEST_FRONT_WALK_UPDATES           32U",
         "#define STAIR_TEST_FRONT_TROT_PREPARE_MS        2000U",
         "STAIR_TEST_FRONT_TROT_PREPARE,",

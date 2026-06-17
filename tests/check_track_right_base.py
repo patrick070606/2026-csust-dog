@@ -9,7 +9,7 @@ def main() -> None:
 
     required_fragments = [
         "#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   20.0f",
-        "#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  15.0f",
+        "#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  20.0f",
         "DOG_TASK_TRACK_LEFT_FORWARD_R_MM",
         "DOG_TASK_TRACK_RIGHT_FORWARD_R_MM",
     ]

@@ -3,9 +3,9 @@
 #include "tim.h"
 
 #define THROW_SERVO_STOP_PULSE_US 1500U
-#define THROW_SERVO_CW_PULSE_US   2000U
+#define THROW_SERVO_CW_PULSE_US   1750U
 #define THROW_SERVO_CCW_PULSE_US  1000U
-#define THROW_SERVO_ROTATE_MS     2000U
+#define THROW_SERVO_ROTATE_MS     1900U
 
 typedef enum
 {

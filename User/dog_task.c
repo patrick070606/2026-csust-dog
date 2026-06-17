@@ -18,6 +18,7 @@
 #define DOG_TASK_VISION_COLOR_STOP_TEST_ENABLE 0U
 #define DOG_TASK_VISION_COLOR_STOP_MS          10000U
 #define DOG_TASK_THROW_FORWARD_MS      0U
+#define DOG_TASK_THROW_TRACK_DELAY_MS  10000U
 #define DOG_TASK_VISION_ACK_TIMEOUT_MS 10U
 #define DOG_TASK_STATUS_INTERVAL_MS    200U
 #define DOG_TASK_STEP_H_MM             30.0f
@@ -29,9 +30,12 @@
 #define DOG_TASK_TRACK_RECOVER_MS      500U
 #define DOG_TASK_TRACK_STEP_H_MM       20.0f
 #define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   20.0f
-#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  15.0f
+#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  20.0f
 #define DOG_TASK_TRACK_MAX_STEER_MM    8.0f
-#define DOG_TASK_TRACK_STEER_GAIN      0.08f
+#define DOG_TASK_TRACK_STEER_GAIN      0.10f
+#define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          30.0f
+#define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  30.0f
+#define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 25.0f
 
 #define DOG_TASK_STAIR_PLATFORM_HEIGHT_MM          30.0f // 表示上台阶后平台的高度，单位毫米，根据实际情况调整，过高可能导致步态不够稳定。  
 #define DOG_TASK_STAIR_CLEARANCE_HEIGHT_MM         40.0f // 上台阶时足端相对于平台的额外高度，单位毫米，根据实际情况调整，过高可能导致步态不够稳定。
@@ -89,6 +93,7 @@ typedef enum
 {
     DOG_TASK_EVENT_IDLE = 0,
     DOG_TASK_EVENT_COLOR_PAUSE,
+    DOG_TASK_EVENT_THROW_TRACK_DELAY,
     DOG_TASK_EVENT_THROW_FORWARD,
     DOG_TASK_EVENT_THROW_ROTATING,
     DOG_TASK_EVENT_STAIR_ASCEND_SETTLE, // 上台阶阶段的初始状态，保持站立姿态，等待稳定
@@ -128,6 +133,9 @@ static uint32_t s_last_track_ms;
 static uint32_t s_last_status_ms;
 static uint8_t s_has_seen_track;
 static uint8_t s_is_track_correcting;
+static uint8_t s_platform_track_boost;
+static uint8_t s_purple_throw_delay_used;
+static uint8_t s_brown_throw_delay_used;
 static DogGaitStairTarget_t s_stair_targets[DOG_GAIT_STAIR_LEG_COUNT]; // 上台阶阶段每条腿的目标参数，单位毫米和度，根据实际情况调整，过大可能导致步态不够稳定。
 static uint16_t s_platform_forward_cycles; // 表示平台前进阶段已经执行的周期数，用于估算前进距离，根据实际情况调整，过大可能导致步态不够稳定。
 static uint8_t s_platform_forward_updates; // 表示平台前进阶段已经执行的更新次数，用于估算前进距离，根据实际情况调整，过大可能导致步态不够稳定。
@@ -140,6 +148,13 @@ static uint32_t s_auto_test_start_ms;
 #endif
 
 static void DogTask_SendVisionStatus(const char *tag);
+
+static void DogTask_BeginPlatformTrackBoost(void)
+{
+    s_platform_track_boost = 1U;
+    s_event_state = DOG_TASK_EVENT_IDLE;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+}
 
 static void DogTask_ApplyMotion(DogTaskMotion_t motion)
 {
@@ -213,6 +228,7 @@ static const char *DogTask_EventName(DogTaskEventState_t state)
     static const char *names[] = {
         "IDLE",
         "COLOR_PAUSE",
+        "THROW_TRACK_DELAY",
         "THROW_FORWARD",
         "THROW_ROTATING",
         "STAIR_ASCEND_SETTLE",
@@ -495,11 +511,18 @@ static void DogTask_BeginThrowForward(ImageCommand_t command, uint32_t now_ms)
     DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
 }
 
+static void DogTask_BeginThrowTrackDelay(ImageCommand_t command, uint32_t now_ms)
+{
+    s_event_state = DOG_TASK_EVENT_THROW_TRACK_DELAY;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = command;
+}
+
 static void DogTask_BeginThrowRotation(ImageCommand_t command, uint32_t now_ms)
 {
     ThrowServoDirection_t direction = THROW_SERVO_DIRECTION_CW;
 
-    if (command == IMAGE_COMMAND_PURPLE)
+    if (command == IMAGE_COMMAND_BROWN)
     {
         direction = THROW_SERVO_DIRECTION_CCW;
     }
@@ -510,6 +533,7 @@ static void DogTask_BeginThrowRotation(ImageCommand_t command, uint32_t now_ms)
     ThrowServo_Start(direction);
 }
 
+#if 0
 static void DogTask_BeginStairSequence(uint32_t now_ms) // 开始上台阶或下台阶的序列，具体是上台阶还是下台阶可以在后续的状态中根据需要进行区分，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
 {
     s_pending_event_command = IMAGE_COMMAND_PLATFORM;
@@ -517,6 +541,7 @@ static void DogTask_BeginStairSequence(uint32_t now_ms) // 开始上台阶或下
     s_last_track_ms = now_ms;
     DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_SETTLE, now_ms);
 }
+#endif
 
 static void DogTask_BeginColorPause(uint32_t now_ms, uint32_t pause_ms)
 {
@@ -581,7 +606,24 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
              (command == IMAGE_COMMAND_BROWN))
     {
         DogTask_SendVisionAck();
-        DogTask_BeginThrowForward(command, now_ms);
+        if (((command == IMAGE_COMMAND_PURPLE) && (s_purple_throw_delay_used == 0U)) ||
+            ((command == IMAGE_COMMAND_BROWN) && (s_brown_throw_delay_used == 0U)))
+        {
+            if (command == IMAGE_COMMAND_PURPLE)
+            {
+                s_purple_throw_delay_used = 1U;
+            }
+            else
+            {
+                s_brown_throw_delay_used = 1U;
+            }
+
+            DogTask_BeginThrowTrackDelay(command, now_ms);
+        }
+        else
+        {
+            DogTask_BeginThrowForward(command, now_ms);
+        }
     }
     else if (command == IMAGE_COMMAND_STOP)
     {
@@ -596,7 +638,9 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     else if (command == IMAGE_COMMAND_PLATFORM)
     {
         DogTask_SendVisionAck();
-        DogTask_BeginStairSequence(now_ms);
+        /* Main firmware no longer enters the old stair sequence on blue. */
+        /* DogTask_BeginStairSequence(now_ms); */
+        DogTask_BeginPlatformTrackBoost();
     }
     else
     {
@@ -613,8 +657,19 @@ static void DogTask_UpdateEventState(uint32_t now_ms)
         return;
     }
 
-    s_is_track_correcting = 0U;
     elapsed_ms = (uint32_t)(now_ms - s_event_start_ms);
+
+    if (s_event_state == DOG_TASK_EVENT_THROW_TRACK_DELAY)
+    {
+        if (elapsed_ms >= DOG_TASK_THROW_TRACK_DELAY_MS)
+        {
+            DogTask_BeginThrowForward(s_pending_event_command, now_ms);
+        }
+
+        return;
+    }
+
+    s_is_track_correcting = 0U;
 
     if (s_event_state == DOG_TASK_EVENT_COLOR_PAUSE)
     {
@@ -822,6 +877,16 @@ static void DogTask_ApplyCommand(ImageCommand_t command, uint32_t now_ms)
 static void DogTask_ApplyTrackError(int16_t error)
 {
     float steer = 0.0f;
+    float track_step_h = DOG_TASK_TRACK_STEP_H_MM;
+    float track_left_forward = DOG_TASK_TRACK_LEFT_FORWARD_R_MM;
+    float track_right_forward = DOG_TASK_TRACK_RIGHT_FORWARD_R_MM;
+
+    if (s_platform_track_boost != 0U)
+    {
+        track_step_h = DOG_TASK_PLATFORM_TRACK_STEP_H_MM;
+        track_left_forward = DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM;
+        track_right_forward = DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM;
+    }
 
     if (error > DOG_TASK_TRACK_DEADBAND)
     {
@@ -834,9 +899,9 @@ static void DogTask_ApplyTrackError(int16_t error)
 
         /* Positive camera error means the line is to the right; steer right. */
         s_last_track_recover_motion = DOG_TASK_MOTION_TURN_RIGHT;
-        DogGait_SetTrackParams(DOG_TASK_TRACK_STEP_H_MM,
-                               DOG_TASK_TRACK_LEFT_FORWARD_R_MM,
-                               DOG_TASK_TRACK_RIGHT_FORWARD_R_MM,
+        DogGait_SetTrackParams(track_step_h,
+                               track_left_forward,
+                               track_right_forward,
                                steer,
                                DOG_TASK_SPEED_FREQ);
         s_motion = DOG_TASK_MOTION_TURN_RIGHT;
@@ -852,9 +917,9 @@ static void DogTask_ApplyTrackError(int16_t error)
 
         /* Negative camera error means the line is to the left; steer left. */
         s_last_track_recover_motion = DOG_TASK_MOTION_TURN_LEFT;
-        DogGait_SetTrackParams(DOG_TASK_TRACK_STEP_H_MM,
-                               DOG_TASK_TRACK_LEFT_FORWARD_R_MM,
-                               DOG_TASK_TRACK_RIGHT_FORWARD_R_MM,
+        DogGait_SetTrackParams(track_step_h,
+                               track_left_forward,
+                               track_right_forward,
                                -steer,
                                DOG_TASK_SPEED_FREQ);
         s_motion = DOG_TASK_MOTION_TURN_LEFT;
@@ -863,9 +928,9 @@ static void DogTask_ApplyTrackError(int16_t error)
     {
         s_is_track_correcting = 0U;
         s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
-        DogGait_SetTrackParams(DOG_TASK_TRACK_STEP_H_MM,
-                               DOG_TASK_TRACK_LEFT_FORWARD_R_MM,
-                               DOG_TASK_TRACK_RIGHT_FORWARD_R_MM,
+        DogGait_SetTrackParams(track_step_h,
+                               track_left_forward,
+                               track_right_forward,
                                0.0f,
                                DOG_TASK_SPEED_FREQ);
         s_motion = DOG_TASK_MOTION_FORWARD;
@@ -925,6 +990,9 @@ void DogTask_Init(void)
     s_last_status_ms = s_last_gait_ms;
     s_has_seen_track = 0U;
     s_is_track_correcting = 0U;
+    s_platform_track_boost = 0U;
+    s_purple_throw_delay_used = 0U;
+    s_brown_throw_delay_used = 0U;
     s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
     s_event_state = DOG_TASK_EVENT_IDLE;
     s_event_start_ms = s_last_gait_ms;
@@ -956,7 +1024,33 @@ void DogTask_Run(void)
 
     ThrowServo_Update();
 
-    if (s_event_state != DOG_TASK_EVENT_IDLE)
+    if (s_event_state == DOG_TASK_EVENT_THROW_TRACK_DELAY)
+    {
+        DogTask_UpdateEventState(now_ms);
+
+        if (s_event_state == DOG_TASK_EVENT_THROW_TRACK_DELAY)
+        {
+            if (track.valid != 0U)
+            {
+                s_has_seen_track = 1U;
+                s_last_track_ms = now_ms;
+                DogTask_ApplyTrackError(track.error);
+            }
+            else if ((s_has_seen_track != 0U) &&
+                     (track_lost_ms < DOG_TASK_TRACK_RECOVER_MS))
+            {
+                /* Keep the last track gait for short frame gaps so differential steering is not overwritten. */
+                s_is_track_correcting = (uint8_t)(s_last_track_recover_motion != DOG_TASK_MOTION_FORWARD);
+            }
+            else if ((s_has_seen_track != 0U) &&
+                     (track_lost_ms >= DOG_TASK_TRACK_RECOVER_MS))
+            {
+                s_is_track_correcting = 0U;
+                DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+            }
+        }
+    }
+    else if (s_event_state != DOG_TASK_EVENT_IDLE)
     {
         DogTask_UpdateEventState(now_ms);
     }

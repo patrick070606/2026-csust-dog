@@ -12,10 +12,16 @@ def main() -> None:
 
     required_dog_task = [
         "#define DOG_TASK_VISION_COLOR_STOP_TEST_ENABLE 0U",
+        "#define DOG_TASK_THROW_TRACK_DELAY_MS  10000U",
+        "DOG_TASK_EVENT_THROW_TRACK_DELAY",
+        "DogTask_BeginThrowTrackDelay(command, now_ms);",
         "DogTask_BeginThrowForward(command, now_ms);",
-        "DogTask_BeginStairSequence(now_ms);",
-        "if (command == IMAGE_COMMAND_PURPLE)",
+        "DogTask_BeginPlatformTrackBoost();",
+        "/* DogTask_BeginStairSequence(now_ms); */",
+        "if (command == IMAGE_COMMAND_BROWN)",
         "direction = THROW_SERVO_DIRECTION_CCW;",
+        "s_purple_throw_delay_used = 1U;",
+        "s_brown_throw_delay_used = 1U;",
     ]
     required_desktop_main = [
         "if target_house_color == \"purple\":",

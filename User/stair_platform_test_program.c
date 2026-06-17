@@ -13,13 +13,13 @@
 
 #define STAIR_TEST_PLATFORM_HEIGHT_MM           30.0f
 #define STAIR_TEST_CLEARANCE_HEIGHT_MM          40.0f
-#define STAIR_TEST_FRONT_CLEARANCE_HEIGHT_MM    45.0f
+#define STAIR_TEST_FRONT_CLEARANCE_HEIGHT_MM    55.0f
 #define STAIR_TEST_DESCENT_CLEARANCE_MM         15.0f
 #define STAIR_TEST_LIFT_FORWARD_MM              40.0f
 #define STAIR_TEST_REAR_LIFT_FORWARD_MM         70.0f
 #define STAIR_TEST_STEP_FORWARD_MM              35.0f
 #define STAIR_TEST_BODY_ADVANCE_MM              25.0f
-#define STAIR_TEST_REAR_PLACE_X_MM              15.0f
+#define STAIR_TEST_REAR_PLACE_X_MM              45.0f
 #define STAIR_TEST_PITCH_BIAS_DEG               0.0f
 #define STAIR_TEST_POSE_MOVE_MS                 700U
 #define STAIR_TEST_POSE_HOLD_MS                 900U

@@ -7,7 +7,7 @@ DOG_TASK_C = ROOT / "User" / "dog_task.c"
 
 def main() -> None:
     source = DOG_TASK_C.read_text(encoding="utf-8")
-    expected = "#define DOG_TASK_TRACK_STEER_GAIN      0.08f"
+    expected = "#define DOG_TASK_TRACK_STEER_GAIN      0.10f"
 
     if expected not in source:
         raise AssertionError(f"missing expected track steer gain: {expected}")
