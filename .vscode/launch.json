@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "DAPLink OpenOCD Debug",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "serverpath": "C:\\ST\\STM32CubeIDE_1.19.0\\STM32CubeIDE\\plugins\\com.st.stm32cube.ide.mcu.externaltools.openocd.win32_2.4.200.202505051030\\tools\\bin\\openocd.exe",
+      "searchDir": [
+        "${workspaceFolder}\\.vscode",
+        "C:\\ST\\STM32CubeIDE_1.19.0\\STM32CubeIDE\\plugins\\com.st.stm32cube.ide.mcu.debug.openocd_2.3.100.202501240831\\resources\\openocd\\st_scripts"
+      ],
+      "cwd": "${workspaceFolder}",
+      "executable": "${command:cmake.launchTargetPath}",
+      "configFiles": [
+        "cmsis-dap.cfg",
+        "target/stm32f1x.cfg"
+      ],
+      // "runToEntryPoint": "main",
+      "showDevDebugOutput": "raw"
+    }
+  ]
+}
