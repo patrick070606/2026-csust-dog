@@ -16,6 +16,7 @@
 #define STAIR_TEST_FRONT_CLEARANCE_HEIGHT_MM    45.0f
 #define STAIR_TEST_DESCENT_CLEARANCE_MM         15.0f
 #define STAIR_TEST_LIFT_FORWARD_MM              40.0f
+#define STAIR_TEST_REAR_LIFT_FORWARD_MM         70.0f
 #define STAIR_TEST_STEP_FORWARD_MM              35.0f
 #define STAIR_TEST_BODY_ADVANCE_MM              25.0f
 #define STAIR_TEST_REAR_PLACE_X_MM              15.0f
@@ -36,7 +37,7 @@
 #define STAIR_TEST_PLATFORM_SPEED_FREQ          0.125f
 #define STAIR_TEST_PLATFORM_UPDATES_PER_CYCLE   8U
 #define STAIR_TEST_FRONT_TROT_PREPARE_MS        2000U
-#define STAIR_TEST_FRONT_WALK_UPDATES           8U
+#define STAIR_TEST_FRONT_WALK_UPDATES           32U
 
 typedef enum
 {
@@ -47,7 +48,7 @@ typedef enum
     STAIR_TEST_ASCEND_RF_LIFT,        // 右前腿向前抬高，准备跨上台面
     STAIR_TEST_ASCEND_RF_PLACE,       // 右前腿落到台面高度
     STAIR_TEST_FRONT_TROT_PREPARE,    // 前腿上台后用2秒缓慢进入小跑起始姿态
-    STAIR_TEST_FRONT_WALK_8_STEPS,    // 使用平台前进小跑逻辑更新8次
+    STAIR_TEST_FRONT_WALK_8_STEPS,    // 使用平台前进小跑逻辑约走8步
     STAIR_TEST_ASCEND_BODY_ADVANCE,   // 前腿站稳后身体向前推进，为后腿上台让位
     STAIR_TEST_ASCEND_LB_LIFT,        // 左后腿抬高，准备跨上台面
     STAIR_TEST_ASCEND_LB_PLACE,       // 左后腿落到台面高度
@@ -97,6 +98,11 @@ static void StairPlatformTest_SetPitchBias(float bias_deg)
 static void StairPlatformTest_ApplyTargets(uint16_t move_ms)
 {
     DogGait_SetStairPose(s_stair_targets, move_ms);
+}
+
+static void StairPlatformTest_ApplyTargetsWithBase(DogGaitStairBase_t base, uint16_t move_ms)
+{
+    DogGait_SetStairPoseWithBase(s_stair_targets, base, move_ms);
 }
 
 static void StairPlatformTest_AdvanceBody(void)
@@ -162,36 +168,42 @@ static void StairPlatformTest_SetState(StairPlatformTestState_t state, uint32_t 
     {
         StairPlatformTest_SetPitchBias(-STAIR_TEST_PITCH_BIAS_DEG);
         StairPlatformTest_AdvanceBody();
-        StairPlatformTest_ApplyTargets(STAIR_TEST_SETTLE_MOVE_MS);
+        StairPlatformTest_ApplyTargetsWithBase(DOG_GAIT_STAIR_BASE_WALK,
+                                               STAIR_TEST_SETTLE_MOVE_MS);
     }
     else if (state == STAIR_TEST_ASCEND_LB_LIFT)
     {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].x_offset_mm = STAIR_TEST_LIFT_FORWARD_MM;
+        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].x_offset_mm = STAIR_TEST_REAR_LIFT_FORWARD_MM;
         s_stair_targets[DOG_GAIT_STAIR_LEG_LB].y_offset_mm = STAIR_TEST_CLEARANCE_HEIGHT_MM;
-        StairPlatformTest_ApplyTargets(STAIR_TEST_POSE_MOVE_MS);
+        StairPlatformTest_ApplyTargetsWithBase(DOG_GAIT_STAIR_BASE_WALK,
+                                               STAIR_TEST_POSE_MOVE_MS);
     }
     else if (state == STAIR_TEST_ASCEND_LB_PLACE)
     {
         s_stair_targets[DOG_GAIT_STAIR_LEG_LB].x_offset_mm = STAIR_TEST_REAR_PLACE_X_MM;
         s_stair_targets[DOG_GAIT_STAIR_LEG_LB].y_offset_mm = STAIR_TEST_PLATFORM_HEIGHT_MM;
-        StairPlatformTest_ApplyTargets(STAIR_TEST_POSE_MOVE_MS);
+        StairPlatformTest_ApplyTargetsWithBase(DOG_GAIT_STAIR_BASE_WALK,
+                                               STAIR_TEST_POSE_MOVE_MS);
     }
     else if (state == STAIR_TEST_ASCEND_RB_LIFT)
     {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].x_offset_mm = STAIR_TEST_LIFT_FORWARD_MM;
+        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].x_offset_mm = STAIR_TEST_REAR_LIFT_FORWARD_MM;
         s_stair_targets[DOG_GAIT_STAIR_LEG_RB].y_offset_mm = STAIR_TEST_CLEARANCE_HEIGHT_MM;
-        StairPlatformTest_ApplyTargets(STAIR_TEST_POSE_MOVE_MS);
+        StairPlatformTest_ApplyTargetsWithBase(DOG_GAIT_STAIR_BASE_WALK,
+                                               STAIR_TEST_POSE_MOVE_MS);
     }
     else if (state == STAIR_TEST_ASCEND_RB_PLACE)
     {
         s_stair_targets[DOG_GAIT_STAIR_LEG_RB].x_offset_mm = STAIR_TEST_REAR_PLACE_X_MM;
         s_stair_targets[DOG_GAIT_STAIR_LEG_RB].y_offset_mm = STAIR_TEST_PLATFORM_HEIGHT_MM;
-        StairPlatformTest_ApplyTargets(STAIR_TEST_POSE_MOVE_MS);
+        StairPlatformTest_ApplyTargetsWithBase(DOG_GAIT_STAIR_BASE_WALK,
+                                               STAIR_TEST_POSE_MOVE_MS);
     }
     else if (state == STAIR_TEST_PLATFORM_SETTLE)
     {
         StairPlatformTest_ResetTargets();
-        StairPlatformTest_ApplyTargets(STAIR_TEST_SETTLE_MOVE_MS);
+        StairPlatformTest_ApplyTargetsWithBase(DOG_GAIT_STAIR_BASE_WALK,
+                                               STAIR_TEST_SETTLE_MOVE_MS);
     }
     else if (state == STAIR_TEST_PLATFORM_FORWARD)
     {

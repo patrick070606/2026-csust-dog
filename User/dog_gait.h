@@ -35,6 +35,12 @@ typedef enum
     DOG_GAIT_STAIR_LEG_RB,
 } DogGaitStairLeg_t;
 
+typedef enum
+{
+    DOG_GAIT_STAIR_BASE_STAND = 0,
+    DOG_GAIT_STAIR_BASE_WALK,
+} DogGaitStairBase_t;
+
 typedef struct
 {
     float x_offset_mm;
@@ -56,6 +62,9 @@ void DogGait_GotoStandPose(uint16_t time_ms);
 void DogGait_UpdateTrot(uint16_t time_ms);
 void DogGait_SetStairPose(const DogGaitStairTarget_t targets[DOG_GAIT_STAIR_LEG_COUNT],
                           uint16_t time_ms);
+void DogGait_SetStairPoseWithBase(const DogGaitStairTarget_t targets[DOG_GAIT_STAIR_LEG_COUNT],
+                                  DogGaitStairBase_t base,
+                                  uint16_t time_ms);
 void DogGait_AllStand(uint16_t time_ms);
 
 #endif

@@ -23,7 +23,8 @@ def main() -> None:
 
     required_source = [
         "#define STAIR_TEST_FRONT_CLEARANCE_HEIGHT_MM    45.0f",
-        "#define STAIR_TEST_FRONT_WALK_UPDATES           8U",
+        "#define STAIR_TEST_REAR_LIFT_FORWARD_MM         70.0f",
+        "#define STAIR_TEST_FRONT_WALK_UPDATES           32U",
         "#define STAIR_TEST_FRONT_TROT_PREPARE_MS        2000U",
         "STAIR_TEST_FRONT_TROT_PREPARE,",
         "STAIR_TEST_FRONT_WALK_8_STEPS,",
@@ -36,6 +37,7 @@ def main() -> None:
         "DogGait_GotoStandPose(STAIR_TEST_STAND_MOVE_MS);",
         "StairPlatformTest_SetState(STAIR_TEST_ASCEND_SETTLE, now_ms);",
         "DogGait_SetStairPose(s_stair_targets, move_ms);",
+        "DogGait_SetStairPoseWithBase(s_stair_targets, base, move_ms);",
         "DogGait_SetTrotParams(STAIR_TEST_PLATFORM_STEP_H_MM,",
         "DogGait_UpdateTrot(STAIR_TEST_GAIT_MOVE_MS);",
     ]
@@ -56,6 +58,8 @@ def main() -> None:
     required_gait = [
         "#define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM 20.0f",
         "#define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    20.0f",
+        "DOG_GAIT_STAIR_BASE_WALK",
+        "DogGait_SetStairPoseWithBase",
     ]
 
     missing = [fragment for fragment in required_source if fragment not in source]
@@ -86,6 +90,32 @@ def main() -> None:
         missing.append("front trot prepare must last 2000ms")
     if "DogGait_UpdateTrot(STAIR_TEST_GAIT_MOVE_MS);" not in front_walk_run:
         missing.append("front walk must use the same trot update as platform forward")
+    rear_ascend_block = source[
+        source.find("else if (state == STAIR_TEST_ASCEND_BODY_ADVANCE)"):
+        source.find("else if (state == STAIR_TEST_DESCEND_SETTLE)")
+    ]
+    for state in [
+        "STAIR_TEST_ASCEND_LB_LIFT",
+        "STAIR_TEST_ASCEND_RB_LIFT",
+    ]:
+        state_pos = rear_ascend_block.find(f"state == {state}")
+        next_pos = rear_ascend_block.find("else if", state_pos + 1)
+        state_block = rear_ascend_block[state_pos: next_pos if next_pos > 0 else len(rear_ascend_block)]
+        if "STAIR_TEST_REAR_LIFT_FORWARD_MM" not in state_block:
+            missing.append(f"{state} must use rear lift forward length")
+    for state in [
+        "STAIR_TEST_ASCEND_BODY_ADVANCE",
+        "STAIR_TEST_ASCEND_LB_LIFT",
+        "STAIR_TEST_ASCEND_LB_PLACE",
+        "STAIR_TEST_ASCEND_RB_LIFT",
+        "STAIR_TEST_ASCEND_RB_PLACE",
+        "STAIR_TEST_PLATFORM_SETTLE",
+    ]:
+        state_pos = rear_ascend_block.find(f"state == {state}")
+        next_pos = rear_ascend_block.find("else if", state_pos + 1)
+        state_block = rear_ascend_block[state_pos: next_pos if next_pos > 0 else len(rear_ascend_block)]
+        if "StairPlatformTest_ApplyTargetsWithBase(DOG_GAIT_STAIR_BASE_WALK," not in state_block:
+            missing.append(f"{state} must use walk stair base")
     for state in [
         "STAIR_TEST_ASCEND_SETTLE",
         "STAIR_TEST_ASCEND_LF_LIFT",

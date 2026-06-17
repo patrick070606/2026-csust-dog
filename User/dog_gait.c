@@ -428,10 +428,22 @@ void DogGait_GotoStandPose(uint16_t time_ms)
     DogServo_SetAngles(angles, time_ms);
 }
 
-void DogGait_SetStairPose(const DogGaitStairTarget_t targets[DOG_GAIT_STAIR_LEG_COUNT],
-                          uint16_t time_ms) // 设置上台阶步态的目标参数，targets 数组包含每条腿的x轴和y轴偏移量，以及髋关节的角度偏移值，time_ms 是执行这个步态调整的时间，单位毫秒，根据实际情况调整，过短可能导致动作不够平滑，过长可能导致响应不够及时。
+static DogGaitFootBase_t DogGait_GetStairFootBase(DogGaitStairBase_t base)
+{
+    if (base == DOG_GAIT_STAIR_BASE_WALK)
+    {
+        return DOG_GAIT_FOOT_BASE_WALK;
+    }
+
+    return DOG_GAIT_FOOT_BASE_STAND;
+}
+
+void DogGait_SetStairPoseWithBase(const DogGaitStairTarget_t targets[DOG_GAIT_STAIR_LEG_COUNT],
+                                  DogGaitStairBase_t base,
+                                  uint16_t time_ms) // 设置上台阶步态的目标参数，targets 数组包含每条腿的x轴和y轴偏移量，以及髋关节的角度偏移值，time_ms 是执行这个步态调整的时间，单位毫秒，根据实际情况调整，过短可能导致动作不够平滑，过长可能导致响应不够及时。
 {
     float angles[DOG_SERVO_COUNT] = {0.0f};
+    DogGaitFootBase_t foot_base;
     float base_x;
     float base_y;
 
@@ -445,10 +457,11 @@ void DogGait_SetStairPose(const DogGaitStairTarget_t targets[DOG_GAIT_STAIR_LEG_
         DogGait_Init();
     }
 
-    base_x = DogGait_GetFootBaseX(DOG_GAIT_FOOT_BASE_STAND); // 上台阶时以站立步态的足端位置作为基准，进行偏移调整
-    base_y = DogGait_GetFootBaseY(DOG_GAIT_FOOT_BASE_STAND);
+    foot_base = DogGait_GetStairFootBase(base);
+    base_x = DogGait_GetFootBaseX(foot_base);
+    base_y = DogGait_GetFootBaseY(foot_base);
     s_trot_phase = 0.0f;
-    s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
+    s_foot_base = foot_base;
 
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
@@ -470,6 +483,12 @@ void DogGait_SetStairPose(const DogGaitStairTarget_t targets[DOG_GAIT_STAIR_LEG_
     DogGait_UpdateLegAngles();
     DogGait_FillServoAngles(angles);
     DogServo_SetAngles(angles, time_ms);
+}
+
+void DogGait_SetStairPose(const DogGaitStairTarget_t targets[DOG_GAIT_STAIR_LEG_COUNT],
+                          uint16_t time_ms)
+{
+    DogGait_SetStairPoseWithBase(targets, DOG_GAIT_STAIR_BASE_STAND, time_ms);
 }
 
 void DogGait_UpdateTrot(uint16_t time_ms)
