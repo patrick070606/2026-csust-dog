@@ -581,3 +581,145 @@ void DogGait_AllStand(uint16_t time_ms)
 {
     DogGait_GotoStandPose(time_ms);
 }
+
+/* ============================================
+ * 左右平移步态
+ * 左移：左侧腿降低作为支撑，右侧腿蹬伸
+ * 右移：右侧腿降低作为支撑，左侧腿蹬伸
+ * 同侧腿运动相同
+ * ============================================ */
+
+static float s_shift_direction = 1.0f;  /* 1.0f=左移, -1.0f=右移 */
+
+void DogGait_SetShiftLeftParams(float step_height_mm, float shift_step_mm, float speed_freq)
+{
+    float safe_h = DogGait_ClampFloat(step_height_mm, 0.0f, 60.0f);
+    float safe_r = DogGait_ClampFloat(shift_step_mm, 0.0f, 60.0f);
+
+    s_trot_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.4f);
+    s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
+    DogGait_ClearLegBiases();
+
+    /* 左侧腿：降低高度，不进行x轴运动 */
+    s_gait[DOG_GAIT_LEG_LF].h = 0.0f;
+    s_gait[DOG_GAIT_LEG_LF].r = 0.0f;
+    s_gait[DOG_GAIT_LEG_LF].old_r = 0.0f;
+
+    s_gait[DOG_GAIT_LEG_LB].h = 0.0f;
+    s_gait[DOG_GAIT_LEG_LB].r = 0.0f;
+    s_gait[DOG_GAIT_LEG_LB].old_r = 0.0f;
+
+    /* 右侧腿：进行蹬伸动作 */
+    s_gait[DOG_GAIT_LEG_RF].h = safe_h;
+    s_gait[DOG_GAIT_LEG_RF].r = safe_r;
+    s_gait[DOG_GAIT_LEG_RF].old_r = safe_r;
+
+    s_gait[DOG_GAIT_LEG_RB].h = safe_h;
+    s_gait[DOG_GAIT_LEG_RB].r = safe_r;
+    s_gait[DOG_GAIT_LEG_RB].old_r = safe_r;
+
+    s_shift_direction = 1.0f;
+}
+
+void DogGait_SetShiftRightParams(float step_height_mm, float shift_step_mm, float speed_freq)
+{
+    float safe_h = DogGait_ClampFloat(step_height_mm, 0.0f, 60.0f);
+    float safe_r = DogGait_ClampFloat(shift_step_mm, 0.0f, 60.0f);
+
+    s_trot_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.4f);
+    s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
+    DogGait_ClearLegBiases();
+
+    /* 左侧腿：进行蹬伸动作 */
+    s_gait[DOG_GAIT_LEG_LF].h = safe_h;
+    s_gait[DOG_GAIT_LEG_LF].r = safe_r;
+    s_gait[DOG_GAIT_LEG_LF].old_r = safe_r;
+
+    s_gait[DOG_GAIT_LEG_LB].h = safe_h;
+    s_gait[DOG_GAIT_LEG_LB].r = safe_r;
+    s_gait[DOG_GAIT_LEG_LB].old_r = safe_r;
+
+    /* 右侧腿：降低高度，不进行x轴运动 */
+    s_gait[DOG_GAIT_LEG_RF].h = 0.0f;
+    s_gait[DOG_GAIT_LEG_RF].r = 0.0f;
+    s_gait[DOG_GAIT_LEG_RF].old_r = 0.0f;
+
+    s_gait[DOG_GAIT_LEG_RB].h = 0.0f;
+    s_gait[DOG_GAIT_LEG_RB].r = 0.0f;
+    s_gait[DOG_GAIT_LEG_RB].old_r = 0.0f;
+
+    s_shift_direction = -1.0f;
+}
+
+void DogGait_UpdateShift(uint16_t time_ms)
+{
+    float angles[DOG_SERVO_COUNT] = {0.0f};
+    float base_x = DogGait_GetFootBaseX(s_foot_base);
+    float base_y = DogGait_GetFootBaseY(s_foot_base);
+    float piston_offset;
+    float support_offset = 30.0f;   /* 支撑腿降低的高度 */
+    float stroke = 10.0f;           /* 蹬伸腿活塞行程（上下幅度） */
+
+    if (s_is_initialized == 0U)
+    {
+        DogGait_Init();
+    }
+
+    /* 活塞运动：用正弦函数生成 y 轴往复运动
+     * sin(2π × phase) 范围 [-1, 1]
+     * 映射到 [base_y - stroke, base_y + stroke]
+     */
+    piston_offset = stroke * sinf(2.0f * DOG_GAIT_PI * s_trot_phase);
+
+    /* 左侧腿 */
+    if (s_shift_direction > 0.0f)
+    {
+        /* 左移：左侧腿降低作为支撑腿（不动） */
+        s_gait[DOG_GAIT_LEG_LF].x = base_x;
+        s_gait[DOG_GAIT_LEG_LF].y = base_y - support_offset;
+
+        s_gait[DOG_GAIT_LEG_LB].x = base_x;
+        s_gait[DOG_GAIT_LEG_LB].y = base_y - support_offset;
+    }
+    else
+    {
+        /* 右移：左侧腿做活塞运动 */
+        s_gait[DOG_GAIT_LEG_LF].x = base_x;
+        s_gait[DOG_GAIT_LEG_LF].y = base_y + piston_offset;
+
+        s_gait[DOG_GAIT_LEG_LB].x = base_x;
+        s_gait[DOG_GAIT_LEG_LB].y = base_y + piston_offset;
+    }
+
+    /* 右侧腿 */
+    if (s_shift_direction > 0.0f)
+    {
+        /* 左移：右侧腿做活塞运动 */
+        s_gait[DOG_GAIT_LEG_RF].x = base_x;
+        s_gait[DOG_GAIT_LEG_RF].y = base_y + piston_offset;
+
+        s_gait[DOG_GAIT_LEG_RB].x = base_x;
+        s_gait[DOG_GAIT_LEG_RB].y = base_y + piston_offset;
+    }
+    else
+    {
+        /* 右移：右侧腿降低作为支撑腿（不动） */
+        s_gait[DOG_GAIT_LEG_RF].x = base_x;
+        s_gait[DOG_GAIT_LEG_RF].y = base_y - support_offset;
+
+        s_gait[DOG_GAIT_LEG_RB].x = base_x;
+        s_gait[DOG_GAIT_LEG_RB].y = base_y - support_offset;
+    }
+
+    /* 更新关节角度并发送给舵机 */
+    DogGait_UpdateLegAngles();
+    DogGait_FillServoAngles(angles);
+    DogServo_SetAngles(angles, time_ms);
+
+    /* 更新相位 */
+    s_trot_phase += s_trot_speed_freq;
+    if (s_trot_phase >= 1.0f)
+    {
+        s_trot_phase -= 1.0f;
+    }
+}

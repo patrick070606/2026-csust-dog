@@ -67,4 +67,9 @@ void DogGait_SetStairPoseWithBase(const DogGaitStairTarget_t targets[DOG_GAIT_ST
                                   uint16_t time_ms);
 void DogGait_AllStand(uint16_t time_ms);
 
+/* 左右平移步态 */
+void DogGait_SetShiftLeftParams(float step_height_mm, float shift_step_mm, float speed_freq);
+void DogGait_SetShiftRightParams(float step_height_mm, float shift_step_mm, float speed_freq);
+void DogGait_UpdateShift(uint16_t time_ms);
+
 #endif

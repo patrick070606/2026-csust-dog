@@ -87,6 +87,8 @@ typedef enum
     DOG_TASK_MOTION_BACKWARD,
     DOG_TASK_MOTION_TURN_LEFT,
     DOG_TASK_MOTION_TURN_RIGHT,
+    DOG_TASK_MOTION_SHIFT_LEFT,   /* 左移 */
+    DOG_TASK_MOTION_SHIFT_RIGHT,  /* 右移 */
 } DogTaskMotion_t;
 
 typedef enum
@@ -164,7 +166,20 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
         return;
     }
 
-    if (motion == DOG_TASK_MOTION_FORWARD)
+    if (motion == DOG_TASK_MOTION_SHIFT_LEFT)
+    {
+        DogGait_SetShiftLeftParams(DOG_TASK_SHIFT_STEP_H_MM,
+                                   DOG_TASK_SHIFT_R_MM,
+                                   DOG_TASK_SHIFT_SPEED_FREQ);
+    }
+    else if (motion == DOG_TASK_MOTION_SHIFT_RIGHT)
+    {
+        DogGait_SetShiftRightParams(DOG_TASK_SHIFT_STEP_H_MM,
+                                    DOG_TASK_SHIFT_R_MM,
+                                    DOG_TASK_SHIFT_SPEED_FREQ);
+    }
+#if 0  /* 注释掉其他步态，只测试平移步态 */
+    else if (motion == DOG_TASK_MOTION_FORWARD)
     {
         DogGait_SetTrotParams(DOG_TASK_STEP_H_MM,
                               DOG_TASK_FORWARD_R_MM,
@@ -188,6 +203,7 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
                                    DOG_TASK_TURN_R_MM,
                                    DOG_TASK_SPEED_FREQ);
     }
+#endif
     else
     {
         DogGait_AllStand(DOG_TASK_GAIT_MOVE_MS);
@@ -220,6 +236,14 @@ static const char *DogTask_MotionName(DogTaskMotion_t motion)
     if (motion == DOG_TASK_MOTION_TURN_RIGHT)
     {
         return "TURN_RIGHT";
+    }
+    if (motion == DOG_TASK_MOTION_SHIFT_LEFT)
+    {
+        return "SHIFT_LEFT";
+    }
+    if (motion == DOG_TASK_MOTION_SHIFT_RIGHT)
+    {
+        return "SHIFT_RIGHT";
     }
     return "STOP";
 }
@@ -876,7 +900,8 @@ static void DogTask_ApplyCommand(ImageCommand_t command, uint32_t now_ms)
     if (command == IMAGE_COMMAND_FORWARD)
     {
         s_is_track_correcting = 0U;
-        DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+        /* 测试用：FORWARD命令改为左移 */
+        DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_LEFT);
     }
 #if 0
     else if (command == IMAGE_COMMAND_TURN_LEFT)
@@ -1003,7 +1028,7 @@ void DogTask_Init(void)
     HAL_Delay(DOG_TASK_STAND_WAIT_MS);
 
     ImageCommand_Init();
-    DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+    DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_LEFT);  /* 启动后直接执行左移 */
     DogTask_SetCorrectionLed(0U);
 
     s_last_gait_ms = HAL_GetTick();
@@ -1129,8 +1154,22 @@ void DogTask_Run(void)
              ((uint32_t)(now_ms - s_last_gait_ms) >= DOG_TASK_GAIT_PERIOD_MS))
     {
         s_last_gait_ms = now_ms;
-        DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
 
+        /* 根据运动状态调用对应的步态更新函数 */
+        if ((s_motion == DOG_TASK_MOTION_SHIFT_LEFT) ||
+            (s_motion == DOG_TASK_MOTION_SHIFT_RIGHT))
+        {
+            DogGait_UpdateShift(DOG_TASK_GAIT_MOVE_MS);
+        }
+#if 0  /* 注释掉其他步态更新，只测试平移步态 */
+        else if ((s_motion == DOG_TASK_MOTION_FORWARD) ||
+                 (s_motion == DOG_TASK_MOTION_BACKWARD) ||
+                 (s_motion == DOG_TASK_MOTION_TURN_LEFT) ||
+                 (s_motion == DOG_TASK_MOTION_TURN_RIGHT))
+        {
+            DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
+        }
+#endif
     }
 
     if ((uint32_t)(now_ms - s_last_status_ms) >= DOG_TASK_STATUS_INTERVAL_MS)
@@ -1138,4 +1177,9 @@ void DogTask_Run(void)
         s_last_status_ms = now_ms;
         DogTask_SendVisionStatus("ST");
     }
+}
+
+void Dog_Task_MoveLR(void)
+{
+    
 }
