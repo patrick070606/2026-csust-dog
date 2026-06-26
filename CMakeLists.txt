@@ -53,67 +53,6 @@ target_link_libraries(${BUILD_UNIT_0_NAME} PRIVATE
   m
 )
 
-add_executable(DogRobotStairTest)
-
-target_compile_options(DogRobotStairTest PRIVATE
-    $<$<COMPILE_LANGUAGE:C>: ${CUBE_CMAKE_C_FLAGS}>
-    $<$<COMPILE_LANGUAGE:CXX>: ${CUBE_CMAKE_CXX_FLAGS}>
-    $<$<COMPILE_LANGUAGE:ASM>: ${CUBE_CMAKE_ASM_FLAGS}>
-)
-
-target_compile_definitions(DogRobotStairTest PRIVATE
-    DOG_GAIT_STAIR_POSE_ENABLE=1
-)
-
-target_link_options(DogRobotStairTest PRIVATE ${CUBE_CMAKE_EXE_LINKER_FLAGS})
-
-target_sources(DogRobotStairTest PRIVATE
-    Core/Src/gpio.c
-    Core/Src/main_stair_platform_test.c
-    Core/Src/stm32f1xx_hal_msp.c
-    Core/Src/stm32f1xx_it.c
-    Core/Src/syscalls.c
-    Core/Src/sysmem.c
-    Core/Src/system_stm32f1xx.c
-    Core/Src/tim.c
-    Core/Src/usart.c
-    Core/Startup/startup_stm32f103c8tx.s
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cortex.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dma.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_exti.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_flash.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_flash_ex.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio_ex.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_pwr.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_rcc_ex.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_tim.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_tim_ex.c
-    Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c
-    User/bus_servo.c
-    User/dog_servo_config.c
-    User/dog_servo.c
-    User/dog_gait.c
-    User/stair_platform_test_program.c
-)
-
-target_include_directories(DogRobotStairTest PRIVATE
-    Core/Inc
-    Drivers/STM32F1xx_HAL_Driver/Inc
-    Drivers/STM32F1xx_HAL_Driver/Inc/Legacy
-    Drivers/CMSIS/Device/ST/STM32F1xx/Include
-    Drivers/CMSIS/Include
-    User
-)
-
-target_link_libraries(DogRobotStairTest PRIVATE
-  m
-)
-
-set_target_properties(DogRobotStairTest PROPERTIES LINK_DEPENDS "STM32F103C8TX_FLASH.ld")
-
 add_executable(DogRobotTrackBlueBoostTest)
 
 target_compile_options(DogRobotTrackBlueBoostTest PRIVATE

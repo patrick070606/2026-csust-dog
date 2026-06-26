@@ -37,32 +37,6 @@
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  60.0f
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 45.0f
 
-#define DOG_TASK_STAIR_PLATFORM_HEIGHT_MM          30.0f // 表示上台阶后平台的高度，单位毫米，根据实际情况调整，过高可能导致步态不够稳定。  
-#define DOG_TASK_STAIR_CLEARANCE_HEIGHT_MM         40.0f // 上台阶时足端相对于平台的额外高度，单位毫米，根据实际情况调整，过高可能导致步态不够稳定。
-#define DOG_TASK_STAIR_DESCENT_CLEARANCE_MM        15.0f // 下台阶时足端相对于平台的额外高度，单位毫米，根据实际情况调整，过高可能导致步态不够稳定。
-#define DOG_TASK_STAIR_LIFT_FORWARD_MM             40.0f // 上台阶抬脚阶段身体前移的距离，单位毫米，根据实际情况调整，过高可能导致步态不够稳定。
-#define DOG_TASK_STAIR_STEP_FORWARD_MM             35.0f // 上台阶落脚阶段身体前移的距离，单位毫米，根据实际情况调整，过高可能导致步态不够稳定。
-#define DOG_TASK_STAIR_BODY_ADVANCE_MM             25.0f // 前腿已经放上台阶后，让机身相对四只脚向前移动约 25 mm。
-#define DOG_TASK_STAIR_REAR_PLACE_X_MM             115.0f // 后腿上台或下台完成落脚时，后腿足端相对于机身站立基准位置的最终前向偏移量。
-/* Keep at zero until the physical pitch direction is verified on the robot. */
-#define DOG_TASK_STAIR_PITCH_BIAS_DEG               0.0f // 上台阶时身体前倾的角度，单位度，根据实际情况调整，过大可能导致步态不够稳定。
-#define DOG_TASK_STAIR_POSE_MOVE_MS                 700U // 上台阶时每个阶段的移动时间，单位毫秒，根据实际情况调整，过短可能导致步态不够稳定。
-#define DOG_TASK_STAIR_POSE_HOLD_MS                 900U // 上台阶时每个阶段的停顿时间，单位毫秒，根据实际情况调整，过短可能导致步态不够稳定。
-#define DOG_TASK_STAIR_SETTLE_MOVE_MS               000U // 上台阶阶段，平台上站立等待稳定的移动时间，单位毫秒，根据实际情况调整，过短可能导致步态不够稳定。
-#define DOG_TASK_STAIR_SETTLE_HOLD_MS               1300U // 上台阶阶段，平台上站立等待稳定的停顿时间，单位毫秒，根据实际情况调整，过短可能导致步态不够稳定。
-
-#define DOG_TASK_PLATFORM_DISTANCE_MM               600U // 表示平台距离的常量，单位毫米，根据实际情况调整，过大可能导致步态不够稳定。
-/* Open-loop distance estimate; replace this value with the measured travel per cycle. */
-#define DOG_TASK_PLATFORM_ESTIMATED_MM_PER_CYCLE    25U // 表示平台前进阶段每个周期的估算前进距离，单位毫米。
-#define DOG_TASK_PLATFORM_FORWARD_CYCLES \
-    ((DOG_TASK_PLATFORM_DISTANCE_MM + DOG_TASK_PLATFORM_ESTIMATED_MM_PER_CYCLE - 1U) / \
-     DOG_TASK_PLATFORM_ESTIMATED_MM_PER_CYCLE) // 表示平台前进阶段需要执行的周期数，根据实际情况调整，过大可能导致步态不够稳定。
-#define DOG_TASK_PLATFORM_GAIT_PERIOD_MS            150U
-#define DOG_TASK_PLATFORM_STEP_H_MM                  15.0f
-#define DOG_TASK_PLATFORM_STEP_R_MM                  25.0f
-#define DOG_TASK_PLATFORM_SPEED_FREQ                 0.125f
-#define DOG_TASK_PLATFORM_UPDATES_PER_CYCLE          8U
-
 /* Left/right turn test entry is kept only for reference. */
 #define DOG_TASK_TURN_TEST_DURATION_MS 900U
 
@@ -97,29 +71,6 @@ typedef enum
     DOG_TASK_EVENT_THROW_TRACK_DELAY,
     DOG_TASK_EVENT_THROW_FORWARD,
     DOG_TASK_EVENT_THROW_ROTATING,
-    DOG_TASK_EVENT_STAIR_ASCEND_SETTLE, // 上台阶阶段的初始状态，保持站立姿态，等待稳定
-    DOG_TASK_EVENT_STAIR_ASCEND_LF_LIFT, // 上台阶阶段，左前腿抬起
-    DOG_TASK_EVENT_STAIR_ASCEND_LF_PLACE, // 上台阶阶段，左前腿放置
-    DOG_TASK_EVENT_STAIR_ASCEND_RF_LIFT, // 上台阶阶段，右前腿抬起
-    DOG_TASK_EVENT_STAIR_ASCEND_RF_PLACE, // 上台阶阶段，右前腿放置
-    DOG_TASK_EVENT_STAIR_ASCEND_BODY_ADVANCE, // 上台阶阶段，身体前进
-    DOG_TASK_EVENT_STAIR_ASCEND_LB_LIFT, // 上台阶阶段，左后腿抬起
-    DOG_TASK_EVENT_STAIR_ASCEND_LB_PLACE, // 上台阶阶段，左后腿放置
-    DOG_TASK_EVENT_STAIR_ASCEND_RB_LIFT,
-    DOG_TASK_EVENT_STAIR_ASCEND_RB_PLACE,
-    DOG_TASK_EVENT_STAIR_PLATFORM_SETTLE, // 上台阶阶段，平台上站立等待稳定
-    DOG_TASK_EVENT_STAIR_PLATFORM_FORWARD, // 上台阶阶段，平台上前进。
-    DOG_TASK_EVENT_STAIR_DESCEND_SETTLE,
-    DOG_TASK_EVENT_STAIR_DESCEND_LF_LIFT,
-    DOG_TASK_EVENT_STAIR_DESCEND_LF_PLACE,
-    DOG_TASK_EVENT_STAIR_DESCEND_RF_LIFT,
-    DOG_TASK_EVENT_STAIR_DESCEND_RF_PLACE,
-    DOG_TASK_EVENT_STAIR_DESCEND_BODY_ADVANCE, // 上台阶，重心调整。
-    DOG_TASK_EVENT_STAIR_DESCEND_LB_LIFT,
-    DOG_TASK_EVENT_STAIR_DESCEND_LB_PLACE,
-    DOG_TASK_EVENT_STAIR_DESCEND_RB_LIFT,
-    DOG_TASK_EVENT_STAIR_DESCEND_RB_PLACE,
-    DOG_TASK_EVENT_STAIR_FINAL_SETTLE,
 } DogTaskEventState_t;
 
 static DogTaskMotion_t s_motion = DOG_TASK_MOTION_STOP;
@@ -137,9 +88,6 @@ static uint8_t s_is_track_correcting;
 static uint8_t s_platform_track_boost;
 static uint8_t s_purple_throw_delay_used;
 static uint8_t s_brown_throw_delay_used;
-static DogGaitStairTarget_t s_stair_targets[DOG_GAIT_STAIR_LEG_COUNT]; // 上台阶阶段每条腿的目标参数，单位毫米和度，根据实际情况调整，过大可能导致步态不够稳定。
-static uint16_t s_platform_forward_cycles; // 表示平台前进阶段已经执行的周期数，用于估算前进距离，根据实际情况调整，过大可能导致步态不够稳定。
-static uint8_t s_platform_forward_updates; // 表示平台前进阶段已经执行的更新次数，用于估算前进距离，根据实际情况调整，过大可能导致步态不够稳定。
 
 #if 0
 static uint8_t s_turn_test_active;
@@ -233,29 +181,6 @@ static const char *DogTask_EventName(DogTaskEventState_t state)
         "THROW_TRACK_DELAY",
         "THROW_FORWARD",
         "THROW_ROTATING",
-        "STAIR_ASCEND_SETTLE",
-        "STAIR_ASCEND_LF_LIFT",
-        "STAIR_ASCEND_LF_PLACE",
-        "STAIR_ASCEND_RF_LIFT",
-        "STAIR_ASCEND_RF_PLACE",
-        "STAIR_ASCEND_BODY_ADVANCE",
-        "STAIR_ASCEND_LB_LIFT",
-        "STAIR_ASCEND_LB_PLACE",
-        "STAIR_ASCEND_RB_LIFT",
-        "STAIR_ASCEND_RB_PLACE",
-        "STAIR_PLATFORM_SETTLE",
-        "STAIR_PLATFORM_FORWARD",
-        "STAIR_DESCEND_SETTLE",
-        "STAIR_DESCEND_LF_LIFT",
-        "STAIR_DESCEND_LF_PLACE",
-        "STAIR_DESCEND_RF_LIFT",
-        "STAIR_DESCEND_RF_PLACE",
-        "STAIR_DESCEND_BODY_ADVANCE",
-        "STAIR_DESCEND_LB_LIFT",
-        "STAIR_DESCEND_LB_PLACE",
-        "STAIR_DESCEND_RB_LIFT",
-        "STAIR_DESCEND_RB_PLACE",
-        "STAIR_FINAL_SETTLE",
     };
 
     if ((uint8_t)state < (uint8_t)(sizeof(names) / sizeof(names[0])))
@@ -264,224 +189,6 @@ static const char *DogTask_EventName(DogTaskEventState_t state)
     }
 
     return "UNKNOWN";
-}
-
-static uint8_t DogTask_IsStairEventState(DogTaskEventState_t state) // 判断当前事件状态是否处于上台阶或下台阶阶段
-{
-    return (uint8_t)((state >= DOG_TASK_EVENT_STAIR_ASCEND_SETTLE) &&
-                     (state <= DOG_TASK_EVENT_STAIR_FINAL_SETTLE)); // 根据事件状态的定义范围判断是否处于上台阶或下台阶阶段
-}
-
-static void DogTask_ResetStairTargets(void) // 将上台阶阶段每条腿的目标参数重置为默认值，单位毫米和度，根据实际情况调整，过大可能导致步态不够稳定。
-{
-    for (uint8_t i = 0; i < DOG_GAIT_STAIR_LEG_COUNT; i++)
-    {
-        s_stair_targets[i].x_offset_mm = 0.0f;
-        s_stair_targets[i].y_offset_mm = 0.0f;
-        s_stair_targets[i].hip_bias_deg = 0.0f;
-    }
-}
-
-static void DogTask_SetStairPitchBias(float bias_deg) // 设置上台阶阶段每条腿的关节角度偏移，单位度，根据实际情况调整，过大可能导致步态不够稳定。
-{
-    s_stair_targets[DOG_GAIT_STAIR_LEG_LF].hip_bias_deg = bias_deg;
-    s_stair_targets[DOG_GAIT_STAIR_LEG_RF].hip_bias_deg = bias_deg;
-    s_stair_targets[DOG_GAIT_STAIR_LEG_LB].hip_bias_deg = -bias_deg;
-    s_stair_targets[DOG_GAIT_STAIR_LEG_RB].hip_bias_deg = -bias_deg;
-}
-
-static void DogTask_ApplyStairTargets(uint16_t move_ms) // 应用上台阶阶段的目标参数，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
-{
-    s_motion = DOG_TASK_MOTION_STOP;
-    DogGait_SetStairPose(s_stair_targets, move_ms);
-}
-
-static void DogTask_AdvanceStairBody(void) // 在上台阶阶段前腿已经放上台阶后，让机身相对四只脚向前移动一定距离，单位毫米，根据实际情况调整，过大可能导致步态不够稳定。
-{
-    for (uint8_t i = 0; i < DOG_GAIT_STAIR_LEG_COUNT; i++)
-    {
-        s_stair_targets[i].x_offset_mm -= DOG_TASK_STAIR_BODY_ADVANCE_MM; // 通过减少每条腿的前向偏移量来实现身体相对于四只脚向前移动，单位毫米，根据实际情况调整，过大可能导致步态不够稳定。
-    }
-}
-
-static void DogTask_SetStairState(DogTaskEventState_t state, uint32_t now_ms) // 设置当前的上台阶事件状态，并根据状态执行相应的动作，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
-{
-    s_event_state = state;
-    s_event_start_ms = now_ms;
-    s_is_track_correcting = 0U;
-
-    if (state == DOG_TASK_EVENT_STAIR_ASCEND_SETTLE) // 上台阶阶段的初始状态，保持站立姿态，等待稳定
-    {
-        DogTask_ResetStairTargets();
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_SETTLE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_ASCEND_LF_LIFT) // 上台阶阶段，左前腿抬起
-    {
-        DogTask_SetStairPitchBias(DOG_TASK_STAIR_PITCH_BIAS_DEG); // 上台阶时身体前倾一定角度，单位度，根据实际情况调整，过大可能导致步态不够稳定。
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LF].x_offset_mm =
-            DOG_TASK_STAIR_LIFT_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LF].y_offset_mm =
-            DOG_TASK_STAIR_CLEARANCE_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_ASCEND_LF_PLACE) // 上台阶阶段，左前腿放置
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LF].x_offset_mm =
-            DOG_TASK_STAIR_STEP_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LF].y_offset_mm =
-            DOG_TASK_STAIR_PLATFORM_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_ASCEND_RF_LIFT) // 上台阶阶段，右前腿抬起
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RF].x_offset_mm =
-            DOG_TASK_STAIR_LIFT_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RF].y_offset_mm =
-            DOG_TASK_STAIR_CLEARANCE_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_ASCEND_RF_PLACE) // 上台阶阶段，右前腿放置
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RF].x_offset_mm =
-            DOG_TASK_STAIR_STEP_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RF].y_offset_mm =
-            DOG_TASK_STAIR_PLATFORM_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_ASCEND_BODY_ADVANCE) // 上台阶阶段，身体前进
-    {
-        DogTask_SetStairPitchBias(-DOG_TASK_STAIR_PITCH_BIAS_DEG);
-        DogTask_AdvanceStairBody();
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_SETTLE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_ASCEND_LB_LIFT)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].x_offset_mm =
-            DOG_TASK_STAIR_LIFT_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].y_offset_mm =
-            DOG_TASK_STAIR_CLEARANCE_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_ASCEND_LB_PLACE)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].x_offset_mm =
-            DOG_TASK_STAIR_REAR_PLACE_X_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].y_offset_mm =
-            DOG_TASK_STAIR_PLATFORM_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_ASCEND_RB_LIFT)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].x_offset_mm =
-            DOG_TASK_STAIR_LIFT_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].y_offset_mm =
-            DOG_TASK_STAIR_CLEARANCE_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_ASCEND_RB_PLACE)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].x_offset_mm =
-            DOG_TASK_STAIR_REAR_PLACE_X_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].y_offset_mm =
-            DOG_TASK_STAIR_PLATFORM_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_PLATFORM_SETTLE)
-    {
-        DogTask_ResetStairTargets();
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_SETTLE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_PLATFORM_FORWARD)
-    {
-        s_platform_forward_cycles = 0U;
-        s_platform_forward_updates = 0U;
-        DogGait_SetTrotParams(DOG_TASK_PLATFORM_STEP_H_MM,
-                              DOG_TASK_PLATFORM_STEP_R_MM,
-                              DOG_TASK_PLATFORM_SPEED_FREQ);
-        s_motion = DOG_TASK_MOTION_FORWARD;
-        s_last_gait_ms = now_ms;
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_SETTLE) // 下台阶阶段的初始状态，保持站立姿态，等待稳定
-    {
-        DogTask_ResetStairTargets();
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_SETTLE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_LF_LIFT) // 下台阶阶段，左前腿抬起
-    {
-        DogTask_SetStairPitchBias(DOG_TASK_STAIR_PITCH_BIAS_DEG);
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LF].x_offset_mm =
-            DOG_TASK_STAIR_LIFT_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LF].y_offset_mm =
-            DOG_TASK_STAIR_DESCENT_CLEARANCE_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_LF_PLACE)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LF].x_offset_mm =
-            DOG_TASK_STAIR_STEP_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LF].y_offset_mm =
-            -DOG_TASK_STAIR_PLATFORM_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_RF_LIFT)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RF].x_offset_mm =
-            DOG_TASK_STAIR_LIFT_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RF].y_offset_mm =
-            DOG_TASK_STAIR_DESCENT_CLEARANCE_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_RF_PLACE)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RF].x_offset_mm =
-            DOG_TASK_STAIR_STEP_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RF].y_offset_mm =
-            -DOG_TASK_STAIR_PLATFORM_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_BODY_ADVANCE) // 下台阶阶段，重心调整，让身体相对于四只脚向前移动一定距离，单位毫米，根据实际情况调整，过大可能导致步态不够稳定。
-    {
-        DogTask_SetStairPitchBias(-DOG_TASK_STAIR_PITCH_BIAS_DEG);
-        DogTask_AdvanceStairBody();
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_SETTLE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_LB_LIFT)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].x_offset_mm =
-            DOG_TASK_STAIR_LIFT_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].y_offset_mm =
-            DOG_TASK_STAIR_DESCENT_CLEARANCE_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_LB_PLACE)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].x_offset_mm =
-            DOG_TASK_STAIR_REAR_PLACE_X_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_LB].y_offset_mm =
-            -DOG_TASK_STAIR_PLATFORM_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_RB_LIFT)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].x_offset_mm =
-            DOG_TASK_STAIR_LIFT_FORWARD_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].y_offset_mm =
-            DOG_TASK_STAIR_DESCENT_CLEARANCE_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_DESCEND_RB_PLACE)
-    {
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].x_offset_mm =
-            DOG_TASK_STAIR_REAR_PLACE_X_MM;
-        s_stair_targets[DOG_GAIT_STAIR_LEG_RB].y_offset_mm =
-            -DOG_TASK_STAIR_PLATFORM_HEIGHT_MM;
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_POSE_MOVE_MS);
-    }
-    else if (state == DOG_TASK_EVENT_STAIR_FINAL_SETTLE)
-    {
-        DogTask_ResetStairTargets();
-        DogTask_ApplyStairTargets(DOG_TASK_STAIR_SETTLE_MOVE_MS);
-    }
 }
 
 static uint8_t DogTask_IsEventCommand(ImageCommand_t command)
@@ -546,16 +253,6 @@ static void DogTask_BeginThrowRotation(ImageCommand_t command, uint32_t now_ms)
     DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
     ThrowServo_Start(direction);
 }
-
-#if 0
-static void DogTask_BeginStairSequence(uint32_t now_ms) // 开始上台阶或下台阶的序列，具体是上台阶还是下台阶可以在后续的状态中根据需要进行区分，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
-{
-    s_pending_event_command = IMAGE_COMMAND_PLATFORM;
-    s_has_seen_track = 0U;
-    s_last_track_ms = now_ms;
-    DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_SETTLE, now_ms);
-}
-#endif
 
 static void __attribute__((unused)) DogTask_BeginColorPause(uint32_t now_ms, uint32_t pause_ms)
 {
@@ -652,8 +349,6 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     else if (command == IMAGE_COMMAND_PLATFORM)
     {
         DogTask_SendVisionAck();
-        /* Main firmware no longer enters the old stair sequence on blue. */
-        /* DogTask_BeginStairSequence(now_ms); */
         DogTask_BeginPlatformTrackBoost();
     }
     else
@@ -730,126 +425,6 @@ static void DogTask_UpdateEventState(uint32_t now_ms)
         else
         {
             DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
-        }
-    }
-    else if (DogTask_IsStairEventState(s_event_state) != 0U)
-    {
-        if (s_event_state == DOG_TASK_EVENT_STAIR_PLATFORM_FORWARD) // 如果当前状态是上台阶阶段的平台前进状态，则根据已经执行的周期数来判断是否完成了预定的前进距离，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
-        {
-            if (s_platform_forward_cycles >= DOG_TASK_PLATFORM_FORWARD_CYCLES) // 如果已经执行的周期数达到了预定的周期数，则认为平台前进阶段完成，进入下一个状态，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
-            {
-                DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_SETTLE, now_ms);
-            }
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_SETTLE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_SETTLE_HOLD_MS)) // 如果当前状态是上台阶阶段的初始状态，并且已经等待了足够的时间来稳定站立，则进入下一个状态，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_LF_LIFT, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_LF_LIFT) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_LF_PLACE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_LF_PLACE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_RF_LIFT, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_RF_LIFT) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_RF_PLACE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_RF_PLACE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_BODY_ADVANCE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_BODY_ADVANCE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_SETTLE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_LB_LIFT, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_LB_LIFT) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_LB_PLACE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_LB_PLACE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_RB_LIFT, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_RB_LIFT) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_ASCEND_RB_PLACE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_ASCEND_RB_PLACE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_PLATFORM_SETTLE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_PLATFORM_SETTLE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_SETTLE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_PLATFORM_FORWARD, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_SETTLE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_SETTLE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_LF_LIFT, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_LF_LIFT) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_LF_PLACE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_LF_PLACE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_RF_LIFT, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_RF_LIFT) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_RF_PLACE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_RF_PLACE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_BODY_ADVANCE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_BODY_ADVANCE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_SETTLE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_LB_LIFT, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_LB_LIFT) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_LB_PLACE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_LB_PLACE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_RB_LIFT, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_RB_LIFT) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_DESCEND_RB_PLACE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_DESCEND_RB_PLACE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_POSE_HOLD_MS))
-        {
-            DogTask_SetStairState(DOG_TASK_EVENT_STAIR_FINAL_SETTLE, now_ms);
-        }
-        else if ((s_event_state == DOG_TASK_EVENT_STAIR_FINAL_SETTLE) &&
-                 (elapsed_ms >= DOG_TASK_STAIR_SETTLE_HOLD_MS))
-        {
-            DogTask_ResumeTracking(now_ms);
         }
     }
 }
@@ -1018,9 +593,6 @@ void DogTask_Init(void)
     s_event_state = DOG_TASK_EVENT_IDLE;
     s_event_start_ms = s_last_gait_ms;
     s_pending_event_command = IMAGE_COMMAND_NONE;
-    DogTask_ResetStairTargets(); // 初始化上台阶阶段的目标参数，单位毫米和度，根据实际情况调整，过大可能导致步态不够稳定。
-    s_platform_forward_cycles = 0U;
-    s_platform_forward_updates = 0U;
 #if 0
     s_turn_test_active = 0U;
     s_turn_test_start_ms = s_last_gait_ms;
@@ -1112,21 +684,8 @@ void DogTask_Run(void)
         DogTask_SetCorrectionLed(0U);
     }
 
-    if ((s_event_state == DOG_TASK_EVENT_STAIR_PLATFORM_FORWARD) &&
-        ((uint32_t)(now_ms - s_last_gait_ms) >= DOG_TASK_PLATFORM_GAIT_PERIOD_MS)) // 如果当前状态是上台阶阶段的平台前进状态，并且已经到了更新步态的时间，则更新步态，并根据已经执行的更新次数来判断是否完成了预定的前进距离，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
-    {
-        s_last_gait_ms = now_ms;
-        DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
-
-        s_platform_forward_updates++;
-        if (s_platform_forward_updates >= DOG_TASK_PLATFORM_UPDATES_PER_CYCLE) // 如果已经执行的更新次数达到了每个周期的预定更新次数，则增加已执行的周期数，并重置更新次数，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
-        {
-            s_platform_forward_updates = 0U;
-            s_platform_forward_cycles++;
-        }
-    }
-    else if ((s_motion != DOG_TASK_MOTION_STOP) &&
-             ((uint32_t)(now_ms - s_last_gait_ms) >= DOG_TASK_GAIT_PERIOD_MS))
+    if ((s_motion != DOG_TASK_MOTION_STOP) &&
+        ((uint32_t)(now_ms - s_last_gait_ms) >= DOG_TASK_GAIT_PERIOD_MS))
     {
         s_last_gait_ms = now_ms;
         DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
