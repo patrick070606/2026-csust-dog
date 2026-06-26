@@ -89,6 +89,17 @@ static uint8_t s_platform_track_boost;
 static uint8_t s_purple_throw_delay_used;
 static uint8_t s_brown_throw_delay_used;
 
+volatile uint32_t g_dog_task_run_count;
+volatile uint32_t g_dog_task_gait_update_count;
+volatile uint32_t g_dog_task_motion_stop_count;
+volatile uint32_t g_dog_task_last_now_ms;
+volatile uint32_t g_dog_task_last_gait_elapsed_ms;
+volatile uint32_t g_dog_task_last_track_lost_ms;
+volatile int32_t g_dog_task_last_command;
+volatile int32_t g_dog_task_last_motion;
+volatile int32_t g_dog_task_last_track_valid;
+volatile int32_t g_dog_task_last_track_error;
+
 #if 0
 static uint8_t s_turn_test_active;
 static uint32_t s_turn_test_start_ms;
@@ -110,6 +121,11 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
     if (motion == s_motion)
     {
         return;
+    }
+
+    if (motion == DOG_TASK_MOTION_STOP)
+    {
+        g_dog_task_motion_stop_count++;
     }
 
     if (motion == DOG_TASK_MOTION_FORWARD)
@@ -615,6 +631,15 @@ void DogTask_Run(void)
     ImageTrack_t track = ImageCommand_TakeLatestTrack();
     uint32_t track_lost_ms = (uint32_t)(now_ms - s_last_track_ms);
 
+    g_dog_task_run_count++;
+    g_dog_task_last_now_ms = now_ms;
+    g_dog_task_last_command = (int32_t)command;
+    g_dog_task_last_motion = (int32_t)s_motion;
+    g_dog_task_last_track_valid = (int32_t)track.valid;
+    g_dog_task_last_track_error = (int32_t)track.error;
+    g_dog_task_last_track_lost_ms = track_lost_ms;
+    g_dog_task_last_gait_elapsed_ms = (uint32_t)(now_ms - s_last_gait_ms);
+
     ThrowServo_Update();
 
     if (s_event_state == DOG_TASK_EVENT_THROW_TRACK_DELAY)
@@ -688,6 +713,7 @@ void DogTask_Run(void)
         ((uint32_t)(now_ms - s_last_gait_ms) >= DOG_TASK_GAIT_PERIOD_MS))
     {
         s_last_gait_ms = now_ms;
+        g_dog_task_gait_update_count++;
         DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
 
     }

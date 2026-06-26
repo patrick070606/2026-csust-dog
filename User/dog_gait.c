@@ -83,6 +83,14 @@ static DogGaitLoadMode_t s_load_mode = DOG_GAIT_LOAD_WITH_PAYLOAD;
 static DogGaitFootBase_t s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
 static uint8_t s_is_initialized;
 
+volatile uint32_t g_dog_gait_update_count;
+volatile float g_dog_gait_phase_before;
+volatile float g_dog_gait_phase_after;
+volatile float g_dog_gait_lf_hip_angle;
+volatile float g_dog_gait_lf_knee_angle;
+volatile float g_dog_gait_rf_hip_angle;
+volatile float g_dog_gait_rf_knee_angle;
+
 static float DogGait_ClampFloat(float value, float min_value, float max_value)
 {
     return (value < min_value) ? min_value : ((value > max_value) ? max_value : value);
@@ -421,6 +429,9 @@ void DogGait_UpdateTrot(uint16_t time_ms)
         DogGait_Init();
     }
 
+    g_dog_gait_update_count++;
+    g_dog_gait_phase_before = s_trot_phase;
+
     if (s_trot_phase <= 0.5f)
     {
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
@@ -462,6 +473,10 @@ void DogGait_UpdateTrot(uint16_t time_ms)
 
     DogGait_UpdateLegAngles();
     DogGait_FillServoAngles(angles);
+    g_dog_gait_lf_hip_angle = angles[DOG_SERVO_LF_HIP];
+    g_dog_gait_lf_knee_angle = angles[DOG_SERVO_LF_KNEE];
+    g_dog_gait_rf_hip_angle = angles[DOG_SERVO_RF_HIP];
+    g_dog_gait_rf_knee_angle = angles[DOG_SERVO_RF_KNEE];
     DogServo_SetAngles(angles, time_ms);
 
     s_trot_phase += s_trot_speed_freq;
@@ -469,6 +484,7 @@ void DogGait_UpdateTrot(uint16_t time_ms)
     {
         s_trot_phase -= 1.0f;
     }
+    g_dog_gait_phase_after = s_trot_phase;
 }
 
 void DogGait_AllStand(uint16_t time_ms)

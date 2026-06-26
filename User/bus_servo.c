@@ -8,6 +8,12 @@
 // 如果你用的是 USART2，把这里改成 huart2。
 #define BUS_SERVO_UART              huart1
 
+volatile uint32_t g_bus_servo_tx_count;
+volatile int32_t g_bus_servo_last_status;
+volatile uint16_t g_bus_servo_last_time_ms;
+volatile uint16_t g_bus_servo_last_frame_len;
+volatile uint8_t g_bus_servo_last_num;
+
 static uint8_t BusServo_LowByte(uint16_t data)
 {
     return (uint8_t)(data & 0xFF);
@@ -59,6 +65,8 @@ void BusServo_SetPositions(BusServo_t *servos, uint8_t num, uint16_t time_ms)
 {
     uint8_t buf[103];
     uint8_t index = 7;
+    uint16_t frame_len;
+    HAL_StatusTypeDef status;
 
     if (servos == NULL)
     {
@@ -97,7 +105,13 @@ void BusServo_SetPositions(BusServo_t *servos, uint8_t num, uint16_t time_ms)
         buf[index++] = BusServo_HighByte(position);
     } // 设置每个舵机的数据，格式是：舵机 ID(1) + 目标位置(2)
 
-    HAL_UART_Transmit(&BUS_SERVO_UART, buf, buf[2] + 2, 100);
+    frame_len = (uint16_t)(buf[2] + 2U);
+    status = HAL_UART_Transmit(&BUS_SERVO_UART, buf, frame_len, 100);
+    g_bus_servo_tx_count++;
+    g_bus_servo_last_status = (int32_t)status;
+    g_bus_servo_last_time_ms = time_ms;
+    g_bus_servo_last_frame_len = frame_len;
+    g_bus_servo_last_num = num;
 }
 
 /**
