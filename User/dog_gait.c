@@ -12,6 +12,7 @@
 #include "dog_gait.h"
 #include "dog_servo.h"
 #include <math.h>
+#include <stdint.h>
 
 /*
  * 基础步态参数。
@@ -621,4 +622,146 @@ void DogGait_UpdateTrot(uint16_t time_ms)
 void DogGait_AllStand(uint16_t time_ms)
 {
     DogGait_GotoStandPose(time_ms);
+}
+
+void DogGait_UpdateLeft(uint16_t time_ms)
+{
+    float log_low = 10.0f;
+    float angles[DOG_SERVO_COUNT] = {0.0f};
+    DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(s_foot_base);
+    float lift;
+    float dx;
+
+    if (s_is_initialized == 0U)
+    {
+        DogGait_Init();
+    }
+
+    g_dog_gait_update_count++;
+    g_dog_gait_phase_before = s_trot_phase;
+
+    if (s_trot_phase <= 0.5f)
+    {
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift - log_low;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_RB].h, s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift - log_low;
+    }
+    else
+    {
+        float phase = s_trot_phase - 0.5f;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift - log_low;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x ;
+        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, phase, s_gait[DOG_GAIT_LEG_RF].h, s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, phase, s_gait[DOG_GAIT_LEG_LB].h, s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift - log_low;
+    }
+
+    DogGait_UpdateLegAngles();
+    DogGait_FillServoAngles(angles);
+    g_dog_gait_lf_hip_angle = angles[DOG_SERVO_LF_HIP];
+    g_dog_gait_lf_knee_angle = angles[DOG_SERVO_LF_KNEE];
+    g_dog_gait_rf_hip_angle = angles[DOG_SERVO_RF_HIP];
+    g_dog_gait_rf_knee_angle = angles[DOG_SERVO_RF_KNEE];
+    DogServo_SetAngles(angles, time_ms);
+
+    s_trot_phase += s_trot_speed_freq;
+    if (s_trot_phase >= 1.0f)
+    {
+        s_trot_phase -= 1.0f;
+    }
+    g_dog_gait_phase_after = s_trot_phase;
+}
+
+void DogGait_UpdateRight(uint16_t time_ms)
+{
+    float log_low = 10.0f;
+    float angles[DOG_SERVO_COUNT] = {0.0f};
+    DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(s_foot_base);
+    float lift;
+    float dx;
+
+    if (s_is_initialized == 0U)
+    {
+        DogGait_Init();
+    }
+
+    g_dog_gait_update_count++;
+    g_dog_gait_phase_before = s_trot_phase;
+
+    if (s_trot_phase <= 0.5f)
+    {
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift ;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_RB].h, s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift - log_low;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift - log_low;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift;
+    }
+    else
+    {
+        float phase = s_trot_phase - 0.5f;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x ;
+        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift - log_low;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, phase, s_gait[DOG_GAIT_LEG_RF].h, s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift - log_low;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, phase, s_gait[DOG_GAIT_LEG_LB].h, s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x;
+        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift;
+    }
+
+    DogGait_UpdateLegAngles();
+    DogGait_FillServoAngles(angles);
+    g_dog_gait_lf_hip_angle = angles[DOG_SERVO_LF_HIP];
+    g_dog_gait_lf_knee_angle = angles[DOG_SERVO_LF_KNEE];
+    g_dog_gait_rf_hip_angle = angles[DOG_SERVO_RF_HIP];
+    g_dog_gait_rf_knee_angle = angles[DOG_SERVO_RF_KNEE];
+    DogServo_SetAngles(angles, time_ms);
+
+    s_trot_phase += s_trot_speed_freq;
+    if (s_trot_phase >= 1.0f)
+    {
+        s_trot_phase -= 1.0f;
+    }
+    g_dog_gait_phase_after = s_trot_phase;
 }
