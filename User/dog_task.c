@@ -9,36 +9,37 @@
 
 #include <stdio.h>
 
-#define DOG_TASK_GAIT_PERIOD_MS        150U
-#define DOG_TASK_GAIT_MOVE_MS          100U
-#define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET
-#define DOG_TASK_LED_OFF_STATE         GPIO_PIN_RESET
-#define DOG_TASK_COLOR_PAUSE_MS        2000U
-#define DOG_TASK_COLOR_PAUSE_HOLD_MS   150U
-#define DOG_TASK_VISION_COLOR_STOP_TEST_ENABLE 0U
-#define DOG_TASK_VISION_COLOR_STOP_MS          10000U
-#define DOG_TASK_THROW_FORWARD_MS      0U
-#define DOG_TASK_THROW_TRACK_DELAY_MS  3000U
-#define DOG_TASK_VISION_ACK_TIMEOUT_MS 10U
-#define DOG_TASK_STATUS_INTERVAL_MS    200U
-#define DOG_TASK_STEP_H_MM             45.0f
-#define DOG_TASK_FORWARD_R_MM          50.0f
-#define DOG_TASK_TURN_R_MM             15.0f
-#define DOG_TASK_SPEED_FREQ            0.20f
+#define DOG_TASK_GAIT_PERIOD_MS        150U // 表示机器人步态更新的时间间隔，单位毫秒。
+#define DOG_TASK_GAIT_MOVE_MS          100U // 表示每次下发步态更新时，舵机从当前角度移动到新目标所用的时间。
+/*DOG_TASK_GAIT_PERIOD_MS 和 DOG_TASK_GAIT_MOVE_MS 表示：任务每隔 150 ms 计算一次新的腿部目标姿态，但要求舵机用 100 ms 完成这次移动。*/
+#define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
+#define DOG_TASK_LED_OFF_STATE         GPIO_PIN_RESET // 表示 LED 灯灭的状态，GPIO_PIN_RESET 表示将 GPIO 引脚设置为低电平，通常用于熄灭 LED。
+#define DOG_TASK_COLOR_PAUSE_MS        2000U // 表示颜色暂停的时间，单位毫秒。
+#define DOG_TASK_COLOR_PAUSE_HOLD_MS   150U // 表示颜色暂停保持的时间，单位毫秒。
+#define DOG_TASK_VISION_COLOR_STOP_TEST_ENABLE 0U // 表示是否启用视觉颜色停止测试，0表示禁用，1表示启用。
+#define DOG_TASK_VISION_COLOR_STOP_MS          10000U // 表示「视觉颜色停止测试模式」的停止保持时间，单位毫秒。
+#define DOG_TASK_THROW_FORWARD_MS      0U // 表示投掷前前进阶段的持续时间，单位毫秒。这个现在是 0，我其实不知道这个变量是什么时候加上去的，可能是中间调试的时候为了让机器人在投掷前稍微前进一点点，避免投掷时机器人离目标太远。但是暂时可以不用管。
+#define DOG_TASK_THROW_TRACK_DELAY_MS  3000U // 表示首次识别到紫色 / 棕色投掷事件后，先继续循迹的延迟时间。体现在实际中，就是识别到紫色 / 棕色后，往前走 DOG_TASK_THROW_TRACK_DELAY_MS 这么多 ms，然后再开始旋转投掷。
+#define DOG_TASK_VISION_ACK_TIMEOUT_MS 10U // 表示 stm32 给 k230 回传状态字符串时，发送超时的时间。也就是说如果串口发送在 10ms 内没有完成，就返回超时。
+#define DOG_TASK_STATUS_INTERVAL_MS    200U // 表示 stm32 向 k230 周期性发送状态反馈的时间间隔，单位毫秒。
+#define DOG_TASK_STEP_H_MM             45.0f // 表示机器人步态的步高，单位毫米。
+#define DOG_TASK_FORWARD_R_MM          50.0f // 表示机器人步态的前进半径，单位毫米。
+#define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
+#define DOG_TASK_SPEED_FREQ            0.20f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
-#define DOG_TASK_TRACK_DEADBAND        35
-#define DOG_TASK_TRACK_RECOVER_MS      500U
-#define DOG_TASK_TRACK_STEP_H_MM       45.0f
-#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   60.0f
-#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  45.0f
-#define DOG_TASK_TRACK_MAX_STEER_MM    18.0f
-#define DOG_TASK_TRACK_STEER_GAIN      0.18f
-#define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          30.0f
-#define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  60.0f
-#define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 45.0f
+#define DOG_TASK_TRACK_DEADBAND        35U // 表示循迹误差的死区范围，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离在 ±35mm 以内，就认为机器人不需要调整方向，继续前进即可。 
+#define DOG_TASK_TRACK_RECOVER_MS      500U // 表示循迹丢失后，机器人保持上一次循迹动作的时间，单位毫秒。
+#define DOG_TASK_TRACK_STEP_H_MM       45.0f // 表示循迹时的步高，单位毫米。
+#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   60.0f // 表示循迹时向左前进的半径，单位毫米。    
+#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  45.0f // 表示循迹时向右前进的半径，单位毫米。
+#define DOG_TASK_TRACK_MAX_STEER_MM    18.0f // 表示循迹时的最大转向量，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离超过 ±35mm，就会根据偏离的距离计算出一个转向量 steer，然后将 steer 限制在 ±18mm 以内，防止机器人转向过度。
+#define DOG_TASK_TRACK_STEER_GAIN      0.18f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
+#define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          30.0f // 表示平台循迹时的步高，单位毫米。
+#define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  60.0f // 表示平台循迹时向左前进的半径，单位毫米。    
+#define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 45.0f // 表示平台循迹时向右前进的半径，单位毫米。
 
 /* Left/right turn test entry is kept only for reference. */
-#define DOG_TASK_TURN_TEST_DURATION_MS 900U
+#define DOG_TASK_TURN_TEST_DURATION_MS 900U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。    
 
 #if 0
 #define DOG_TASK_AUTO_TEST_ENABLE      1U
@@ -47,31 +48,31 @@
 #define DOG_TASK_AUTO_RIGHT_MS         3000U
 #endif
 
-#define DOG_TASK_SERVO_READY_MS        2000U
-#define DOG_TASK_CENTER_MOVE_MS        5000U
-#define DOG_TASK_CENTER_WAIT_MS        6500U
-#define DOG_TASK_STAND_MOVE_MS         2000U
-#define DOG_TASK_STAND_WAIT_MS         2500U
-#define DOG_TASK_USE_PAYLOAD_GAIT      1U
+#define DOG_TASK_SERVO_READY_MS        2000U // 表示舵机准备就绪的时间，单位毫秒。这个时间是用来等待舵机上电后稳定的时间，确保舵机可以正常工作。    
+#define DOG_TASK_CENTER_MOVE_MS        5000U // 表示机器人舵机回到中心位置的移动时间，单位毫秒。
+#define DOG_TASK_CENTER_WAIT_MS        6500U // 表示机器人舵机回到中心位置后等待的时间，单位毫秒。
+#define DOG_TASK_STAND_MOVE_MS         2000U // 表示机器人站立动作的移动时间，单位毫秒。
+#define DOG_TASK_STAND_WAIT_MS         2500U // 表示机器人站立动作后等待的时间，单位毫秒。
+#define DOG_TASK_USE_PAYLOAD_GAIT      1U // 表示机器人是否使用负载步态，1 表示使用，0 表示不使用。
 
 typedef enum
 {
-    DOG_TASK_MOTION_STOP = 0,
-    DOG_TASK_MOTION_FORWARD,
-    DOG_TASK_MOTION_BACKWARD,
-    DOG_TASK_MOTION_TURN_LEFT,
-    DOG_TASK_MOTION_TURN_RIGHT,
-} DogTaskMotion_t;
+    DOG_TASK_MOTION_STOP = 0, // 表示机器人停止运动的状态。
+    DOG_TASK_MOTION_FORWARD, // 表示机器人向前运动的状态。
+    DOG_TASK_MOTION_BACKWARD, // 表示机器人向后运动的状态。
+    DOG_TASK_MOTION_TURN_LEFT, // 表示机器人向左转的状态。
+    DOG_TASK_MOTION_TURN_RIGHT, // 表示机器人向右转的状态。
+} DogTaskMotion_t; // 机器人步态的枚举类型。
 
 typedef enum
 {
-    DOG_TASK_EVENT_IDLE = 0,
-    DOG_TASK_EVENT_COLOR_PAUSE,
-    DOG_TASK_EVENT_FORK_TURN,
-    DOG_TASK_EVENT_THROW_TRACK_DELAY,
-    DOG_TASK_EVENT_THROW_FORWARD,
-    DOG_TASK_EVENT_THROW_ROTATING,
-} DogTaskEventState_t;
+    DOG_TASK_EVENT_IDLE = 0, // 表示机器人处于空闲状态。
+    DOG_TASK_EVENT_COLOR_PAUSE, // 表示机器人因颜色识别而暂停的状态。
+    DOG_TASK_EVENT_FORK_TURN, // 表示机器人遇到分叉路口转弯的状态。
+    DOG_TASK_EVENT_THROW_TRACK_DELAY, // 表示机器人在投掷前的循迹状态。
+    DOG_TASK_EVENT_THROW_FORWARD, // 表示机器人在投掷前向前移动的状态。
+    DOG_TASK_EVENT_THROW_ROTATING, // 表示机器人在投掷时进行旋转的状态。
+} DogTaskEventState_t; // 机器人事件处理状态的枚举类型。
 
 static DogTaskMotion_t s_motion = DOG_TASK_MOTION_STOP;
 static DogTaskMotion_t s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
