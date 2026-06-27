@@ -42,9 +42,13 @@
 #define DOG_TASK_TURN_TEST_DURATION_MS 900U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。    
 
 #if 0
+/* 自动测试入口：早期用于不依赖视觉模块，按固定时长依次测试前进、左转、右转；当前关闭，仅保留参考。 */
 #define DOG_TASK_AUTO_TEST_ENABLE      1U
+/* 自动测试中，前进动作保持的时间，单位毫秒。 */
 #define DOG_TASK_AUTO_FORWARD_MS       3000U
+/* 自动测试中，左转动作保持的时间，单位毫秒。 */
 #define DOG_TASK_AUTO_LEFT_MS          3000U
+/* 自动测试中，右转动作保持的时间，单位毫秒。 */
 #define DOG_TASK_AUTO_RIGHT_MS         3000U
 #endif
 
@@ -74,42 +78,46 @@ typedef enum
     DOG_TASK_EVENT_THROW_ROTATING, // 表示机器人在投掷时进行旋转的状态。
 } DogTaskEventState_t; // 机器人事件处理状态的枚举类型。
 
-static DogTaskMotion_t s_motion = DOG_TASK_MOTION_STOP;
-static DogTaskMotion_t s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
-static DogTaskEventState_t s_event_state = DOG_TASK_EVENT_IDLE;
-static uint32_t s_event_start_ms;
-static uint32_t s_color_pause_ms = DOG_TASK_COLOR_PAUSE_MS;
-static uint32_t s_color_pause_last_stand_ms;
-static ImageCommand_t s_pending_event_command = IMAGE_COMMAND_NONE;
-static uint32_t s_last_gait_ms;
-static uint32_t s_last_track_ms;
-static uint32_t s_last_status_ms;
-static uint8_t s_has_seen_track;
-static uint8_t s_is_track_correcting;
-static uint8_t s_platform_track_boost;
-static uint8_t s_purple_throw_delay_used;
-static uint8_t s_brown_throw_delay_used;
+static DogTaskMotion_t s_motion = DOG_TASK_MOTION_STOP; // 当前正在执行的运动模式，例如停止、前进、左转或右转。
+static DogTaskMotion_t s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD; // 短时间丢线时，用来记住上一帧循迹修正方向。
+static DogTaskEventState_t s_event_state = DOG_TASK_EVENT_IDLE; // 当前事件状态机所在状态，例如普通循迹、分岔转向、投掷流程等。
+static uint32_t s_event_start_ms; // 当前事件状态开始的系统时间，单位毫秒，用于计算事件已经执行多久。
+static uint32_t s_color_pause_ms = DOG_TASK_COLOR_PAUSE_MS; // 颜色暂停事件本次需要保持的时间，单位毫秒。
+static uint32_t s_color_pause_last_stand_ms; // 颜色暂停期间，上一次重新下发站立姿态的时间。
+static ImageCommand_t s_pending_event_command = IMAGE_COMMAND_NONE; // 延迟执行的事件命令，例如紫色/棕色投掷命令。
+static uint32_t s_last_gait_ms; // 上一次更新步态的时间。
+static uint32_t s_last_track_ms; // 上一次收到有效循迹误差的时间。
+static uint32_t s_last_status_ms; // 上一次向视觉模块回传 ST 状态的时间。
+static uint8_t s_has_seen_track; // 是否已经收到过至少一帧有效循迹数据。
+static uint8_t s_is_track_correcting; // 当前是否处于左/右纠偏状态。
+static uint8_t s_platform_track_boost; // 蓝色平台事件触发后，是否启用平台循迹增强参数。
+static uint8_t s_purple_throw_delay_used; // 紫色投掷事件是否已经使用过首次循迹延迟。
+static uint8_t s_brown_throw_delay_used; // 棕色投掷事件是否已经使用过首次循迹延迟。
 
-volatile uint32_t g_dog_task_run_count;
-volatile uint32_t g_dog_task_gait_update_count;
-volatile uint32_t g_dog_task_motion_stop_count;
-volatile uint32_t g_dog_task_last_now_ms;
-volatile uint32_t g_dog_task_last_gait_elapsed_ms;
-volatile uint32_t g_dog_task_last_track_lost_ms;
-volatile int32_t g_dog_task_last_command;
-volatile int32_t g_dog_task_last_motion;
-volatile int32_t g_dog_task_last_track_valid;
-volatile int32_t g_dog_task_last_track_error;
+volatile uint32_t g_dog_task_run_count; // DogTask_Run() 被调用的次数，方便调试器观察主循环是否正常运行。
+volatile uint32_t g_dog_task_gait_update_count; // 步态更新次数，方便判断是否持续下发步态。
+volatile uint32_t g_dog_task_motion_stop_count; // 切换到停止运动的次数，方便排查异常停止。
+volatile uint32_t g_dog_task_last_now_ms; // 最近一次 DogTask_Run() 中读取到的系统时间。
+volatile uint32_t g_dog_task_last_gait_elapsed_ms; // 距离上一次步态更新已经过去的时间。
+volatile uint32_t g_dog_task_last_track_lost_ms; // 距离上一次有效循迹数据已经过去的时间。
+volatile int32_t g_dog_task_last_command; // 最近一次读取到的视觉事件命令。
+volatile int32_t g_dog_task_last_motion; // 当前运动模式的调试镜像。
+volatile int32_t g_dog_task_last_track_valid; // 最近一次循迹数据是否有效。
+volatile int32_t g_dog_task_last_track_error; // 最近一次视觉循迹误差。
 
 #if 0
+/* 早期转向测试状态变量：当前关闭，仅保留历史测试入口。 */
 static uint8_t s_turn_test_active;
 static uint32_t s_turn_test_start_ms;
+/* 早期自动测试状态变量：当前关闭，仅保留历史测试入口。 */
 static uint8_t s_auto_test_active;
 static uint32_t s_auto_test_start_ms;
 #endif
 
+/* 提前声明状态回传函数，供 OK 应答函数和周期 ST 回传复用。 */
 static void DogTask_SendVisionStatus(const char *tag);
 
+/* 收到蓝色平台命令后，开启平台循迹增强参数，并回到普通事件空闲状态继续循迹。 */
 static void DogTask_BeginPlatformTrackBoost(void)
 {
     s_platform_track_boost = 1U;
@@ -117,6 +125,7 @@ static void DogTask_BeginPlatformTrackBoost(void)
     s_pending_event_command = IMAGE_COMMAND_NONE;
 }
 
+/* 根据目标运动模式设置步态参数，并记录当前运动状态；重复设置同一状态时直接返回。 */
 static void DogTask_ApplyMotion(DogTaskMotion_t motion)
 {
     if (motion == s_motion)
@@ -161,6 +170,7 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
     s_motion = motion;
 }
 
+/* 控制 PC13 指示灯，用于显示颜色暂停或纠偏相关状态。 */
 static void DogTask_SetCorrectionLed(uint8_t is_on)
 {
     HAL_GPIO_WritePin(LED_GPIO_Port,
@@ -168,6 +178,7 @@ static void DogTask_SetCorrectionLed(uint8_t is_on)
                       (is_on != 0U) ? DOG_TASK_LED_ON_STATE : DOG_TASK_LED_OFF_STATE);
 }
 
+/* 将运动枚举转换成字符串，供 USART2 状态回传使用。 */
 static const char *DogTask_MotionName(DogTaskMotion_t motion)
 {
     if (motion == DOG_TASK_MOTION_FORWARD)
@@ -189,6 +200,7 @@ static const char *DogTask_MotionName(DogTaskMotion_t motion)
     return "STOP";
 }
 
+/* 将事件状态枚举转换成字符串，供 USART2 状态回传使用。 */
 static const char *DogTask_EventName(DogTaskEventState_t state)
 {
     static const char *names[] = {
@@ -208,6 +220,7 @@ static const char *DogTask_EventName(DogTaskEventState_t state)
     return "UNKNOWN";
 }
 
+/* 判断视觉命令是否属于需要进入事件状态机处理的命令。 */
 static uint8_t DogTask_IsEventCommand(ImageCommand_t command)
 {
     /* Keep lost-line 9999 non-latching so tracking can recover on the next valid frame. */
@@ -218,6 +231,7 @@ static uint8_t DogTask_IsEventCommand(ImageCommand_t command)
                      (command == IMAGE_COMMAND_BROWN));
 }
 
+/* 结束当前事件流程，清理事件和循迹标志，并恢复普通前进循迹。 */
 static void DogTask_ResumeTracking(uint32_t now_ms)
 {
     s_event_state = DOG_TASK_EVENT_IDLE;
@@ -229,6 +243,7 @@ static void DogTask_ResumeTracking(uint32_t now_ms)
     DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
 }
 
+/* 进入投掷前前进阶段；该阶段结束后会开始驱动投掷舵机旋转。 */
 static void DogTask_BeginThrowForward(ImageCommand_t command, uint32_t now_ms)
 {
     s_event_state = DOG_TASK_EVENT_THROW_FORWARD;
@@ -237,6 +252,7 @@ static void DogTask_BeginThrowForward(ImageCommand_t command, uint32_t now_ms)
     DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
 }
 
+/* 进入投掷前循迹延迟阶段；首次识别紫色/棕色时先继续循迹一段时间再投掷。 */
 static void DogTask_BeginThrowTrackDelay(ImageCommand_t command, uint32_t now_ms)
 {
     s_event_state = DOG_TASK_EVENT_THROW_TRACK_DELAY;
@@ -244,6 +260,7 @@ static void DogTask_BeginThrowTrackDelay(ImageCommand_t command, uint32_t now_ms
     s_pending_event_command = command;
 }
 
+/* 进入分岔转向阶段，按传入的左转或右转运动模式保持一小段时间后恢复循迹。 */
 static void DogTask_BeginForkTurn(DogTaskMotion_t motion, uint32_t now_ms)
 {
     s_event_state = DOG_TASK_EVENT_FORK_TURN;
@@ -256,6 +273,7 @@ static void DogTask_BeginForkTurn(DogTaskMotion_t motion, uint32_t now_ms)
     DogTask_ApplyMotion(motion);
 }
 
+/* 进入投掷旋转阶段，停止机器狗步态，并按紫色/棕色选择投掷舵机旋转方向。 */
 static void DogTask_BeginThrowRotation(ImageCommand_t command, uint32_t now_ms)
 {
     ThrowServoDirection_t direction = THROW_SERVO_DIRECTION_CW;
@@ -271,6 +289,7 @@ static void DogTask_BeginThrowRotation(ImageCommand_t command, uint32_t now_ms)
     ThrowServo_Start(direction);
 }
 
+/* 进入颜色暂停阶段，持续下发站立姿态压住步态；当前主流程基本不使用。 */
 static void __attribute__((unused)) DogTask_BeginColorPause(uint32_t now_ms, uint32_t pause_ms)
 {
     s_event_state = DOG_TASK_EVENT_COLOR_PAUSE; // 颜色事件的处理状态，机器人在这个状态下会暂停移动，等待一段时间后恢复跟踪，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
@@ -287,11 +306,13 @@ static void __attribute__((unused)) DogTask_BeginColorPause(uint32_t now_ms, uin
     DogTask_SetCorrectionLed(1U);
 }
 
+/* 向视觉模块发送一次 OK 应答，表示 STM32 已经收到并处理事件命令。 */
 static void DogTask_SendVisionAck(void)
 {
     DogTask_SendVisionStatus("OK");
 }
 
+/* 通过 USART2 向视觉模块发送当前事件状态和运动状态，tag 可为 OK 或 ST。 */
 static void DogTask_SendVisionStatus(const char *tag)
 {
     char message[64];
@@ -318,6 +339,7 @@ static void DogTask_SendVisionStatus(const char *tag)
                             DOG_TASK_VISION_ACK_TIMEOUT_MS);
 }
 
+/* 执行视觉事件命令：分岔转向、平台循迹增强、紫/棕投掷或停止。 */
 static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
 {
     if (command == IMAGE_COMMAND_TURN_LEFT)
@@ -374,6 +396,7 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     }
 }
 
+/* 推进当前事件状态机，根据已经经过的时间决定是否切换到下一阶段或恢复循迹。 */
 static void DogTask_UpdateEventState(uint32_t now_ms)
 {
     uint32_t elapsed_ms;
@@ -447,6 +470,7 @@ static void DogTask_UpdateEventState(uint32_t now_ms)
 }
 
 #if 0
+/* 早期转向测试入口：启动固定方向转向测试；当前关闭，仅保留参考。 */
 static void DogTask_BeginTurnTest(DogTaskMotion_t motion, uint32_t now_ms)
 {
     DogTask_ApplyMotion(motion);
@@ -454,6 +478,7 @@ static void DogTask_BeginTurnTest(DogTaskMotion_t motion, uint32_t now_ms)
     s_turn_test_start_ms = now_ms;
 }
 
+/* 早期转向测试停止入口：结束测试并停止运动；当前关闭，仅保留参考。 */
 static void DogTask_StopTurnTest(void)
 {
     s_turn_test_active = 0U;
@@ -461,6 +486,7 @@ static void DogTask_StopTurnTest(void)
 }
 #endif
 
+/* 处理普通单字节运动命令，目前主要处理前进和停止；事件命令由事件状态机处理。 */
 static void DogTask_ApplyCommand(ImageCommand_t command, uint32_t now_ms)
 {
     (void)now_ms;
@@ -487,6 +513,7 @@ static void DogTask_ApplyCommand(ImageCommand_t command, uint32_t now_ms)
     }
 }
 
+/* 根据视觉循迹误差计算左右腿差速步长，并设置前进、左纠偏或右纠偏步态。 */
 static void DogTask_ApplyTrackError(int16_t error)
 {
     float steer = 0.0f;
@@ -551,6 +578,7 @@ static void DogTask_ApplyTrackError(int16_t error)
 }
 
 #if 0
+/* 阻塞式运行某个运动一段时间的早期测试函数；当前关闭，仅保留参考。 */
 static void DogTask_RunMotionBlocking(DogTaskMotion_t motion, uint32_t duration_ms)
 {
     uint32_t start_ms = HAL_GetTick();
@@ -572,6 +600,7 @@ static void DogTask_RunMotionBlocking(DogTaskMotion_t motion, uint32_t duration_
     }
 }
 
+/* 阻塞式自动测试前进、左转、右转的早期测试函数；当前关闭，仅保留参考。 */
 static void DogTask_RunAutoTestBlocking(void)
 {
     DogTask_RunMotionBlocking(DOG_TASK_MOTION_FORWARD, DOG_TASK_AUTO_FORWARD_MS);
@@ -581,6 +610,7 @@ static void DogTask_RunAutoTestBlocking(void)
 }
 #endif
 
+/* 初始化机器狗任务：初始化投掷舵机、总线舵机回中、进入站立、启动视觉接收并默认前进。 */
 void DogTask_Init(void)
 {
     ThrowServo_Init();
@@ -625,6 +655,7 @@ void DogTask_Init(void)
 #endif
 }
 
+/* 机器狗主循环任务：读取视觉数据、处理事件状态机、更新步态、控制 LED 并周期回传状态。 */
 void DogTask_Run(void)
 {
     uint32_t now_ms = HAL_GetTick();
