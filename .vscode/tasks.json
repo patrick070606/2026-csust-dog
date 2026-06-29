@@ -1,0 +1,48 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build DogRobot",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "Debug",
+        "--target",
+        "DogRobot"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Flash and Run DogRobot",
+      "type": "shell",
+      "dependsOn": [
+        "Build DogRobot"
+      ],
+      "dependsOrder": "sequence",
+      "command": "openocd",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "args": [
+        "-f",
+        "interface/cmsis-dap.cfg",
+        "-f",
+        "target/stm32f1x.cfg",
+        "-c",
+        "transport select swd",
+        "-c",
+        "adapter speed 1000",
+        "-c",
+        "program build/Debug/DogRobot.elf verify reset exit"
+      ],
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}
