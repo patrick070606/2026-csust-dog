@@ -1,0 +1,1142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DogGait Angle Tool</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #18212f;
+      --muted: #657284;
+      --line: #d9dee7;
+      --axis: #9aa6b6;
+      --blue: #1f6feb;
+      --green: #17885b;
+      --red: #d04444;
+      --orange: #c26b15;
+      --shadow: 0 10px 26px rgba(24, 33, 47, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+      gap: 16px;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    aside,
+    main {
+      min-width: 0;
+    }
+
+    aside {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .brand {
+      padding: 18px 18px 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .sub {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .form {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+    }
+
+    .label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .value {
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+
+    input,
+    select {
+      width: 100%;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 10px;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.14);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .btn {
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      cursor: pointer;
+      transition: 120ms ease;
+    }
+
+    .btn:hover {
+      border-color: var(--axis);
+      transform: translateY(-1px);
+    }
+
+    .btn.primary {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+    }
+
+    .status {
+      min-height: 34px;
+      padding: 10px 14px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      border-top: 1px solid var(--line);
+    }
+
+    .status.error {
+      color: var(--red);
+      background: #fff4f4;
+    }
+
+    main {
+      display: grid;
+      grid-template-rows: minmax(360px, 54vh) minmax(260px, 1fr);
+      gap: 16px;
+    }
+
+    .stage {
+      position: relative;
+      overflow: hidden;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      min-height: 0;
+    }
+
+    .canvas-box {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .badge {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      max-width: calc(100% - 24px);
+      pointer-events: none;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border: 1px solid rgba(217, 222, 231, 0.92);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      backdrop-filter: blur(8px);
+      white-space: nowrap;
+    }
+
+    .pill strong {
+      color: var(--ink);
+      font-weight: 650;
+      margin-left: 4px;
+    }
+
+    .legend {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      display: grid;
+      gap: 6px;
+      min-width: 128px;
+      padding: 9px;
+      border: 1px solid rgba(217, 222, 231, 0.92);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(8px);
+      font-size: 12px;
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .key {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+
+    .swatch {
+      width: 16px;
+      height: 3px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .blue {
+      color: var(--blue);
+    }
+
+    .green {
+      color: var(--green);
+    }
+
+    .red {
+      color: var(--red);
+    }
+
+    .orange {
+      color: var(--orange);
+    }
+
+    @media (max-width: 980px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        grid-template-rows: 460px 320px;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .app {
+        padding: 10px;
+      }
+
+      .row,
+      .chart-grid {
+        grid-template-columns: 1fr;
+      }
+
+      main {
+        grid-template-rows: 420px 640px;
+      }
+
+      .toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <section class="brand">
+        <h1>DogGait_CalcAbsoluteAngleByPos</h1>
+        <p class="sub">足端相位轨迹、髋膝绝对角、物理时间角加速度同步计算。</p>
+      </section>
+
+      <section class="panel">
+        <div class="form">
+          <div class="field">
+            <label class="label" for="preset">预设</label>
+            <select id="preset">
+              <option value="projectTrot">项目小跑整周期</option>
+              <option value="cycloid">仅抬脚摆线</option>
+              <option value="ellipse">椭圆步态</option>
+              <option value="line">水平往复</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="label" for="xExpr">x(t)</label>
+            <input id="xExpr" spellcheck="false" value="projectTrotX(t, base_x, bias_angle_deg, h, r)">
+          </div>
+
+          <div class="field">
+            <label class="label" for="yExpr">y(t)</label>
+            <input id="yExpr" spellcheck="false" value="projectTrotY(t, base_y, bias_angle_deg, h, r)">
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label class="label" for="baseX">base_x</label>
+              <input id="baseX" type="number" step="0.1" value="-50">
+            </div>
+            <div class="field">
+              <label class="label" for="baseY">base_y</label>
+              <input id="baseY" type="number" step="0.1" value="60">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label class="label" for="biasAngle">bias_angle_deg</label>
+              <input id="biasAngle" type="number" step="0.1" value="0">
+            </div>
+            <div class="field">
+              <label class="label" for="stepHeight">h</label>
+              <input id="stepHeight" type="number" step="0.1" value="45">
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="label" for="stepRange">r</label>
+            <input id="stepRange" type="number" step="0.1" value="50">
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label class="label" for="l1">l1</label>
+              <input id="l1" type="number" step="0.1" value="100">
+            </div>
+            <div class="field">
+              <label class="label" for="l2">l2</label>
+              <input id="l2" type="number" step="0.1" value="100">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label class="label" for="t0">相位 t 起点</label>
+              <input id="t0" type="number" step="0.01" value="0">
+            </div>
+            <div class="field">
+              <label class="label" for="t1">相位 t 终点</label>
+              <input id="t1" type="number" step="0.01" value="1">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label class="label" for="updatePeriodMs">update_period_ms</label>
+              <input id="updatePeriodMs" type="number" min="1" step="1" value="150">
+            </div>
+            <div class="field">
+              <label class="label" for="speedFreq">speed_freq</label>
+              <input id="speedFreq" type="number" min="0.001" step="0.01" value="0.20">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label class="label" for="samples">采样点</label>
+              <input id="samples" type="number" min="80" max="3000" step="10" value="720">
+            </div>
+            <div class="field">
+              <label class="label" for="speed">播放倍率</label>
+              <input id="speed" type="number" min="0.05" max="10" step="0.05" value="1">
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="label" for="timeScrub">
+              当前相位 t
+              <span class="value" id="timeLabel">0.000</span>
+            </label>
+            <input id="timeScrub" type="range" min="0" max="1000" value="0">
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button class="btn primary" id="playBtn" type="button" title="播放/暂停">▶</button>
+          <button class="btn" id="resetBtn" type="button" title="回到起点">↺</button>
+          <button class="btn" id="fitBtn" type="button" title="重算视图">⛶</button>
+          <button class="btn" id="csvBtn" type="button" title="导出 CSV">CSV</button>
+        </div>
+        <div class="status" id="status">ready</div>
+      </section>
+    </aside>
+
+    <main>
+      <section class="stage">
+        <canvas id="trajectory"></canvas>
+        <div class="badge">
+          <span class="pill">x <strong id="xNow">0.00</strong></span>
+          <span class="pill">y <strong id="yNow">0.00</strong></span>
+          <span class="pill">s <strong id="secNow">0.000</strong></span>
+          <span class="pill">hip <strong id="hipNow">0.00°</strong></span>
+          <span class="pill">knee <strong id="kneeNow">0.00°</strong></span>
+        </div>
+        <div class="legend">
+          <span class="key blue"><span class="swatch"></span>足端轨迹</span>
+          <span class="key green"><span class="swatch"></span>连杆</span>
+          <span class="key orange"><span class="swatch"></span>当前姿态</span>
+        </div>
+      </section>
+
+      <section class="chart-grid">
+        <div class="canvas-box">
+          <canvas id="angleChart"></canvas>
+          <div class="badge">
+            <span class="pill">绝对角 deg</span>
+          </div>
+          <div class="legend">
+            <span class="key blue"><span class="swatch"></span>hip</span>
+            <span class="key green"><span class="swatch"></span>knee</span>
+          </div>
+        </div>
+        <div class="canvas-box">
+          <canvas id="accelChart"></canvas>
+          <div class="badge">
+            <span class="pill">角加速度 deg/s²</span>
+          </div>
+          <div class="legend">
+            <span class="key red"><span class="swatch"></span>hip α</span>
+            <span class="key orange"><span class="swatch"></span>knee α</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const PI = Math.PI;
+    const DEG = 180 / Math.PI;
+    const EPS = 0.001;
+    const state = {
+      data: [],
+      playing: false,
+      cursor: 0,
+      lastFrame: 0,
+      view: null
+    };
+
+    const els = {
+      preset: document.getElementById("preset"),
+      xExpr: document.getElementById("xExpr"),
+      yExpr: document.getElementById("yExpr"),
+      baseX: document.getElementById("baseX"),
+      baseY: document.getElementById("baseY"),
+      biasAngle: document.getElementById("biasAngle"),
+      stepHeight: document.getElementById("stepHeight"),
+      stepRange: document.getElementById("stepRange"),
+      l1: document.getElementById("l1"),
+      l2: document.getElementById("l2"),
+      t0: document.getElementById("t0"),
+      t1: document.getElementById("t1"),
+      updatePeriodMs: document.getElementById("updatePeriodMs"),
+      speedFreq: document.getElementById("speedFreq"),
+      samples: document.getElementById("samples"),
+      speed: document.getElementById("speed"),
+      scrub: document.getElementById("timeScrub"),
+      timeLabel: document.getElementById("timeLabel"),
+      status: document.getElementById("status"),
+      playBtn: document.getElementById("playBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      fitBtn: document.getElementById("fitBtn"),
+      csvBtn: document.getElementById("csvBtn"),
+      xNow: document.getElementById("xNow"),
+      yNow: document.getElementById("yNow"),
+      secNow: document.getElementById("secNow"),
+      hipNow: document.getElementById("hipNow"),
+      kneeNow: document.getElementById("kneeNow"),
+      trajectory: document.getElementById("trajectory"),
+      angleChart: document.getElementById("angleChart"),
+      accelChart: document.getElementById("accelChart")
+    };
+
+    const presets = {
+      projectTrot: {
+        x: "projectTrotX(t, base_x, bias_angle_deg, h, r)",
+        y: "projectTrotY(t, base_y, bias_angle_deg, h, r)",
+        baseX: -50,
+        baseY: 60,
+        biasAngle: 0,
+        stepHeight: 45,
+        stepRange: 50,
+        updatePeriodMs: 150,
+        speedFreq: 0.20,
+        t0: 0,
+        t1: 1
+      },
+      cycloid: {
+        x: "base_x + cycloidX(t, bias_angle_deg, h, r)",
+        y: "base_y + cycloidY(t, bias_angle_deg, h, r)",
+        baseX: -50,
+        baseY: 60,
+        biasAngle: 0,
+        stepHeight: 45,
+        stepRange: 50,
+        updatePeriodMs: 150,
+        speedFreq: 0.20,
+        t0: 0,
+        t1: 0.5
+      },
+      ellipse: {
+        x: "base_x + 28 * sin(2*pi*t)",
+        y: "base_y + 18 + 12 * cos(2*pi*t)",
+        baseX: 0,
+        baseY: 0,
+        biasAngle: 0,
+        stepHeight: 35,
+        stepRange: 80,
+        updatePeriodMs: 150,
+        speedFreq: 0.20,
+        t0: 0,
+        t1: 1
+      },
+      line: {
+        x: "base_x - 35 + 70*t",
+        y: "base_y + 18",
+        baseX: 0,
+        baseY: 0,
+        biasAngle: 0,
+        stepHeight: 35,
+        stepRange: 80,
+        updatePeriodMs: 150,
+        speedFreq: 0.20,
+        t0: 0,
+        t1: 1
+      }
+    };
+
+    const mathNames = [
+      "abs", "acos", "asin", "atan", "atan2", "ceil", "cos", "exp", "floor",
+      "log", "max", "min", "pow", "round", "sign", "sin", "sqrt", "tan"
+    ];
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function finite(value, fallback) {
+      return Number.isFinite(value) ? value : fallback;
+    }
+
+    function cycloidRaw(t, h, r) {
+      const th = (2 * Math.PI * t) / 0.5;
+      const progress = (th - Math.sin(th)) / (2 * Math.PI);
+      const rawX = r >= 0 ? progress * r : (1 - progress) * (-r);
+      const rawY = h * (1 - Math.cos(th)) * 0.5;
+      return { rawX, rawY };
+    }
+
+    function cycloidX(t, biasAngleDeg, h, r) {
+      const p = cycloidRaw(t, h, r);
+      const angleRad = biasAngleDeg * Math.PI / 180;
+      return p.rawX * Math.cos(angleRad) + p.rawY * Math.sin(angleRad);
+    }
+
+    function cycloidY(t, biasAngleDeg, h, r) {
+      const p = cycloidRaw(t, h, r);
+      const angleRad = biasAngleDeg * Math.PI / 180;
+      return p.rawY * Math.cos(angleRad) - p.rawX * Math.sin(angleRad);
+    }
+
+    function projectTrotOffset(t, biasAngleDeg, h, r) {
+      if (t <= 0.5) {
+        return {
+          x: cycloidX(t, biasAngleDeg, h, r),
+          y: cycloidY(t, biasAngleDeg, h, r)
+        };
+      }
+
+      const phase = t - 0.5;
+      return {
+        x: cycloidX(phase, biasAngleDeg, 0, -r),
+        y: cycloidY(phase, biasAngleDeg, 0, -r)
+      };
+    }
+
+    function projectTrotX(t, baseX, biasAngleDeg, h, r) {
+      return baseX + projectTrotOffset(t, biasAngleDeg, h, r).x;
+    }
+
+    function projectTrotY(t, baseY, biasAngleDeg, h, r) {
+      return baseY + projectTrotOffset(t, biasAngleDeg, h, r).y;
+    }
+
+    function compileExpression(expr) {
+      const body = `"use strict"; const pi=Math.PI; const PI=Math.PI; ` +
+        `const base_x=params.base_x; const base_y=params.base_y; ` +
+        `const bias_angle_deg=params.bias_angle_deg; const h=params.h; const r=params.r; ` +
+        mathNames.map((name) => `const ${name}=Math.${name};`).join("") +
+        `const cycloidRaw=${cycloidRaw.toString()}; ` +
+        `const cycloidX=${cycloidX.toString()}; ` +
+        `const cycloidY=${cycloidY.toString()}; ` +
+        `const projectTrotOffset=${projectTrotOffset.toString()}; ` +
+        `const projectTrotX=${projectTrotX.toString()}; ` +
+        `const projectTrotY=${projectTrotY.toString()}; ` +
+        ` return (${expr});`;
+      return new Function("t", "params", body);
+    }
+
+    function calcAbsoluteAngleByPos(x, y, l1, l2) {
+      const dy = l1 + l2 - y;
+      const ll2 = x * x + dy * dy;
+      const ll = Math.sqrt(ll2);
+      if (ll < EPS) {
+        return { hip: 0, knee: 0 };
+      }
+
+      const hipBase = Math.atan2(x, dy);
+      const hipLink = Math.acos(clamp((ll2 + l1 * l1 - l2 * l2) / (2 * l1 * ll), -1, 1));
+      const kneeLink = Math.acos(clamp((l1 * l1 + l2 * l2 - ll2) / (2 * l1 * l2), -1, 1));
+
+      return {
+        hip: (hipBase - hipLink) * DEG,
+        knee: (Math.PI - kneeLink) * DEG
+      };
+    }
+
+    function normalizeAngleSeries(data, key) {
+      if (!data.length) return;
+      let offset = 0;
+      let prev = data[0][key];
+      data[0][key + "Continuous"] = prev;
+      for (let i = 1; i < data.length; i++) {
+        const raw = data[i][key];
+        const delta = raw + offset - prev;
+        if (delta > 180) offset -= 360;
+        if (delta < -180) offset += 360;
+        data[i][key + "Continuous"] = raw + offset;
+        prev = data[i][key + "Continuous"];
+      }
+    }
+
+    function computeDerivatives(data, angleKey, velocityKey, accelKey) {
+      const n = data.length;
+      if (n < 3) return;
+      for (let i = 0; i < n; i++) {
+        const a = Math.max(0, i - 1);
+        const b = Math.min(n - 1, i + 1);
+        const dt = data[b].timeSec - data[a].timeSec || 1;
+        data[i][velocityKey] = (data[b][angleKey] - data[a][angleKey]) / dt;
+      }
+      for (let i = 0; i < n; i++) {
+        const a = Math.max(0, i - 1);
+        const b = Math.min(n - 1, i + 1);
+        const dt = data[b].timeSec - data[a].timeSec || 1;
+        data[i][accelKey] = (data[b][velocityKey] - data[a][velocityKey]) / dt;
+      }
+    }
+
+    function recalc(keepCursor = true) {
+      try {
+        const xFunc = compileExpression(els.xExpr.value.trim());
+        const yFunc = compileExpression(els.yExpr.value.trim());
+        const params = {
+          base_x: Number(els.baseX.value),
+          base_y: Number(els.baseY.value),
+          bias_angle_deg: Number(els.biasAngle.value),
+          h: Number(els.stepHeight.value),
+          r: Number(els.stepRange.value)
+        };
+        const l1 = Number(els.l1.value);
+        const l2 = Number(els.l2.value);
+        const t0 = Number(els.t0.value);
+        const t1 = Number(els.t1.value);
+        const updatePeriodMs = Number(els.updatePeriodMs.value);
+        const speedFreq = Number(els.speedFreq.value);
+        const samples = clamp(Math.round(Number(els.samples.value)), 80, 3000);
+
+        if (!Number.isFinite(params.base_x)) throw new Error("base_x 必须是有效数值");
+        if (!Number.isFinite(params.base_y)) throw new Error("base_y 必须是有效数值");
+        if (!Number.isFinite(params.bias_angle_deg)) throw new Error("bias_angle_deg 必须是有效数值");
+        if (!Number.isFinite(params.h)) throw new Error("h 必须是有效数值");
+        if (!Number.isFinite(params.r)) throw new Error("r 必须是有效数值");
+        if (!(l1 > 0 && l2 > 0)) throw new Error("l1/l2 必须大于 0");
+        if (!(t1 > t0)) throw new Error("t 终点必须大于起点");
+        if (!(updatePeriodMs > 0)) throw new Error("update_period_ms 必须大于 0");
+        if (!(speedFreq > 0)) throw new Error("speed_freq 必须大于 0");
+
+        const phaseToSec = (updatePeriodMs / 1000) / speedFreq;
+        const data = [];
+        for (let i = 0; i < samples; i++) {
+          const ratio = i / (samples - 1);
+          const t = t0 + (t1 - t0) * ratio;
+          const timeSec = t * phaseToSec;
+          const x = Number(xFunc(t, params));
+          const y = Number(yFunc(t, params));
+          if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            throw new Error(`方程在 t=${t.toFixed(5)} 处不是有效数值`);
+          }
+          const angles = calcAbsoluteAngleByPos(x, y, l1, l2);
+          data.push({ t, timeSec, x, y, hip: angles.hip, knee: angles.knee });
+        }
+
+        normalizeAngleSeries(data, "hip");
+        normalizeAngleSeries(data, "knee");
+        computeDerivatives(data, "hipContinuous", "hipVel", "hipAccel");
+        computeDerivatives(data, "kneeContinuous", "kneeVel", "kneeAccel");
+
+        state.data = data;
+        state.cursor = keepCursor ? clamp(state.cursor, 0, data.length - 1) : 0;
+        state.view = makeTrajectoryView(data, l1, l2);
+        els.scrub.value = Math.round((state.cursor / (data.length - 1)) * 1000);
+        setStatus(`已计算 ${data.length} 点；完整相位周期 ${(phaseToSec).toFixed(3)} s；当前范围 ${(data[data.length - 1].timeSec - data[0].timeSec).toFixed(3)} s`);
+        drawAll();
+      } catch (err) {
+        setStatus(err.message || String(err), true);
+      }
+    }
+
+    function makeTrajectoryView(data, l1, l2) {
+      let minX = -l1 - l2;
+      let maxX = l1 + l2;
+      let minY = -8;
+      let maxY = l1 + l2 + 12;
+      for (const p of data) {
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+      }
+      const padX = Math.max(8, (maxX - minX) * 0.14);
+      const padY = Math.max(8, (maxY - minY) * 0.14);
+      return {
+        minX: minX - padX,
+        maxX: maxX + padX,
+        minY: minY - padY,
+        maxY: maxY + padY
+      };
+    }
+
+    function setStatus(message, isError = false) {
+      els.status.textContent = message;
+      els.status.classList.toggle("error", isError);
+    }
+
+    function setupCanvas(canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(1, Math.floor(rect.width * dpr));
+      const height = Math.max(1, Math.floor(rect.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { ctx, w: rect.width, h: rect.height };
+    }
+
+    function clear(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    function drawGrid(ctx, w, h, xLabel = "", yLabel = "") {
+      ctx.save();
+      ctx.strokeStyle = "#eef1f5";
+      ctx.lineWidth = 1;
+      for (let x = 40; x < w; x += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 36; y < h; y += 42) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#8793a4";
+      ctx.font = "12px Segoe UI, Microsoft YaHei, sans-serif";
+      if (xLabel) ctx.fillText(xLabel, w - 54, h - 14);
+      if (yLabel) ctx.fillText(yLabel, 12, 22);
+      ctx.restore();
+    }
+
+    function drawTrajectory() {
+      const data = state.data;
+      if (!data.length) return;
+      const { ctx, w, h } = setupCanvas(els.trajectory);
+      clear(ctx, w, h);
+      drawGrid(ctx, w, h, "x", "y");
+
+      const view = state.view;
+      const sx = w / (view.maxX - view.minX);
+      const sy = h / (view.maxY - view.minY);
+      const scale = Math.min(sx, sy);
+      const offsetX = (w - (view.maxX - view.minX) * scale) / 2;
+      const offsetY = (h - (view.maxY - view.minY) * scale) / 2;
+      const px = (x) => offsetX + (x - view.minX) * scale;
+      const py = (y) => h - offsetY - (y - view.minY) * scale;
+
+      const l1 = Number(els.l1.value);
+      const l2 = Number(els.l2.value);
+      const hip = { x: 0, y: l1 + l2 };
+      const now = data[state.cursor] || data[0];
+      const hipRad = now.hip / DEG;
+      const kneeRad = (now.hip + now.knee) / DEG;
+      const knee = {
+        x: hip.x + l1 * Math.sin(hipRad),
+        y: hip.y - l1 * Math.cos(hipRad)
+      };
+
+      ctx.save();
+      ctx.strokeStyle = "#cbd3df";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px(view.minX), py(0));
+      ctx.lineTo(px(view.maxX), py(0));
+      ctx.moveTo(px(0), py(view.minY));
+      ctx.lineTo(px(0), py(view.maxY));
+      ctx.stroke();
+
+      ctx.strokeStyle = "#1f6feb";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      data.forEach((p, i) => {
+        const x = px(p.x);
+        const y = py(p.y);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      ctx.strokeStyle = "#d04444";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 7]);
+      ctx.beginPath();
+      ctx.arc(px(hip.x), py(hip.y), Math.abs(l1 * scale), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px(knee.x), py(knee.y), Math.abs(l2 * scale), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.strokeStyle = "#17885b";
+      ctx.lineWidth = 6;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(px(hip.x), py(hip.y));
+      ctx.lineTo(px(knee.x), py(knee.y));
+      ctx.lineTo(px(now.x), py(now.y));
+      ctx.stroke();
+
+      ctx.fillStyle = "#c26b15";
+      for (const p of [hip, knee, now]) {
+        ctx.beginPath();
+        ctx.arc(px(p.x), py(p.y), 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = "#18212f";
+      ctx.font = "12px Segoe UI, Microsoft YaHei, sans-serif";
+      ctx.fillText("hip", px(hip.x) + 8, py(hip.y) - 8);
+      ctx.fillText("knee", px(knee.x) + 8, py(knee.y) - 8);
+      ctx.restore();
+    }
+
+    function valueRange(data, keys) {
+      let min = Infinity;
+      let max = -Infinity;
+      for (const p of data) {
+        for (const key of keys) {
+          if (Number.isFinite(p[key])) {
+            min = Math.min(min, p[key]);
+            max = Math.max(max, p[key]);
+          }
+        }
+      }
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return { min: -1, max: 1 };
+      if (Math.abs(max - min) < 1e-6) {
+        min -= 1;
+        max += 1;
+      }
+      const pad = (max - min) * 0.12;
+      return { min: min - pad, max: max + pad };
+    }
+
+    function drawChart(canvas, keys, colors, unitLabel) {
+      const data = state.data;
+      if (!data.length) return;
+      const { ctx, w, h } = setupCanvas(canvas);
+      clear(ctx, w, h);
+      drawGrid(ctx, w, h, "s", unitLabel);
+
+      const left = 46;
+      const right = 14;
+      const top = 42;
+      const bottom = 28;
+      const plotW = Math.max(1, w - left - right);
+      const plotH = Math.max(1, h - top - bottom);
+      const tMin = data[0].timeSec;
+      const tMax = data[data.length - 1].timeSec;
+      const range = valueRange(data, keys);
+      const tx = (timeSec) => left + ((timeSec - tMin) / (tMax - tMin || 1)) * plotW;
+      const ty = (v) => top + (1 - (v - range.min) / (range.max - range.min || 1)) * plotH;
+
+      ctx.save();
+      ctx.strokeStyle = "#cbd3df";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(left, top, plotW, plotH);
+      ctx.stroke();
+
+      if (range.min < 0 && range.max > 0) {
+        ctx.strokeStyle = "#aeb8c6";
+        ctx.beginPath();
+        ctx.moveTo(left, ty(0));
+        ctx.lineTo(left + plotW, ty(0));
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#8793a4";
+      ctx.font = "11px Segoe UI, Microsoft YaHei, sans-serif";
+      ctx.fillText(range.max.toFixed(1), 8, top + 4);
+      ctx.fillText(range.min.toFixed(1), 8, top + plotH);
+
+      keys.forEach((key, idx) => {
+        ctx.strokeStyle = colors[idx];
+          ctx.lineWidth = 2;
+        ctx.beginPath();
+        data.forEach((p, i) => {
+          const x = tx(p.timeSec);
+          const y = ty(finite(p[key], 0));
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      });
+
+      const now = data[state.cursor] || data[0];
+      const cx = tx(now.timeSec);
+      ctx.strokeStyle = "#18212f";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, top);
+      ctx.lineTo(cx, top + plotH);
+      ctx.stroke();
+
+      keys.forEach((key, idx) => {
+        ctx.fillStyle = colors[idx];
+        ctx.beginPath();
+        ctx.arc(cx, ty(finite(now[key], 0)), 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    function drawAll() {
+      if (!state.data.length) return;
+      const now = state.data[state.cursor] || state.data[0];
+      els.timeLabel.textContent = now.t.toFixed(4);
+      els.xNow.textContent = now.x.toFixed(2);
+      els.yNow.textContent = now.y.toFixed(2);
+      els.secNow.textContent = now.timeSec.toFixed(3);
+      els.hipNow.textContent = `${now.hip.toFixed(2)}°`;
+      els.kneeNow.textContent = `${now.knee.toFixed(2)}°`;
+      drawTrajectory();
+      drawChart(els.angleChart, ["hip", "knee"], ["#1f6feb", "#17885b"], "deg");
+      drawChart(els.accelChart, ["hipAccel", "kneeAccel"], ["#d04444", "#c26b15"], "deg/s²");
+    }
+
+    function animate(time) {
+      if (!state.lastFrame) state.lastFrame = time;
+      const dt = Math.min(80, time - state.lastFrame) / 1000;
+      state.lastFrame = time;
+      if (state.playing && state.data.length) {
+        const speed = finite(Number(els.speed.value), 1);
+        const t0 = state.data[0].t;
+        const t1 = state.data[state.data.length - 1].t;
+        const span = t1 - t0 || 1;
+        const currentT = state.data[state.cursor].t;
+        let nextT = currentT + dt * speed * span;
+        while (nextT > t1) nextT -= span;
+        const ratio = (nextT - t0) / span;
+        state.cursor = clamp(Math.round(ratio * (state.data.length - 1)), 0, state.data.length - 1);
+        els.scrub.value = Math.round((state.cursor / (state.data.length - 1)) * 1000);
+        drawAll();
+      }
+      requestAnimationFrame(animate);
+    }
+
+    function setCursorFromScrub() {
+      if (!state.data.length) return;
+      const ratio = Number(els.scrub.value) / 1000;
+      state.cursor = clamp(Math.round(ratio * (state.data.length - 1)), 0, state.data.length - 1);
+      drawAll();
+    }
+
+    function downloadCsv() {
+      if (!state.data.length) return;
+      const headers = [
+        "phase_t", "time_s", "x", "y", "hip_angle_deg", "knee_angle_deg",
+        "hip_velocity_deg_per_s", "knee_velocity_deg_per_s",
+        "hip_accel_deg_per_s2", "knee_accel_deg_per_s2"
+      ];
+      const lines = [headers.join(",")];
+      for (const p of state.data) {
+        lines.push([
+          p.t, p.timeSec, p.x, p.y, p.hip, p.knee,
+          finite(p.hipVel, 0), finite(p.kneeVel, 0),
+          finite(p.hipAccel, 0), finite(p.kneeAccel, 0)
+        ].map((v) => Number(v).toPrecision(10)).join(","));
+      }
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "dog_gait_angles.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function applyPreset(name) {
+      const preset = presets[name];
+      if (!preset) return;
+      els.xExpr.value = preset.x;
+      els.yExpr.value = preset.y;
+      els.baseX.value = preset.baseX;
+      els.baseY.value = preset.baseY;
+      els.biasAngle.value = preset.biasAngle;
+      els.stepHeight.value = preset.stepHeight;
+      els.stepRange.value = preset.stepRange;
+      els.updatePeriodMs.value = preset.updatePeriodMs;
+      els.speedFreq.value = preset.speedFreq;
+      els.t0.value = preset.t0;
+      els.t1.value = preset.t1;
+      recalc(false);
+    }
+
+    for (const el of [
+      els.xExpr,
+      els.yExpr,
+      els.baseX,
+      els.baseY,
+      els.biasAngle,
+      els.stepHeight,
+      els.stepRange,
+      els.l1,
+      els.l2,
+      els.t0,
+      els.t1,
+      els.updatePeriodMs,
+      els.speedFreq,
+      els.samples
+    ]) {
+      el.addEventListener("input", () => {
+        els.preset.value = "custom";
+        recalc(true);
+      });
+    }
+
+    els.preset.addEventListener("change", () => applyPreset(els.preset.value));
+    els.scrub.addEventListener("input", setCursorFromScrub);
+    els.playBtn.addEventListener("click", () => {
+      state.playing = !state.playing;
+      state.lastFrame = 0;
+      els.playBtn.textContent = state.playing ? "Ⅱ" : "▶";
+    });
+    els.resetBtn.addEventListener("click", () => {
+      state.cursor = 0;
+      els.scrub.value = 0;
+      drawAll();
+    });
+    els.fitBtn.addEventListener("click", () => recalc(true));
+    els.csvBtn.addEventListener("click", downloadCsv);
+    window.addEventListener("resize", drawAll);
+
+    recalc(false);
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
