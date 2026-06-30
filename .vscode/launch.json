@@ -67,6 +67,34 @@
         "samplesPerSecond": 4
       },
       "showDevDebugOutput": "raw"
+    },
+    {
+      "name": "DAPLink OpenOCD STM32F103",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/Debug/DogRobot.elf",
+      "preLaunchTask": "Build DogRobot",
+      "device": "STM32F103C8",
+      "interface": "swd",
+      "runToEntryPoint": "main",
+      "serverpath": "openocd",
+      "configFiles": [
+        "interface/cmsis-dap.cfg",
+        "target/stm32f1x.cfg"
+      ],
+      "openOCDLaunchCommands": [
+        "transport select swd",
+        "adapter speed 1000"
+      ],
+      "postLaunchCommands": [
+        "monitor reset halt"
+      ],
+      "overrideRestartCommands": [
+        "monitor reset halt"
+      ],
+      "showDevDebugOutput": "raw"
     }
   ]
 }
