@@ -55,6 +55,53 @@ static uint8_t ImageCommand_FindField(const char *frame, uint8_t len, char field
     return IMAGE_FIELD_NOT_FOUND;
 }
 
+static uint8_t ImageCommand_IsFieldDelimiter(char data)
+{
+    return (uint8_t)((data == ',') ||
+                     (data == ' ') ||
+                     (data == '\t'));
+}
+
+static uint8_t ImageCommand_MatchToken(const char *frame,
+                                       uint8_t len,
+                                       uint8_t start,
+                                       const char *token)
+{
+    uint8_t i = start;
+    uint8_t token_len = 0U;
+
+    if ((frame == 0) || (token == 0))
+    {
+        return 0U;
+    }
+
+    while ((i < len) && (ImageCommand_IsFieldDelimiter(frame[i]) == 0U))
+    {
+        i++;
+    }
+
+    while (token[token_len] != '\0')
+    {
+        token_len++;
+    }
+
+    if ((uint8_t)(i - start) != token_len)
+    {
+        return 0U;
+    }
+
+    for (uint8_t j = 0U; j < token_len; j++)
+    {
+        if (ImageCommand_ToUpper(frame[(uint8_t)(start + j)]) !=
+            ImageCommand_ToUpper(token[j]))
+        {
+            return 0U;
+        }
+    }
+
+    return 1U;
+}
+
 static uint8_t ImageCommand_ParseErrorField(const char *frame, uint8_t len, int16_t *error)
 {
     uint8_t i;
@@ -109,6 +156,61 @@ static uint8_t ImageCommand_ParseErrorField(const char *frame, uint8_t len, int1
     return 1U;
 }
 
+static uint8_t ImageCommand_ParseColorCommand(const char *frame,
+                                             uint8_t len,
+                                             ImageCommand_t *command)
+{
+    uint8_t i;
+
+    if ((frame == 0) || (command == 0))
+    {
+        return 0U;
+    }
+
+    i = ImageCommand_FindField(frame, len, 'C');
+    if (i == IMAGE_FIELD_NOT_FOUND)
+    {
+        return 0U;
+    }
+
+    while ((i < len) && ((frame[i] == ' ') || (frame[i] == '\t')))
+    {
+        i++;
+    }
+
+    if (i >= len)
+    {
+        return 0U;
+    }
+
+    if (ImageCommand_MatchToken(frame, len, i, "blue") != 0U)
+    {
+        *command = IMAGE_COMMAND_PLATFORM;
+        return 1U;
+    }
+
+    if (ImageCommand_MatchToken(frame, len, i, "purple") != 0U)
+    {
+        *command = IMAGE_COMMAND_PURPLE;
+        return 1U;
+    }
+
+    if (ImageCommand_MatchToken(frame, len, i, "brown") != 0U)
+    {
+        *command = IMAGE_COMMAND_BROWN;
+        return 1U;
+    }
+
+    if ((ImageCommand_MatchToken(frame, len, i, "green") != 0U) ||
+        (ImageCommand_MatchToken(frame, len, i, "none") != 0U))
+    {
+        *command = IMAGE_COMMAND_NONE;
+        return 1U;
+    }
+
+    return 0U;
+}
+
 static uint8_t ImageCommand_ErrorToCommand(int16_t error, ImageCommand_t *command)
 {
     if (command == 0)
@@ -159,15 +261,27 @@ static void ImageCommand_FinishFrame(void)
 {
     int16_t error;
     ImageCommand_t command = IMAGE_COMMAND_NONE;
+    uint8_t has_error;
+    uint8_t has_color;
 
-    if (s_frame_len == 0U)
+    if (s_frame_len == 0U) // 如果没有接收到任何数据，则直接返回。
     {
         return;
     }
 
-    if (ImageCommand_ParseErrorField(s_frame, s_frame_len, &error) != 0U)
+    has_error = ImageCommand_ParseErrorField(s_frame, s_frame_len, &error);
+    has_color = ImageCommand_ParseColorCommand(s_frame, s_frame_len, &command);
+
+    if ((has_color != 0U) && (command != IMAGE_COMMAND_NONE))
     {
-        if (ImageCommand_ErrorToCommand(error, &command) != 0U)
+        s_latest_command = command;
+        s_has_command = 1U;
+        s_latest_track.valid = 0U;
+        s_has_track = 0U;
+    }
+    else if (has_error != 0U) // 如果解析到误差字段，则根据误差值判断是循迹误差还是事件命令。
+    {
+        if (ImageCommand_ErrorToCommand(error, &command) != 0U) // 如果是事件命令，则记录最新命令并清除循迹误差标志。
         {
             s_latest_command = command;
             s_has_command = 1U;
@@ -299,6 +413,7 @@ ImageTrack_t ImageCommand_TakeLatestTrack(void)
     return track;
 }
 
+/* 接收 K230 字节*/
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART2)
