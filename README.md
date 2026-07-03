@@ -4,6 +4,7 @@
 
 - 通过 USART1 控制 8 个 HTS-35H 总线舵机。
 - 通过 USART2 接收 K230 视觉模块的循迹误差和事件命令。
+- 通过 USART3 接收 JY61P 陀螺仪/IMU 的姿态、角速度和加速度数据。
 - 根据视觉误差进行差速小跑循迹。
 - 根据绿色分岔、蓝色平台、紫色/棕色住户事件执行对应动作。
 - 通过 TIM1_CH1N/PB13 控制投掷/附加 PWM 舵机。
@@ -17,7 +18,7 @@ Core/
   Inc/                     STM32 HAL 头文件、外设声明
   Src/
     main.c                 主入口，只负责 HAL/外设初始化和 DogTask 调度
-    usart.c                USART1/USART2 配置
+    usart.c                USART1/USART2/USART3 配置
     tim.c                  TIM1 PWM 配置
     gpio.c                 PC13 LED 配置
 
@@ -27,6 +28,7 @@ User/
   dog_servo.c/.h           角度到总线舵机 position 的转换与 8 舵机同步输出
   dog_gait.c/.h            站立、小跑、原地踏步、侧移、转向、视觉循迹步态
   image_command.c/.h       USART2 视觉数据接收、数字协议解析
+  jy61p_imu.c/.h           USART3 JY61P IMU 帧解析、状态缓存和调试变量
   dog_task.c/.h            当前机器狗主任务和事件状态机
   throw_servo.c/.h         PB13 PWM 投掷/附加舵机控制
 
@@ -93,6 +95,23 @@ GPIO33 -> UART3_RXD
 Baud   -> 115200
 ```
 
+### JY61P 陀螺仪/IMU
+
+源码位置：`Core/Src/usart.c`、`Core/Src/stm32f1xx_it.c`、`User/jy61p_imu.c`
+
+```text
+STM32 USART3_TX  PB10  -> JY61P RX，可选
+STM32 USART3_RX  PB11  <- JY61P TX
+STM32 GND              -> JY61P GND
+STM32 VCC              -> JY61P VCC，按模块规格接 3.3V 或 5V
+
+Baud: 9600
+Format: 8N1
+Interrupt: USART3_IRQn
+```
+
+如果 JY61P 已经被配置成 `115200`，需要把 `Core/Src/usart.c` 中 `MX_USART3_UART_Init()` 的波特率同步改成 `115200`。
+
 ### 投掷/附加 PWM 舵机
 
 源码位置：`Core/Src/tim.c`、`User/throw_servo.c`
@@ -151,6 +170,7 @@ MX_GPIO_Init();
 MX_TIM1_Init();
 MX_USART1_UART_Init();
 MX_USART2_UART_Init();
+MX_USART3_UART_Init();
 DogTask_Init();
 
 while (1)
@@ -168,16 +188,104 @@ while (1)
 4. 设置带负载步态模式。
 5. 初始化步态并进入站立姿态。
 6. 启动 USART2 视觉接收。
-7. 默认进入前进/循迹状态。
+7. 启动 USART3 JY61P IMU 接收。
+8. 默认进入前进/循迹状态。
 ```
 
 `DogTask_Run()` 是非阻塞循环任务，持续处理：
 
 - 投掷舵机状态更新。
+- JY61P IMU 状态超时检查和调试变量刷新。
 - USART2 最新视觉命令和循迹误差。
 - 分岔转向、投掷、平台增益等事件状态机。
 - 每 `150 ms` 更新一次步态。
 - 每 `200 ms` 向 K230 回传一次状态字符串。
+
+## JY61P IMU 驱动
+
+驱动文件：`User/jy61p_imu.c/.h`
+
+当前 JY61P 使用维特智能常见 `0x55` 二进制帧协议：
+
+```text
+0x55 0x51 ... checksum  -> 加速度帧
+0x55 0x52 ... checksum  -> 角速度帧
+0x55 0x53 ... checksum  -> 角度帧
+```
+
+驱动通过 USART3 单字节中断接收并组帧，校验通过后更新内部状态缓存。上层读取状态时不直接访问串口，使用：
+
+```c
+Jy61PImuStatus_t imu;
+
+if (Jy61PImu_GetStatus(&imu) != 0U)
+{
+    /* imu.roll_deg / imu.pitch_deg / imu.yaw_deg / imu.gyro_z_dps */
+}
+```
+
+`Jy61PImuStatus_t` 主要字段：
+
+```text
+is_ready              USART3 接收是否启动成功
+is_valid              最近数据是否有效，超时会清零
+has_accel             是否收到过加速度帧
+has_gyro              是否收到过角速度帧
+has_angle             是否收到过角度帧
+acc_x/y/z_g           加速度，单位 g
+gyro_x/y/z_dps        角速度，单位 deg/s
+roll/pitch/yaw_deg    姿态角，单位 deg
+last_update_ms        最近有效帧时间戳
+frame_count           校验通过帧计数
+checksum_error_count  校验失败计数
+```
+
+当前 roll 角做了项目坐标映射：以 JY61P 原始 `180/-180` 作为水平基准，输出仍限制在 `-180 ~ 180`。
+
+```text
+mapped_roll = normalize(raw_roll - 180)
+
+raw  180  ->   0
+raw -180  ->   0
+raw -170  ->  +10   左翻转为正
+raw  170  ->  -10   右翻转为负
+```
+
+Live Watch 调试变量：
+
+```c
+g_jy61p_imu_roll_deg
+g_jy61p_imu_pitch_deg
+g_jy61p_imu_yaw_deg
+g_jy61p_imu_gyro_z_dps
+g_jy61p_imu_is_valid
+g_jy61p_imu_frame_count
+g_jy61p_imu_checksum_error_count
+g_jy61p_imu_uart_error_count
+g_jy61p_imu_last_uart_error
+g_jy61p_imu_rx_restart_count
+```
+
+验证时先只给主控和 IMU 上电或架空机器狗：
+
+```text
+frame_count 持续增加           USART3 接收正常
+is_valid == 1                  已收到角速度或角度帧
+roll/pitch/yaw 随手动转动变化   姿态帧正常
+checksum_error_count 快速增加   优先检查波特率、共地、线序和供电
+uart_error_count 增加           优先检查 USART3 线缆、波特率和接收中断是否被干扰
+```
+
+使用 OpenOCD Live Watch 调试时，不要同时监控过多变量。JY61P 如果以较高帧率持续回传，再叠加大量 Watch 变量，容易出现调试器刷新卡顿、OpenOCD 异常、串口接收变慢或变量显示不稳定。现场调试时优先保留少量关键变量：
+
+```c
+g_jy61p_imu_roll_deg
+g_jy61p_imu_pitch_deg
+g_jy61p_imu_frame_count
+g_jy61p_imu_uart_error_count
+```
+
+如果仍然不稳定，降低模块回传帧率， `10 Hz` 或 `20 Hz`。
 
 ## K230 与 STM32 通信协议
 

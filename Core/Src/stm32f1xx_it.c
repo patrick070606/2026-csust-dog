@@ -41,6 +41,22 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+/* Fault mirrors for Cortex Live Watch; nonzero handler_id means a CPU fault hit. */
+volatile uint32_t g_fault_handler_id;
+volatile uint32_t g_fault_cfsr;
+volatile uint32_t g_fault_hfsr;
+volatile uint32_t g_fault_dfsr;
+volatile uint32_t g_fault_afsr;
+volatile uint32_t g_fault_bfar;
+volatile uint32_t g_fault_mmar;
+volatile uint32_t g_fault_stacked_r0;
+volatile uint32_t g_fault_stacked_r1;
+volatile uint32_t g_fault_stacked_r2;
+volatile uint32_t g_fault_stacked_r3;
+volatile uint32_t g_fault_stacked_r12;
+volatile uint32_t g_fault_stacked_lr;
+volatile uint32_t g_fault_stacked_pc;
+volatile uint32_t g_fault_stacked_xpsr;
 
 /* USER CODE END PV */
 
@@ -51,11 +67,40 @@
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/* Capture SCB fault registers and the stacked CPU context before halting. */
+static void Fault_Capture(uint32_t *stack, uint32_t handler_id)
+{
+  g_fault_handler_id = handler_id;
+  g_fault_cfsr = SCB->CFSR;
+  g_fault_hfsr = SCB->HFSR;
+  g_fault_dfsr = SCB->DFSR;
+  g_fault_afsr = SCB->AFSR;
+  g_fault_bfar = SCB->BFAR;
+  g_fault_mmar = SCB->MMFAR;
+
+  if (stack != 0)
+  {
+    g_fault_stacked_r0 = stack[0];
+    g_fault_stacked_r1 = stack[1];
+    g_fault_stacked_r2 = stack[2];
+    g_fault_stacked_r3 = stack[3];
+    g_fault_stacked_r12 = stack[4];
+    g_fault_stacked_lr = stack[5];
+    g_fault_stacked_pc = stack[6];
+    g_fault_stacked_xpsr = stack[7];
+  }
+
+  __disable_irq();
+  while (1)
+  {
+  }
+}
 
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
 extern UART_HandleTypeDef huart2;
+extern UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN EV */
 
@@ -82,16 +127,18 @@ void NMI_Handler(void)
 /**
   * @brief This function handles Hard fault interrupt.
   */
-void HardFault_Handler(void)
+__attribute__((naked)) void HardFault_Handler(void)
 {
-  /* USER CODE BEGIN HardFault_IRQn 0 */
-
-  /* USER CODE END HardFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-    /* USER CODE END W1_HardFault_IRQn 0 */
-  }
+  /* Select MSP or PSP, then pass the exception stack frame to Fault_Capture. */
+  __asm volatile
+  (
+    "tst lr, #4      \n"
+    "ite eq          \n"
+    "mrseq r0, msp   \n"
+    "mrsne r0, psp   \n"
+    "movs r1, #1     \n"
+    "b Fault_Capture \n"
+  );
 }
 
 /**
@@ -100,6 +147,7 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
+  Fault_Capture(0, 2U);
 
   /* USER CODE END MemoryManagement_IRQn 0 */
   while (1)
@@ -115,6 +163,7 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
+  Fault_Capture(0, 3U);
 
   /* USER CODE END BusFault_IRQn 0 */
   while (1)
@@ -130,6 +179,7 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
+  Fault_Capture(0, 4U);
 
   /* USER CODE END UsageFault_IRQn 0 */
   while (1)
@@ -211,6 +261,20 @@ void USART2_IRQHandler(void)
   /* USER CODE BEGIN USART2_IRQn 1 */
 
   /* USER CODE END USART2_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART3 global interrupt.
+  */
+void USART3_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART3_IRQn 0 */
+
+  /* USER CODE END USART3_IRQn 0 */
+  HAL_UART_IRQHandler(&huart3);
+  /* USER CODE BEGIN USART3_IRQn 1 */
+
+  /* USER CODE END USART3_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

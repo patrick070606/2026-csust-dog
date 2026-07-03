@@ -39,6 +39,7 @@ target_sources(${BUILD_UNIT_0_NAME} PRIVATE
   User/dog_servo.c
   User/dog_gait.c
   User/image_command.c
+  User/jy61p_imu.c
   User/dog_task.c
   User/throw_servo.c
 )
@@ -93,6 +94,7 @@ target_sources(DogRobotTrackBlueBoostTest PRIVATE
     User/dog_servo.c
     User/dog_gait.c
     User/image_command.c
+    User/jy61p_imu.c
     User/track_blue_boost_test_program.c
 )
 

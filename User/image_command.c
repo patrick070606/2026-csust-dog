@@ -1,4 +1,5 @@
 #include "image_command.h"
+#include "jy61p_imu.h"
 #include "usart.h"
 
 #define IMAGE_COMMAND_UART huart2
@@ -305,5 +306,9 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     {
         ImageCommand_ProcessByte(s_rx_data);
         HAL_UART_Receive_IT(&IMAGE_COMMAND_UART, &s_rx_data, 1U);
+    }
+    else if (huart->Instance == USART3)
+    {
+        Jy61PImu_OnUartRxCplt(huart);
     }
 }
