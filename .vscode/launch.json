@@ -40,6 +40,10 @@
       "gdbPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
       "stlinkPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
       "serverpath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 4
+      },
       "showDevDebugOutput": "raw"
     },
     {
