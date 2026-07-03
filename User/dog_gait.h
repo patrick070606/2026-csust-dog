@@ -33,10 +33,12 @@ void DogGait_SetTrackParams(float step_height_mm,
                             float right_forward_step_mm,
                             float steer_step_mm,
                             float speed_freq);
+void DogGait_SetStepInPlaceParams(float step_height_mm, float speed_freq);
+void DogGait_SetShiftLeftParams(float step_height_mm, float speed_freq);
+void DogGait_SetShiftRightParams(float step_height_mm, float speed_freq);
 void DogGait_SetTurnLeftParams(float step_height_mm, float turn_step_mm, float speed_freq);
 void DogGait_SetTurnRightParams(float step_height_mm, float turn_step_mm, float speed_freq);
 void DogGait_GotoStandPose(uint16_t time_ms);
 void DogGait_UpdateTrot(uint16_t time_ms);
 void DogGait_AllStand(uint16_t time_ms);
-
 #endif

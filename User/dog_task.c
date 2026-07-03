@@ -3,6 +3,7 @@
 #include "dog_gait.h"
 #include "dog_servo.h"
 #include "image_command.h"
+#include "jy61p_imu.h"
 #include "main.h"
 #include "throw_servo.h"
 #include "usart.h"
@@ -625,6 +626,7 @@ void DogTask_Init(void)
     HAL_Delay(DOG_TASK_STAND_WAIT_MS);
 
     ImageCommand_Init();
+    Jy61PImu_Init();
     DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
     DogTask_SetCorrectionLed(0U);
 
@@ -658,6 +660,10 @@ void DogTask_Init(void)
 /* 机器狗主循环任务：读取视觉数据、处理事件状态机、更新步态、控制 LED 并周期回传状态。 */
 void DogTask_Run(void)
 {
+    DogGait_SetShiftRightParams(DOG_TASK_STEP_H_MM, DOG_TASK_SPEED_FREQ);
+    DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
+    HAL_Delay(100);
+#if 0
     uint32_t now_ms = HAL_GetTick();
     ImageCommand_t command = ImageCommand_TakeLatest();
     ImageTrack_t track = ImageCommand_TakeLatestTrack();
@@ -672,6 +678,7 @@ void DogTask_Run(void)
     g_dog_task_last_track_lost_ms = track_lost_ms;
     g_dog_task_last_gait_elapsed_ms = (uint32_t)(now_ms - s_last_gait_ms);
 
+    Jy61PImu_Update(now_ms);
     ThrowServo_Update();
 
     if (s_event_state == DOG_TASK_EVENT_THROW_TRACK_DELAY)
@@ -755,4 +762,6 @@ void DogTask_Run(void)
         s_last_status_ms = now_ms;
         DogTask_SendVisionStatus("ST");
     }
+#endif
+
 }

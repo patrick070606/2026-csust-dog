@@ -25,7 +25,7 @@ User/
   bus_servo.c/.h           总线舵机控制器协议发送
   dog_servo_config.c/.h    逻辑关节到真实舵机 ID、方向、偏置、限位的配置
   dog_servo.c/.h           角度到总线舵机 position 的转换与 8 舵机同步输出
-  dog_gait.c/.h            站立、小跑、转向、视觉循迹步态
+  dog_gait.c/.h            站立、小跑、原地踏步、侧移、转向、视觉循迹步态
   image_command.c/.h       USART2 视觉数据接收、数字协议解析
   dog_task.c/.h            当前机器狗主任务和事件状态机
   throw_servo.c/.h         PB13 PWM 投掷/附加舵机控制
@@ -277,6 +277,8 @@ DEBUG_LAB = True
 
 - `DogGait_GotoStandPose()`：进入站立姿态。
 - `DogGait_SetTrotParams()`：普通前进/后退小跑。
+- `DogGait_SetStepInPlaceParams()`：步长为 0 的原地踏步小跑。
+- `DogGait_SetShiftLeftParams()` / `DogGait_SetShiftRightParams()`：步长为 0、单侧足端降低的左右平移小跑。
 - `DogGait_SetTurnLeftParams()` / `DogGait_SetTurnRightParams()`：原地/近似原地转向测试。
 - `DogGait_SetTrackParams()`：左右腿不同步长的视觉差速循迹。
 - `DogGait_UpdateTrot()`：按当前参数推进小跑相位并输出 8 个舵机角度。
