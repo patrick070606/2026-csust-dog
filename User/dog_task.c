@@ -22,6 +22,11 @@
 #define DOG_TASK_THROW_FORWARD_MS      0U // 表示投掷前前进阶段的持续时间，单位毫秒。这个现在是 0，我其实不知道这个变量是什么时候加上去的，可能是中间调试的时候为了让机器人在投掷前稍微前进一点点，避免投掷时机器人离目标太远。但是暂时可以不用管。
 #define DOG_TASK_THROW_TRACK_DELAY_MS  3000U // 表示首次识别到紫色 / 棕色投掷事件后，先继续循迹的延迟时间。体现在实际中，就是识别到紫色 / 棕色后，往前走 DOG_TASK_THROW_TRACK_DELAY_MS 这么多 ms，然后再开始旋转投掷。
 #define DOG_TASK_VISION_ACK_TIMEOUT_MS 10U // 表示 stm32 给 k230 回传状态字符串时，发送超时的时间。也就是说如果串口发送在 10ms 内没有完成，就返回超时。
+#define DOG_TASK_PLATFORM_PAUSE_TEST_ENABLE 1U
+#define DOG_TASK_PLATFORM_PAUSE_TEST_MS 5000U
+#define DOG_TASK_PLATFORM_YES_SEND_MS 5000U
+#define DOG_TASK_PLATFORM_YES_INTERVAL_MS 200U
+#define DOG_TASK_PLATFORM_FAKE_IMU_TEST_MS 5000U
 #define DOG_TASK_STATUS_INTERVAL_MS    200U // 表示 stm32 向 k230 周期性发送状态反馈的时间间隔，单位毫秒。
 #define DOG_TASK_STEP_H_MM             45.0f // 表示机器人步态的步高，单位毫米。
 #define DOG_TASK_FORWARD_R_MM          50.0f // 表示机器人步态的前进半径，单位毫米。
@@ -77,6 +82,8 @@ typedef enum
     DOG_TASK_EVENT_THROW_TRACK_DELAY, // 表示机器人在投掷前的循迹状态。
     DOG_TASK_EVENT_THROW_FORWARD, // 表示机器人在投掷前向前移动的状态。
     DOG_TASK_EVENT_THROW_ROTATING, // 表示机器人在投掷时进行旋转的状态。
+    DOG_TASK_EVENT_PLATFORM_PAUSE, // 表示蓝色平台事件触发后，测试用的停止等待状态。
+    DOG_TASK_EVENT_PLATFORM_YES_SEND, // 表示蓝色平台暂停结束后，测试用的连续发送 YES 状态。
 } DogTaskEventState_t; // 机器人事件处理状态的枚举类型。
 
 static DogTaskMotion_t s_motion = DOG_TASK_MOTION_STOP; // 当前正在执行的运动模式，例如停止、前进、左转或右转。
@@ -89,9 +96,11 @@ static ImageCommand_t s_pending_event_command = IMAGE_COMMAND_NONE; // 延迟执
 static uint32_t s_last_gait_ms; // 上一次更新步态的时间。
 static uint32_t s_last_track_ms; // 上一次收到有效循迹误差的时间。
 static uint32_t s_last_status_ms; // 上一次向视觉模块回传 ST 状态的时间。
+static uint32_t s_platform_yes_last_ms; // 蓝色平台暂停测试结束后，上一次向 K230 发送 YES 的时间。
 static uint8_t s_has_seen_track; // 是否已经收到过至少一帧有效循迹数据。
 static uint8_t s_is_track_correcting; // 当前是否处于左/右纠偏状态。
 static uint8_t s_platform_track_boost; // 蓝色平台事件触发后，是否启用平台循迹增强参数。
+static uint8_t s_wait_platform_imu; // 蓝色平台事件触发后，等待 IMU 确认机器狗已经上完高台。
 static uint8_t s_purple_throw_delay_used; // 紫色投掷事件是否已经使用过首次循迹延迟。
 static uint8_t s_brown_throw_delay_used; // 棕色投掷事件是否已经使用过首次循迹延迟。
 
@@ -105,6 +114,7 @@ volatile int32_t g_dog_task_last_command; // 最近一次读取到的视觉事�
 volatile int32_t g_dog_task_last_motion; // 当前运动模式的调试镜像。
 volatile int32_t g_dog_task_last_track_valid; // 最近一次循迹数据是否有效。
 volatile int32_t g_dog_task_last_track_error; // 最近一次视觉循迹误差。
+volatile HAL_StatusTypeDef g_k230_tx_status;
 
 #if 0
 /* 早期转向测试状态变量：当前关闭，仅保留历史测试入口。 */
@@ -117,6 +127,47 @@ static uint32_t s_auto_test_start_ms;
 
 /* 提前声明状态回传函数，供 OK 应答函数和周期 ST 回传复用。 */
 static void DogTask_SendVisionStatus(const char *tag);
+
+#if !DOG_TASK_PLATFORM_PAUSE_TEST_ENABLE
+static uint8_t DogTask_IsPlatformFinishedByImu(void)
+{
+    static uint32_t start_ms = 0U;
+
+    if (s_wait_platform_imu == 0U)
+    {
+        start_ms = 0U;
+        return 0U;
+    }
+
+    if (start_ms == 0U)
+    {
+        start_ms = HAL_GetTick();
+        return 0U;
+    }
+
+    return (uint8_t)((uint32_t)(HAL_GetTick() - start_ms) >= DOG_TASK_PLATFORM_FAKE_IMU_TEST_MS);
+}
+#endif
+
+static void DogTask_SendK230Control(uint8_t *message, uint16_t len)
+{
+    if ((message == 0) || (len == 0U))
+    {
+        return;
+    }
+
+    g_k230_tx_status = HAL_UART_Transmit(&huart2,
+                                         message,
+                                         len,
+                                         DOG_TASK_VISION_ACK_TIMEOUT_MS);
+}
+
+static void DogTask_SendK230Yes(void)
+{
+    uint8_t message[] = "YES\n";
+
+    DogTask_SendK230Control(message, (uint16_t)(sizeof(message) - 1U));
+}
 
 /* 收到蓝色平台命令后，开启平台循迹增强参数，并回到普通事件空闲状态继续循迹。 */
 static void DogTask_BeginPlatformTrackBoost(void)
@@ -211,6 +262,8 @@ static const char *DogTask_EventName(DogTaskEventState_t state)
         "THROW_TRACK_DELAY",
         "THROW_FORWARD",
         "THROW_ROTATING",
+        "PLATFORM_PAUSE",
+        "PLATFORM_YES_SEND",
     };
 
     if ((uint8_t)state < (uint8_t)(sizeof(names) / sizeof(names[0])))
@@ -389,7 +442,19 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     else if (command == IMAGE_COMMAND_PLATFORM)
     {
         DogTask_SendVisionAck();
+#if DOG_TASK_PLATFORM_PAUSE_TEST_ENABLE
+        s_event_state = DOG_TASK_EVENT_PLATFORM_PAUSE;
+        s_event_start_ms = now_ms;
+        s_pending_event_command = IMAGE_COMMAND_NONE;
+        s_has_seen_track = 0U;
+        s_is_track_correcting = 0U;
+        s_last_track_ms = now_ms;
+        s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+        DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+#else
+        s_wait_platform_imu = 1U;
         DogTask_BeginPlatformTrackBoost();
+#endif
     }
     else
     {
@@ -442,6 +507,33 @@ static void DogTask_UpdateEventState(uint32_t now_ms)
                 DogGait_AllStand(DOG_TASK_GAIT_MOVE_MS);
                 s_motion = DOG_TASK_MOTION_STOP;
             }
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_PLATFORM_PAUSE)
+    {
+        DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+
+        if (elapsed_ms >= DOG_TASK_PLATFORM_PAUSE_TEST_MS)
+        {
+            DogTask_SendK230Yes();
+            s_event_state = DOG_TASK_EVENT_PLATFORM_YES_SEND;
+            s_event_start_ms = now_ms;
+            s_platform_yes_last_ms = now_ms;
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_PLATFORM_YES_SEND)
+    {
+        DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+
+        if (elapsed_ms >= DOG_TASK_PLATFORM_YES_SEND_MS)
+        {
+            DogTask_BeginPlatformTrackBoost();
+            DogTask_ResumeTracking(now_ms);
+        }
+        else if ((uint32_t)(now_ms - s_platform_yes_last_ms) >= DOG_TASK_PLATFORM_YES_INTERVAL_MS)
+        {
+            s_platform_yes_last_ms = now_ms;
+            DogTask_SendK230Yes();
         }
     }
     else if (s_event_state == DOG_TASK_EVENT_THROW_FORWARD)
@@ -636,9 +728,11 @@ void DogTask_Init(void)
     s_has_seen_track = 0U;
     s_is_track_correcting = 0U;
     s_platform_track_boost = 0U;
+    s_wait_platform_imu = 0U;
     s_purple_throw_delay_used = 0U;
     s_brown_throw_delay_used = 0U;
     s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    s_platform_yes_last_ms = 0U;
     s_event_state = DOG_TASK_EVENT_IDLE;
     s_event_start_ms = s_last_gait_ms;
     s_pending_event_command = IMAGE_COMMAND_NONE;
@@ -680,6 +774,15 @@ void DogTask_Run(void)
 
     Jy61PImu_Update(now_ms);
     ThrowServo_Update();
+
+#if !DOG_TASK_PLATFORM_PAUSE_TEST_ENABLE
+    if ((s_wait_platform_imu != 0U) &&
+        (DogTask_IsPlatformFinishedByImu() != 0U))
+    {
+        DogTask_SendK230Yes();
+        s_wait_platform_imu = 0U;
+    }
+#endif
 
     if (s_event_state == DOG_TASK_EVENT_THROW_TRACK_DELAY)
     {

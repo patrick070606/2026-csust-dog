@@ -1,151 +1,48 @@
 # main.py
-# K230 豪华版 - 视觉循迹 + 色带识别 + 自动亮度阈值调整 + LAB调试 + 顺序限制 + 串口通信
-#
-# 从 OpenMV 迁移至 CanMV K230 豪华版（带 ST7701 屏幕）
-# 原 OpenMV 代码作者提供的完整视觉方案
-#
-# 迁移要点：
-#   - sensor 改用 media.sensor 的 Sensor() 类
-#   - 新增 Display.init() + MediaManager.init() + sensor.run()
-#   - 每帧调用 Display.show_image(img) 在屏幕显示
-#   - draw_string() → draw_string_advanced()
-#   - 移除 pyb 模块依赖（LED 用 GPIO 替代、USB_VCP 移除）
-#   - 图像绘制函数改用显式参数形式
-#
-# 串口发送格式：
-#   <error_or_command_value>\n
-#   正常循迹：发送偏差值，约 -320 到 +320
-#   特殊动作：R=1000, L=-1000, U=2000, P=3000, B=4000, 丢线=9999
-#
-# state:
-#   0 丢线/异常
-#   1 正常循迹
-#   2 绿色分岔色带
-#   3 蓝色高台色带
-#   4 紫色住户色带
-#   5 棕色住户色带
-#
-# cmd:
-#   T 正常循迹
-#   X 丢线/异常
-#   R/L 分岔转向
-#   U 蓝色高台动作
-#   P 紫色住户动作
-#   B 棕色住户动作
+# K230 vision + compact UART events for STM32
+# Functions:
+# 1. White-track error output.
+# 2. The full-width bottom fifth detects brown, green, and blue targets.
+# 3. UART status: E:<error>,C:<none|brown|green|blue|black>.
+# 4. After blue C:blue, wait until STM32 replies Yes.
+# 5. Yes switches the display from the bottom color ROI to two black-frame ROIs.
+# 6. Confirmed black frame sends C:black in the UART status frame.
+# 7. Blue-platform recognition is disabled.
+# 8. UART continuously sends E:<error> separately from discrete events.
 
-import time, os
+import os
+import time
 from media.sensor import *
 from media.display import *
 from media.media import *
-from machine import FPIOA, UART
-
+from ybUtils.YbUart import YbUart
 
 # ============================================================
-# 1. 基本参数
+# BASIC CONFIG
 # ============================================================
-
-UART_BAUD = 115200
 
 IMG_W = 640
 IMG_H = 480
-IMG_CENTER_X = IMG_W // 2
-
-# ST7701 屏幕物理分辨率与传感器一致，均为 640x480
 DISPLAY_W = 640
 DISPLAY_H = 480
+IMG_CENTER_X = IMG_W // 2
 
-PRINT_INTERVAL_MS = 200
+UART_BAUD = 115200
+UART_RX_MAX_BYTES = 128
+UART_RX_DISPLAY_MAX_CHARS = 32
+UART_RX_HEX_DISPLAY_MAX_BYTES = 8
 
-# 调试开关：
-# SAMPLE_MODE = True 时，只用于现场取色调阈值，会打印中心采样框 LAB/RGB。
-# 正式跑图时改成 False。
-SAMPLE_MODE = False
-
-# DEBUG_LAB = True 时，会打印检测到的候选色块 LAB/RGB。
-# 如果终端刷得太快，可以改成 False。
-DEBUG_LAB = False
-
-SAMPLE_ROI = (280, 180, 80, 80)
-DEBUG_LAB_INTERVAL_MS = 800
-
-# 如果 STM32 收到一次就执行一次动作，保持 1
-EVENT_SEND_FRAMES = 1
-
-COLOR_STOP_TEST_ENABLE = False
-COLOR_STOP_TEST_MS = 10000
-COLOR_STOP_TEST_VALUE = 9999
-
-# 连续识别到几帧同一颜色才确认
-COLOR_CONFIRM_FRAMES = 2
-
-# 循迹滤波
-ERROR_SMOOTH_ALPHA = 0.65
-ERROR_DEADBAND = 3
-ERROR_SEND_GAIN = 1.0
-
-CMD_ERROR_VALUES = {
-    "R": 1000,
-    "L": -1000,
-    "U": 2000,
-    "P": 3000,
-    "B": 4000,
-    "X": 9999,
-}
-
-CMD_COLOR_NAMES = {
-    "R": "green",
-    "L": "green",
-    "U": "blue",
-    "P": "purple",
-    "B": "brown",
-}
-
+MERGE_MARGIN = 8
+PRINT_INTERVAL_MS = 500
 
 
 # ============================================================
-# 2. 地图顺序设置
+# TRACKING CONFIG
 # ============================================================
 
-STAGE_WAIT_FORK_GREEN = 0
-STAGE_WAIT_HOUSE = 1
-STAGE_WAIT_BLUE = 2
-
-# 当前快递目标颜色（由圈数自动决定，第一圈紫第二圈棕）
-
-FORK_COOLDOWN_MS = 2500
-FORK_REARM_MS = 700
-
-# 识别到绿色后的静默时间，期间不检测任何颜色
-FORK_SILENCE_MS = 5000
-
-COLOR_REARM_MS = 900
-COLOR_COOLDOWN_MS = 6000
-HOUSE_COOLDOWN_MS = 20000
-
-
-# ============================================================
-# 3. LAB 阈值
-# ============================================================
-# 格式：(L_min, L_max, A_min, A_max, B_min, B_max)
-
+# White road / white track threshold.
+# Tune under real lighting if the white floor/track is unstable.
 WHITE_TRACK_THRESHOLD = (50, 100, -30, 30, -30, 30)
-
-# 绿色阈值收紧：A 必须更明显偏绿，B 不能太偏蓝，避免白色赛道被误判
-GREEN_BAR_THRESHOLD = (28, 42, -38, -11, -9, 22)
-BLUE_BAR_THRESHOLD = (7, 26, 5, 46, -49, -19)
-PURPLE_BAR_THRESHOLD = (12, 50, 6, 24, -28, -2)
-BROWN_BAR_THRESHOLD = (25, 46, 11, 45, -3, 40)
-
-# 自动亮度调整，只调整 L 通道，不乱动 A/B
-AMBIENT_L_REF = 60
-L_ADAPT_GAIN = 0.35
-L_ADAPT_LIMIT = 20
-L_EXTRA_MARGIN = 12
-
-
-# ============================================================
-# 4. ROI 区域
-# ============================================================
 
 LINE_ROIS = [
     # x,   y,    w,    h,  weight
@@ -154,172 +51,196 @@ LINE_ROIS = [
     (0,   160, 640,  70, 0.15),
 ]
 
-COLOR_ROI = (40, 70, 560, 350)
+ERROR_SMOOTH_ALPHA = 0.65
+ERROR_DEADBAND = 3
 
 
 # ============================================================
-# 5. LED 控制（K230 豪华版 - 无 pyb 模块）
-# ============================================================
-# K230 没有 pyb.LED()，板载 LED 需要通过 GPIO 控制。
-# 如果你的 K230 豪华版有连接到特定 GPIO 的 LED（例如 Pin 46/47），
-# 请根据实际引脚修改 LED_PINS 列表。
-# 这里提供一个空实现，既不报错也不控制 LED。
-#
-# 示例初始化（取消注释并根据实际接线修改引脚号）：
-# from machine import Pin
-# LED_PINS = [Pin(46, Pin.OUT, Pin.PULL_NONE), Pin(47, Pin.OUT, Pin.PULL_NONE)]
-
-LED_PINS = []
-
-
-def led_all_off():
-    """关闭所有 LED，避免灯光干扰颜色识别"""
-    for led in LED_PINS:
-        try:
-            led.value(0)
-        except Exception:
-            pass
-
-
-# ============================================================
-# 6. 摄像头、显示屏与串口初始化
+# COLOR DETECTION CONFIG
 # ============================================================
 
-led_all_off()
+# LAB threshold: (L_min, L_max, A_min, A_max, B_min, B_max)
+# These thresholds cover target colors only.
+# IMPORTANT:
+# 1. white is NOT recognized as a color here.
+# 2. red and purple are NOT recognized independently.
+# 3. purple-looking targets are merged into blue and output as C:blue.
+# 4. white is used only by WHITE_TRACK_THRESHOLD for line tracking error E.
+# If recognition is unstable, tune only this table first.
+# Brown is intentionally checked first because it is darker and easier to miss.
+COLOR_CONFIGS = [
+    {
+        "name": "red",
+        "serial_color": "red",
+        # Tight red threshold:
+        # A and B must be positive enough, so black/shadow will not be treated as red.
+        "threshold": (28, 58, 18, 60, 8, 55),
+        "box_color": (255, 0, 0),
+        "text_color": (255, 80, 80),
+        "min_pixels": 80,
+        "min_area": 80,
+    },
+    {
+        "name": "green",
+        "serial_color": "green",
+        "threshold": (27, 43, -41, -19, -4, 28),
+        "box_color": (0, 255, 0),
+        "text_color": (0, 255, 0),
+        "min_pixels": 60,
+        "min_area": 60,
+    },
+    {
+        "name": "blue",
+        "serial_color": "blue",
+        "threshold": (12, 45, 3, 22, -34, -8),
+        "box_color": (0, 80, 255),
+        "text_color": (80, 160, 255),
+        "min_pixels": 60,
+        "min_area": 60,
+    },
+    {
+        "name": "purple",
+        "serial_color": "purple",
+        # Purple target threshold.
+        # If purple is close to blue under lighting, tune A/B ranges here.
+        "threshold": (20, 70, 0, 28, -35, 15),
+        "box_color": (160, 0, 255),
+        "text_color": (200, 80, 255),
+        "min_pixels": 60,
+        "min_area": 60,
+    },
+    {
+        "name": "brown",
+        "serial_color": "brown",
+        "threshold": (0, 33, 5, 40, 3, 35),
+        "box_color": (255, 120, 40),
+        "text_color": (255, 160, 80),
+        "min_pixels": 60,
+        "min_area": 60,
+    },
+]
 
-# ---- K230 Sensor 初始化 ----
-# Yahboom v1.4.3 上不要在 Sensor() 里传 fps，否则部分固件会报 buf_init。
-sensor = Sensor(width=IMG_W, height=IMG_H)
-sensor.reset()
-sensor.set_framesize(width=IMG_W, height=IMG_H)
-sensor.set_pixformat(Sensor.RGB565)
+# Target colors are recognized only in the full-width bottom fifth.
+COLOR_ROI = (0, int(IMG_H * 0.8), IMG_W, int(IMG_H * 0.2))
 
-# ---- K230 离线显示初始化（豪华版 ST7701 屏幕，分辨率 640x480） ----
-Display.init(Display.ST7701, width=DISPLAY_W, height=DISPLAY_H)
-
-# ---- 媒体管理器初始化 ----
-MediaManager.init()
-
-# ---- 启动摄像头 ----
-sensor.run()
 
 # ============================================================
-# 画面颜色增强
-# ============================================================
-# K230 CanMV 的 ISP 硬件自动处理曝光、增益、白平衡，
-# 不提供 OpenMV 风格的 set_auto_exposure/set_auto_gain/set_auto_whitebal 等 API。
-# 以下代码已移除，K230 硬件默认自动适应现场光照。
-
-led_all_off()
-
-# ---- 串口 ----
-# 通过 FPIOA 配置 UART3 的 TX/RX 引脚
-# TX → GPIO 32（12Pin 排针 Pin5），RX → GPIO 33（12Pin 排针 Pin3）
-fpioa = FPIOA()
-fpioa.set_function(32, FPIOA.UART3_TXD, ie=0, oe=1)
-fpioa.set_function(33, FPIOA.UART3_RXD, ie=1, oe=0)
-uart = UART(UART.UART3, baudrate=UART_BAUD)
-
-clock = time.clock()
-
-current_brightness = 2
-
-led_all_off()
-
-
-# ============================================================
-# 7. 工具函数
+# BLACK FRAME CONFIG
 # ============================================================
 
-def clamp(v, lo, hi):
-    if v < lo:
-        return lo
-    if v > hi:
-        return hi
-    return v
+# Black side/frame threshold.
+BLACK_THRESHOLD = (0, 45, -15, 15, -15, 15)
+
+# Black frame / black side detection area.
+# Used for the black upright plates/frame shown in the test image.
+# If the camera view changes, tune only these two ROI boxes first.
+BLACK_LEFT_ROI = (70, 120, 230, 230)
+BLACK_RIGHT_ROI = (340, 120, 230, 230)
+
+# Black upright frame parameters.
+# The target in the image is a black vertical/long rectangular object.
+BLACK_CANDIDATE_MIN_PIXELS = 260
+BLACK_MIN_LONG_SIDE = 45
+BLACK_MIN_ASPECT_RATIO = 1.25
+BLACK_MIN_FILL_RATIO = 0.12
+
+# Single-side detection is disabled by default through ALLOW_SINGLE_BLACK_FRAME.
+BLACK_SINGLE_MIN_PIXELS = 1500
+BLACK_SINGLE_MIN_LONG_SIDE = 85
+BLACK_SINGLE_MIN_ASPECT_RATIO = 1.55
+
+STEP_CONFIRM_FRAMES = 3
+
+STATE_WAIT_COLOR = "WAIT_COLOR"
+STATE_WAIT_STM32 = "WAIT_STM32"
+STATE_WAIT_BLACK = "WAIT_BLACK"
+STATE_SHOW_BLACK = "SHOW_BLACK"
+
+# False is safer: black frame is valid only when left and right black plates appear together.
+# True allows one very strong black plate to trigger, but false positives may increase.
+ALLOW_SINGLE_BLACK_FRAME = False
+
+CMD_CONFIRM_BLUE = b"YES"
+# ============================================================
+# DRAW COLORS
+# ============================================================
+
+ROI_DRAW_COLOR = (255, 255, 0)
+BLACK_DRAW_COLOR = (255, 80, 0)
+TRACK_DRAW_COLOR = (0, 255, 255)
+TEXT_COLOR = (255, 255, 255)
 
 
-def adapt_lab_threshold(base, ambient_l):
-    """
-    自动亮度调整阈值：
-    只根据当前画面亮度微调 L_min 和 L_max。
-    A/B 通道不自动乱调，避免绿色、棕色、紫色互相串色。
-    """
-    shift = int((ambient_l - AMBIENT_L_REF) * L_ADAPT_GAIN)
-    shift = clamp(shift, -L_ADAPT_LIMIT, L_ADAPT_LIMIT)
+# ============================================================
+# GLOBAL STATE
+# ============================================================
 
+active_color_name = None
+detect_start_ms = 0
+last_print_ms = 0
+
+last_error = 0
+filtered_error = 0
+
+step_state = STATE_WAIT_COLOR
+step_hit_count = 0
+step_signal_sent = False
+
+uart_rx_buffer = b""
+last_step_event = "BOOT"
+last_rx_command = "NONE"
+last_rx_hex = "NONE"
+
+black_frame_detected = False
+
+
+# ============================================================
+# TIMER / COLOR HELPERS
+# ============================================================
+
+def update_detect_timer(detected_color, now):
+    global active_color_name, detect_start_ms
+
+    if detected_color is None:
+        active_color_name = None
+        detect_start_ms = 0
+        return 0
+
+    if detected_color != active_color_name:
+        active_color_name = detected_color
+        detect_start_ms = now
+
+    return time.ticks_diff(now, detect_start_ms)
+
+
+def detection_to_serial_color(detection):
+    if detection is None:
+        return "none"
+    return detection["serial_color"]
+
+
+def is_black_like_blob(blob):
+    if blob is None:
+        return False
+
+    x, y, w, h = blob.rect()
+    long_side = max(w, h)
+    short_side = max(1, min(w, h))
+    aspect_ratio = long_side / short_side
+    fill_ratio = blob.pixels() / max(1, w * h)
+
+    # Black frame/rail usually appears as a long dark rectangle.
+    # This prevents black rails from being misclassified as red/brown.
     return (
-        clamp(base[0] + shift - L_EXTRA_MARGIN, 0, 100),
-        clamp(base[1] + shift + L_EXTRA_MARGIN, 0, 100),
-        base[2],
-        base[3],
-        base[4],
-        base[5],
+        blob.pixels() >= BLACK_CANDIDATE_MIN_PIXELS and
+        long_side >= BLACK_MIN_LONG_SIDE and
+        aspect_ratio >= BLACK_MIN_ASPECT_RATIO and
+        fill_ratio >= BLACK_MIN_FILL_RATIO
     )
 
 
-def rgb_mean_in_rect(img, rect):
-    """计算矩形区域内 RGB 均值（降采样，只采部分点提高效率）"""
-    x, y, w, h = rect
-
-    step_x = max(1, w // 4)
-    step_y = max(1, h // 4)
-
-    r_sum = 0
-    g_sum = 0
-    b_sum = 0
-    n = 0
-
-    yy = y + step_y // 2
-    while yy < y + h:
-        xx = x + step_x // 2
-        while xx < x + w:
-            if 0 <= xx < IMG_W and 0 <= yy < IMG_H:
-                p = img.get_pixel(xx, yy)
-                if p:
-                    r_sum += p[0]
-                    g_sum += p[1]
-                    b_sum += p[2]
-                    n += 1
-            xx += step_x
-        yy += step_y
-
-    if n <= 0:
-        return 0, 0, 0
-
-    return int(r_sum / n), int(g_sum / n), int(b_sum / n)
-
-
-def print_sample_values(img, roi):
-    """
-    手动采样打印建议阈值：
-    把 SAMPLE_MODE 改成 True 后，把采样框对准某个颜色，
-    终端会打印该区域 LAB/RGB 和建议阈值。
-    """
-    st = img.get_statistics(roi=roi)
-
-    l_val = int(st.l_mean())
-    a_val = int(st.a_mean())
-    b_val = int(st.b_mean())
-
-    r_val, g_val, bb_val = rgb_mean_in_rect(img, roi)
-
-    l_min = clamp(l_val - 25, 0, 100)
-    l_max = clamp(l_val + 25, 0, 100)
-    a_min = clamp(a_val - 30, -128, 127)
-    a_max = clamp(a_val + 30, -128, 127)
-    b_min = clamp(b_val - 30, -128, 127)
-    b_max = clamp(b_val + 30, -128, 127)
-
-    print("=== SAMPLE ROI ===")
-    print("LAB: L=%d A=%d B=%d | RGB: R=%d G=%d B=%d" %
-          (l_val, a_val, b_val, r_val, g_val, bb_val))
-    print("建议LAB阈值 = (%d, %d, %d, %d, %d, %d)" %
-          (l_min, l_max, a_min, a_max, b_min, b_max))
-
-
 # ============================================================
-# 8. 循迹：白色赛道线检测
+# TRACKING
 # ============================================================
 
 def find_track_error(img):
@@ -328,8 +249,6 @@ def find_track_error(img):
 
     for roi in LINE_ROIS:
         x, y, w, h, weight = roi
-
-        img.draw_rectangle(x, y, w, h, color=(80, 80, 80), thickness=1)
 
         blobs = img.find_blobs(
             [WHITE_TRACK_THRESHOLD],
@@ -341,373 +260,452 @@ def find_track_error(img):
         )
 
         if blobs:
-            largest = max(blobs, key=lambda b: b.pixels())
+            largest = max(blobs, key=lambda blob: blob.pixels())
 
             if largest.pixels() > 1200:
                 cx = largest.cx()
                 cy = largest.cy()
-
                 center_sum += cx * weight
                 weight_sum += weight
-
-                rx, ry, rw, rh = largest.rect()
-                img.draw_rectangle(rx, ry, rw, rh, color=(255, 255, 255), thickness=1)
-                img.draw_cross(cx, cy, color=(0, 255, 0), size=5, thickness=2)
-
     if weight_sum <= 0:
-        img.draw_string_advanced(2, 2, 16, "NO LINE", color=(255, 0, 0))
         return False, 0, IMG_CENTER_X
 
     center_x = int(center_sum / weight_sum)
     error = center_x - IMG_CENTER_X
-
-    img.draw_line(IMG_CENTER_X, 0, IMG_CENTER_X, IMG_H, color=(255, 0, 0), thickness=1)
-    img.draw_line(center_x, 0, center_x, IMG_H, color=(0, 255, 0), thickness=1)
-    img.draw_string_advanced(2, 2, 16, "e:%d" % error, color=(255, 255, 255))
-
     return True, error, center_x
 
 
 # ============================================================
-# 9. 颜色识别
+# COLOR DETECTION IN THE BOTTOM-FIFTH ROI
 # ============================================================
 
-COLOR_CONFIGS = [
-    {
-        "name": "green",
-        "threshold": GREEN_BAR_THRESHOLD,
-        "draw_color": (0, 255, 0),
-        "min_pixels": 2000,
-        "min_area": 2000
-    },
-    {
-        "name": "blue",
-        "threshold": BLUE_BAR_THRESHOLD,
-        "draw_color": (0, 0, 255),
-        "min_pixels": 600,
-        "min_area": 600
-    },
-    {
-        "name": "purple",
-        "threshold": PURPLE_BAR_THRESHOLD,
-        "draw_color": (180, 0, 255),
-        "min_pixels": 520,
-        "min_area": 520
-    },
-    {
-        "name": "brown",
-        "threshold": BROWN_BAR_THRESHOLD,
-        "draw_color": (165, 80, 30),
-        "min_pixels": 600,
-        "min_area": 600
-    },
-]
+def find_best_color_blob(img):
+    # Priority is important. Red and purple are not active target colors.
+    priority = ("brown", "green", "blue")
 
+    for target_name in priority:
+        config = None
+        for item in COLOR_CONFIGS:
+            if item["name"] == target_name:
+                config = item
+                break
 
-def color_allowed_by_stage(name, mission_stage):
-    global target_house_color
-
-    if COLOR_STOP_TEST_ENABLE:
-        return True
-
-    if mission_stage == STAGE_WAIT_FORK_GREEN:
-        return name == "green"
-
-    if mission_stage == STAGE_WAIT_HOUSE:
-        # 分岔后只识别目标住户颜色
-        # 例如：右转 R 后只识别 purple
-        if target_house_color is None:
-            return False
-        return name == target_house_color
-
-    if mission_stage == STAGE_WAIT_BLUE:
-        return name == "blue"
-
-    return False
-
-
-def detect_color_bar(img, debug_lab=False):
-    ambient_l = int(img.get_statistics(roi=COLOR_ROI).l_mean())
-
-    best_color = None
-    best_blob = None
-    best_score = 0
-    best_draw_color = (255, 255, 255)
-
-    cx, cy, cw, ch = COLOR_ROI
-    img.draw_rectangle(cx, cy, cw, ch, color=(255, 255, 0), thickness=1)
-
-    for cfg in COLOR_CONFIGS:
-        if not color_allowed_by_stage(cfg["name"], mission_stage):
+        if config is None:
             continue
 
-        threshold = adapt_lab_threshold(cfg["threshold"], ambient_l)
-
         blobs = img.find_blobs(
-            [threshold],
+            [config["threshold"]],
             roi=COLOR_ROI,
-            pixels_threshold=cfg["min_pixels"],
-            area_threshold=cfg["min_area"],
+            pixels_threshold=config["min_pixels"],
+            area_threshold=config["min_area"],
             merge=True,
-            margin=8
+            margin=MERGE_MARGIN
         )
 
         if not blobs:
             continue
 
-        largest = max(blobs, key=lambda b: b.pixels())
-
-        if largest.pixels() < cfg["min_pixels"]:
+        largest = max(blobs, key=lambda blob: blob.pixels())
+        if largest.pixels() < config["min_pixels"]:
             continue
 
-        # 绿色额外校验：A 必须明显偏绿，且 RGB 中 G 必须最大（排除白色）
-        if cfg["name"] == "green":
-            st = img.get_statistics(roi=largest.rect())
-            a_val = int(st.a_mean())
-            r_val, g_val, bb_val = rgb_mean_in_rect(img, largest.rect())
-            if a_val > -15 or g_val <= r_val or g_val <= bb_val:
-                continue
+        return {
+            "name": config["name"],
+            "serial_color": config["serial_color"],
+            "box_color": config["box_color"],
+            "text_color": config["text_color"],
+            "blob": largest,
+        }
 
-        # 棕色额外校验：L 太高（偏亮偏红）则排除
-        if cfg["name"] == "brown":
-            st = img.get_statistics(roi=largest.rect())
-            if int(st.l_mean()) > 40:
-                continue
-
-        # 紫色额外校验：防灰色（饱和度不能太低）；A 偏低时 B 不能太负（防蓝色误判）
-        if cfg["name"] == "purple":
-            st = img.get_statistics(roi=largest.rect())
-            a_val = int(st.a_mean())
-            b_val = int(st.b_mean())
-            if (a_val * a_val + b_val * b_val) < 60:
-                continue
-            if a_val < 12 and b_val < -15:
-                continue
-
-        # 蓝色额外校验：B 必须为负，且 RGB 中 B 通道占优（排除白色/阴影）
-        if cfg["name"] == "blue":
-            st = img.get_statistics(roi=largest.rect())
-            b_val = int(st.b_mean())
-            r_val, g_val, bb_val = rgb_mean_in_rect(img, largest.rect())
-            if b_val > -6 or bb_val <= r_val or bb_val <= g_val:
-                continue
-
-        score = largest.pixels()
-
-        if debug_lab:
-            st = img.get_statistics(roi=largest.rect())
-            r_val, g_val, bb_val = rgb_mean_in_rect(img, largest.rect())
-            print(
-                "[DEBUG_LAB] try=%s L=%d A=%d B=%d RGB=(%d,%d,%d) pixels=%d" %
-                (
-                    cfg["name"],
-                    int(st.l_mean()),
-                    int(st.a_mean()),
-                    int(st.b_mean()),
-                    r_val,
-                    g_val,
-                    bb_val,
-                    largest.pixels()
-                )
-            )
-
-        if score > best_score:
-            best_score = score
-            best_color = cfg["name"]
-            best_blob = largest
-            best_draw_color = cfg["draw_color"]
-
-    if best_color and best_blob:
-        rx, ry, rw, rh = best_blob.rect()
-        img.draw_rectangle(rx, ry, rw, rh, color=best_draw_color, thickness=2)
-        img.draw_cross(best_blob.cx(), best_blob.cy(),
-                       color=best_draw_color, size=5, thickness=2)
-        img.draw_string_advanced(
-            best_blob.x(),
-            max(0, best_blob.y() - 12),
-            16,
-            best_color,
-            color=best_draw_color
-        )
-
-    return best_color, best_blob
-
-
-# ============================================================
-# 10. 命令转换
-# ============================================================
-
-def get_fork_cmd():
-    global target_house_color
-    if target_house_color == "purple":
-        return "R"
-    else:
-        return "L"
-
-
-def event_to_state_cmd(color_name, fork_index):
-    if color_name == "green":
-        return "2", get_fork_cmd()
-
-    if color_name == "blue":
-        return "3", "U"
-
-    if color_name == "purple":
-        return "4", "P"
-
-    if color_name == "brown":
-        return "5", "B"
-
-    return None, None
-
-
-def cmd_to_send_error(cmd, normal_error):
-    if cmd in CMD_ERROR_VALUES:
-        return CMD_ERROR_VALUES[cmd]
-    return normal_error
-
-
-def cmd_to_color_name(cmd):
-    if cmd in CMD_COLOR_NAMES:
-        return CMD_COLOR_NAMES[cmd]
     return None
 
 
-def stage_to_text(stage):
-    if stage == STAGE_WAIT_FORK_GREEN:
-        return "FORK"
+def draw_color_rois(img):
+    x, y, w, h = COLOR_ROI
+    img.draw_rectangle(x, y, w, h, color=ROI_DRAW_COLOR, thickness=2)
 
-    if stage == STAGE_WAIT_HOUSE:
-        return "HOUSE"
 
-    if stage == STAGE_WAIT_BLUE:
-        return "BLUE"
+def draw_color_detection(img, detection, elapsed_ms):
+    if detection is None:
+        return
 
-    return "UNKNOWN"
+    blob = detection["blob"]
+    x, y, w, h = blob.rect()
+    box_color = detection["box_color"]
+    text_color = detection["text_color"]
+
+    # Only draw the actual detected color block.
+    img.draw_rectangle(x, y, w, h, color=box_color, thickness=3)
+
+    text_y = y - 24
+    if text_y < 0:
+        text_y = y + h + 4
+
+    img.draw_string_advanced(x, text_y, 18, detection["name"], color=text_color)
 
 
 # ============================================================
-# 11. 主循环状态变量
+# UART
 # ============================================================
 
-last_error = 0
-filtered_error = 0
-
-last_color = None
-color_count = 0
-
-mission_stage = STAGE_WAIT_FORK_GREEN
-lap_count = 1
-
-# 分岔后本轮应该识别的住户颜色
-# None 表示还没进入住户识别阶段
-target_house_color = None
-
-fork_count = 0
-fork_ready = True
-last_fork_seen_time = 0
-last_fork_trigger_time = 0
-fork_silence_until = 0
-
-last_seen_time = {
-    "blue": 0,
-    "purple": 0,
-    "brown": 0,
-}
-
-color_ready = {
-    "blue": True,
-    "purple": True,
-    "brown": True,
-}
-
-last_trigger_time = {
-    "blue": 0,
-    "purple": 0,
-    "brown": 0,
-}
-
-event_state = None
-event_cmd = None
-event_frames_left = 0
-sent_color_events_lap = lap_count
-sent_color_events = {
-    "green": False,
-    "blue": False,
-    "purple": False,
-    "brown": False,
-}
-
-color_stop_until = 0
-color_stop_color = None
-color_stop_ready = True
-
-last_print_time = 0
-last_debug_lab_time = 0
-last_sample_print_time = 0
-last_ack_time = 0
-ack_rx_buffer = ""
+def send_uart_status(error, color_code):
+    # Send line error and color name in one newline-delimited status frame.
+    data = "E:%d,C:%s\n" % (error, color_code)
+    uart.write(data)
 
 
-def process_stm32_rx(now):
-    global ack_rx_buffer, last_ack_time
+def update_color_state(color_code):
+    global step_state, last_step_event
 
+    if step_state == STATE_WAIT_COLOR and color_code == "blue":
+        step_state = STATE_WAIT_STM32
+        reset_step_confirmation()
+        last_step_event = "BLUE TARGET"
+
+
+def reset_step_confirmation():
+    global step_hit_count, step_signal_sent
+    step_hit_count = 0
+    step_signal_sent = False
+
+
+def format_uart_rx_for_display(raw_bytes):
     try:
-        if uart.any():
-            ack_data = uart.read()
-            if ack_data:
-                try:
-                    ack_rx_buffer += ack_data.decode()
-                except Exception:
-                    ack_rx_buffer += str(ack_data)
-
-                while "\n" in ack_rx_buffer:
-                    line, ack_rx_buffer = ack_rx_buffer.split("\n", 1)
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    print("[STM32] %s" % line)
-
-                    if line.startswith("OK"):
-                        last_ack_time = now
-
-                if len(ack_rx_buffer) > 96:
-                    ack_rx_buffer = ack_rx_buffer[-96:]
+        text = raw_bytes.decode()
     except Exception:
-        pass
+        text = str(raw_bytes)
+
+    text = text.strip()
+    if not text:
+        text = "<blank>"
+
+    if len(text) > UART_RX_DISPLAY_MAX_CHARS:
+        text = text[:UART_RX_DISPLAY_MAX_CHARS]
+
+    return text
+
+
+def format_uart_rx_hex(raw_bytes):
+    items = []
+
+    for index, value in enumerate(raw_bytes):
+        if index >= UART_RX_HEX_DISPLAY_MAX_BYTES:
+            items.append("...")
+            break
+        items.append("%02X" % value)
+
+    if not items:
+        return "NONE"
+
+    return " ".join(items)
+
+
+def poll_uart_commands():
+    global step_state, uart_rx_buffer, last_step_event, last_rx_command, last_rx_hex
+
+    chunk = uart.read()
+    if not chunk:
+        return
+
+    last_rx_command = format_uart_rx_for_display(chunk)
+    last_rx_hex = format_uart_rx_hex(chunk)
+    uart_rx_buffer += chunk.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+    if len(uart_rx_buffer) > UART_RX_MAX_BYTES:
+        uart_rx_buffer = b""
+        last_step_event = "UART BUFFER RESET"
+        last_rx_command = "BUFFER_RESET"
+        last_rx_hex = "BUFFER_RESET"
+        print(last_step_event)
+        return
+
+    # Switch on the first complete Yes immediately; no line ending is required.
+    pending_command = uart_rx_buffer.lstrip()
+    if pending_command.upper().startswith(CMD_CONFIRM_BLUE):
+        uart_rx_buffer = b""
+        last_rx_command = format_uart_rx_for_display(CMD_CONFIRM_BLUE)
+
+        if step_state == STATE_WAIT_STM32:
+            step_state = STATE_WAIT_BLACK
+            reset_step_confirmation()
+            last_step_event = "RX YES"
+            print("state -> WAIT_BLACK")
+        else:
+            last_step_event = "RX YES IGNORED"
+            print("ignore YES in state:", step_state)
+        return
+
+    while b"\n" in uart_rx_buffer:
+        raw_line, uart_rx_buffer = uart_rx_buffer.split(b"\n", 1)
+        command = raw_line.strip().upper()
+
+        if not command:
+            continue
+
+        last_rx_command = format_uart_rx_for_display(command)
+
+        if command == CMD_CONFIRM_BLUE and step_state == STATE_WAIT_STM32:
+            step_state = STATE_WAIT_BLACK
+            reset_step_confirmation()
+            last_step_event = "RX YES"
+            print("state -> WAIT_BLACK")
+        elif command == CMD_CONFIRM_BLUE:
+            last_step_event = "RX YES IGNORED"
+            print("ignore YES in state:", step_state)
+        else:
+            last_step_event = "RX UNKNOWN"
+            print("unknown command:", command)
 
 
 # ============================================================
-# 12. 主循环
+# STEP / BLACK FRAME DETECTION
+# ============================================================
+
+def blob_shape_metrics(blob):
+    x, y, w, h = blob.rect()
+    long_side = max(w, h)
+    short_side = max(1, min(w, h))
+    aspect_ratio = long_side / short_side
+    fill_ratio = blob.pixels() / max(1, w * h)
+    return long_side, aspect_ratio, fill_ratio
+
+
+def is_black_rail_candidate(blob):
+    if blob is None or blob.pixels() < BLACK_CANDIDATE_MIN_PIXELS:
+        return False
+
+    x, y, w, h = blob.rect()
+    long_side, aspect_ratio, fill_ratio = blob_shape_metrics(blob)
+
+    # Black frame/plate rule:
+    # 1. clear dark area
+    # 2. long or upright rectangle
+    # 3. ignore huge dark background
+    area = max(1, w * h)
+    too_large_background = area > 52000
+
+    long_plate_like = (
+        long_side >= BLACK_MIN_LONG_SIDE and
+        aspect_ratio >= BLACK_MIN_ASPECT_RATIO
+    )
+
+    upright_like = (
+        h >= BLACK_MIN_LONG_SIDE and
+        h >= w * 0.75
+    )
+
+    return (
+        (long_plate_like or upright_like) and
+        fill_ratio >= BLACK_MIN_FILL_RATIO and
+        not too_large_background
+    )
+
+
+def is_strong_single_rail(blob):
+    if not is_black_rail_candidate(blob):
+        return False
+
+    long_side, aspect_ratio, fill_ratio = blob_shape_metrics(blob)
+    return (
+        blob.pixels() >= BLACK_SINGLE_MIN_PIXELS and
+        long_side >= BLACK_SINGLE_MIN_LONG_SIDE and
+        aspect_ratio >= BLACK_SINGLE_MIN_ASPECT_RATIO
+    )
+
+
+def find_best_black_rail(img, roi):
+    blobs = img.find_blobs(
+        [BLACK_THRESHOLD],
+        roi=roi,
+        pixels_threshold=BLACK_CANDIDATE_MIN_PIXELS,
+        area_threshold=BLACK_CANDIDATE_MIN_PIXELS,
+        merge=True,
+        margin=MERGE_MARGIN
+    )
+
+    best_blob = None
+
+    for blob in blobs:
+        if not is_black_rail_candidate(blob):
+            continue
+
+        if best_blob is None or blob.pixels() > best_blob.pixels():
+            best_blob = blob
+
+    return best_blob
+
+
+def draw_blob(img, blob, color):
+    if blob is None:
+        return
+
+    x, y, w, h = blob.rect()
+    img.draw_rectangle(x, y, w, h, color=color, thickness=3)
+    img.draw_cross(blob.cx(), blob.cy(), color=color, size=8, thickness=2)
+
+
+def update_step_confirmation(detected):
+    global step_hit_count
+
+    if detected:
+        step_hit_count = min(step_hit_count + 1, STEP_CONFIRM_FRAMES)
+    else:
+        step_hit_count = 0
+
+
+def find_black_frame_in_color_rois(img):
+    # Disabled by default.
+    # Detecting black inside color ROIs easily treats shadows / dark track as black frame.
+    return False
+
+
+def draw_black_rois(img):
+    lx, ly, lw, lh = BLACK_LEFT_ROI
+    rx, ry, rw, rh = BLACK_RIGHT_ROI
+    img.draw_rectangle(lx, ly, lw, lh, color=ROI_DRAW_COLOR, thickness=2)
+    img.draw_rectangle(rx, ry, rw, rh, color=ROI_DRAW_COLOR, thickness=2)
+
+
+def draw_black_result_hold(img):
+    draw_black_rois(img)
+    img.draw_string_advanced(250, 55, 22, "BLACK", color=BLACK_DRAW_COLOR)
+
+
+def detect_black_frame_now(img, draw=True):
+    # Immediate black frame recognition.
+    # Returns True as soon as black plates appear in the left/right black ROIs.
+    global black_frame_detected
+
+    if draw and step_state == STATE_WAIT_BLACK:
+        draw_black_rois(img)
+
+    left_blob = find_best_black_rail(img, BLACK_LEFT_ROI)
+    right_blob = find_best_black_rail(img, BLACK_RIGHT_ROI)
+
+    draw_blob(img, left_blob, BLACK_DRAW_COLOR)
+    draw_blob(img, right_blob, BLACK_DRAW_COLOR)
+
+    both_sides = left_blob is not None and right_blob is not None
+
+    single_side_strong = (
+        left_blob is not None and
+        right_blob is None and
+        is_strong_single_rail(left_blob)
+    ) or (
+        right_blob is not None and
+        left_blob is None and
+        is_strong_single_rail(right_blob)
+    )
+
+    black_in_color_boxes = find_black_frame_in_color_rois(img)
+
+    if ALLOW_SINGLE_BLACK_FRAME:
+        detected = both_sides or single_side_strong or black_in_color_boxes
+    else:
+        detected = both_sides or black_in_color_boxes
+
+    black_frame_detected = detected
+
+    if detected and draw:
+        img.draw_string_advanced(250, 55, 22, "BLACK", color=BLACK_DRAW_COLOR)
+
+    return detected
+
+
+def update_black_result_state(now):
+    global step_state, black_frame_detected, last_step_event
+
+    if step_state != STATE_SHOW_BLACK:
+        return
+
+    step_state = STATE_WAIT_COLOR
+    black_frame_detected = False
+    reset_step_confirmation()
+    last_step_event = "COLOR RESTART"
+
+
+def process_step_vision(img, now):
+    global step_state, step_hit_count, step_signal_sent
+    global last_step_event
+
+    if step_state == STATE_SHOW_BLACK:
+        draw_black_result_hold(img)
+        return
+
+    if step_state != STATE_WAIT_BLACK:
+        return
+
+    black_now = detect_black_frame_now(img, draw=True)
+    update_step_confirmation(black_now)
+
+    if step_hit_count >= STEP_CONFIRM_FRAMES and not step_signal_sent:
+        step_signal_sent = True
+        step_state = STATE_SHOW_BLACK
+        step_hit_count = 0
+        last_step_event = "TX BLACK"
+        print("send: black")
+
+
+# ============================================================
+# SCREEN STATUS
+# ============================================================
+
+def draw_status(img, error, serial_color):
+    # Minimal status only.
+    img.draw_string_advanced(
+        2,
+        2,
+        18,
+        "E:%d C:%s S:%s B:%d" % (error, serial_color, step_state, 1 if black_frame_detected else 0),
+        color=TEXT_COLOR
+    )
+    img.draw_string_advanced(
+        2,
+        24,
+        18,
+        "RX:%s" % last_rx_command,
+        color=TEXT_COLOR
+    )
+    img.draw_string_advanced(
+        2,
+        46,
+        18,
+        "HEX:%s" % last_rx_hex,
+        color=TEXT_COLOR
+    )
+
+
+# ============================================================
+# INIT
+# ============================================================
+
+sensor = Sensor(width=IMG_W, height=IMG_H)
+sensor.reset()
+sensor.set_framesize(width=IMG_W, height=IMG_H)
+sensor.set_pixformat(Sensor.RGB565)
+
+uart = YbUart(baudrate=UART_BAUD)
+
+Display.init(Display.ST7701, width=DISPLAY_W, height=DISPLAY_H)
+MediaManager.init()
+sensor.run()
+
+
+# ============================================================
+# MAIN LOOP
 # ============================================================
 
 try:
     while True:
-        clock.tick()
         os.exitpoint()
         now = time.ticks_ms()
 
-        led_all_off()
-
-        process_stm32_rx(now)
+        poll_uart_commands()
+        update_black_result_state(now)
 
         img = sensor.snapshot()
 
-        # --------------------------------------------------------
-        # 0. 亮度显示（K230 上只做显示，不做交互调节）
-        #    原 OpenMV 版本通过 USB_VCP 读取 +/- 实时调亮度，
-        #    K230 无 pyb.USB_VCP，故移除该交互功能。
-        # --------------------------------------------------------
-        img.draw_string_advanced(
-            IMG_W - 50, 2, 14,
-            "B:%+d" % current_brightness,
-            color=(255, 255, 0)
-        )
-
-        # --------------------------------------------------------
-        # 1. 循迹
-        # --------------------------------------------------------
+        # 1. Track error.
         line_ok, raw_error, center_x = find_track_error(img)
 
         if line_ok:
@@ -720,301 +718,67 @@ try:
                 filtered_error = 0
 
             last_error = filtered_error
-
         else:
             filtered_error = last_error
 
-        # --------------------------------------------------------
-        # 2. 采样模式
-        # --------------------------------------------------------
-        if SAMPLE_MODE:
-            sx, sy, sw, sh = SAMPLE_ROI
-            img.draw_rectangle(sx, sy, sw, sh, color=(255, 0, 255), thickness=2)
-            img.draw_string_advanced(
-                sx,
-                max(0, sy - 12),
-                14,
-                "SAMPLE",
-                color=(255, 0, 255)
-            )
-
-            if time.ticks_diff(now, last_sample_print_time) > 500:
-                print_sample_values(img, SAMPLE_ROI)
-                last_sample_print_time = now
-
-        # --------------------------------------------------------
-        # 3. 颜色识别
-        # --------------------------------------------------------
-        debug_now = False
-        if DEBUG_LAB and time.ticks_diff(now, last_debug_lab_time) > DEBUG_LAB_INTERVAL_MS:
-            debug_now = True
-            last_debug_lab_time = now
-
-        detected_color, detected_blob = detect_color_bar(
-            img,
-            debug_lab=debug_now
-        )
-
-        # 绿色后静默期：N 秒内不识别任何颜色
-        if fork_silence_until != 0:
-            if time.ticks_diff(fork_silence_until, now) > 0:
-                detected_color = None
-                detected_blob = None
-                color_count = 0
-            else:
-                fork_silence_until = 0
-
-        # 画面左下角显示当前识别到的颜色
-        if detected_color is not None:
-            for cfg in COLOR_CONFIGS:
-                if cfg["name"] == detected_color:
-                    img.draw_string_advanced(
-                        2, IMG_H - 16, 14,
-                        "SEE: %s" % detected_color,
-                        color=cfg["draw_color"]
-                    )
-                    break
-            if detected_color == "purple" and detected_blob is not None:
-                st = img.get_statistics(roi=detected_blob.rect())
-                r_val, g_val, bb_val = rgb_mean_in_rect(img, detected_blob.rect())
-                if time.ticks_diff(now, last_print_time) > PRINT_INTERVAL_MS:
-                    print("[PURPLE] L=%d A=%d B=%d | RGB=(%d,%d,%d) pixels=%d" %
-                          (int(st.l_mean()), int(st.a_mean()), int(st.b_mean()),
-                           r_val, g_val, bb_val, detected_blob.pixels()))
+        # 2. Stop color recognition after blue; wait for Yes with no color ROI.
+        if step_state == STATE_WAIT_COLOR:
+            draw_color_rois(img)
+            detection = find_best_color_blob(img)
         else:
-            img.draw_string_advanced(
-                2, IMG_H - 16, 14,
-                "SEE: ---",
-                color=(150, 150, 150)
+            detection = None
+
+        detected_color = None
+        if detection is not None:
+            detected_color = detection["name"]
+
+        elapsed_ms = update_detect_timer(detected_color, now)
+        serial_color = detection_to_serial_color(detection)
+
+        draw_color_detection(img, detection, elapsed_ms)
+        update_color_state(serial_color)
+
+        # 3. Black-frame detection and its two boxes run only after blue -> Yes.
+        process_step_vision(img, now)
+
+        status_color = serial_color
+        if black_frame_detected:
+            status_color = "black"
+
+        # 4. Send line-tracking error and color name in one frame.
+        send_uart_status(filtered_error, status_color)
+
+        # 5. Debug print.
+        if detection is not None and time.ticks_diff(now, last_print_ms) > PRINT_INTERVAL_MS:
+            print(
+                "COLOR:%s time=%.1fs pixels=%d" %
+                (detection["name"], elapsed_ms / 1000.0, detection["blob"].pixels())
             )
+            last_print_ms = now
 
-        if detected_color is not None and detected_color == last_color:
-            color_count += 1
-        else:
-            last_color = detected_color
-
-            if detected_color is None:
-                color_count = 0
-            else:
-                color_count = 1
-
-        if COLOR_STOP_TEST_ENABLE:
-            if color_stop_until != 0 and time.ticks_diff(color_stop_until, now) <= 0:
-                color_stop_until = 0
-                color_stop_color = None
-
-            if detected_color is None and color_stop_until == 0:
-                color_stop_ready = True
-
-            if (
-                color_stop_ready and
-                color_stop_until == 0 and
-                detected_color is not None and
-                color_count >= COLOR_CONFIRM_FRAMES
-            ):
-                color_stop_until = now + COLOR_STOP_TEST_MS
-                color_stop_color = detected_color
-                color_stop_ready = False
-                print("COLOR STOP TEST: %s %dms" % (detected_color, COLOR_STOP_TEST_MS))
-
-            detected_color = None
-
-        # --------------------------------------------------------
-        # 4. 离开色带后重新允许触发
-        # --------------------------------------------------------
-        if detected_color == "green":
-            last_fork_seen_time = now
-
-        elif not fork_ready and last_fork_seen_time != 0:
-            if time.ticks_diff(now, last_fork_seen_time) > FORK_REARM_MS:
-                fork_ready = True
-
-        for name in ("blue", "purple", "brown"):
-            if detected_color == name:
-                last_seen_time[name] = now
-
-            elif not color_ready[name] and last_seen_time[name] != 0:
-                if time.ticks_diff(now, last_seen_time[name]) > COLOR_REARM_MS:
-                    color_ready[name] = True
-
-        # --------------------------------------------------------
-        # 5. 色带事件确认
-        # --------------------------------------------------------
-        if sent_color_events_lap != lap_count:
-            sent_color_events_lap = lap_count
-            sent_color_events = {
-                "green": False,
-                "blue": False,
-                "purple": False,
-                "brown": False,
-            }
-
-        if detected_color is not None and color_count >= COLOR_CONFIRM_FRAMES:
-            new_event_state = None
-            new_event_cmd = None
-
-            if detected_color == "green":
-                if mission_stage == STAGE_WAIT_FORK_GREEN and fork_ready:
-                    if (
-                        last_fork_trigger_time == 0 or
-                        time.ticks_diff(now, last_fork_trigger_time) > FORK_COOLDOWN_MS
-                    ):
-                        fork_count += 1
-                        mission_stage = STAGE_WAIT_HOUSE
-                        fork_ready = False
-                        last_fork_trigger_time = now
-                        fork_silence_until = now + FORK_SILENCE_MS
-
-                        # 第一圈紫，第二圈棕，交替
-                        if lap_count % 2 == 1:
-                            target_house_color = "purple"
-                        else:
-                            target_house_color = "brown"
-
-                        new_event_state, new_event_cmd = event_to_state_cmd(
-                            "green",
-                            fork_count
-                        )
-
-                        print("GREEN fork=%d lap=%d cmd=%s next_house=%s" %
-                              (fork_count, lap_count, new_event_cmd, str(target_house_color)))
-
-            elif detected_color == "purple" or detected_color == "brown":
-                name = detected_color
-
-                if mission_stage == STAGE_WAIT_HOUSE and color_ready[name]:
-                    if (
-                        last_trigger_time[name] == 0 or
-                        time.ticks_diff(now, last_trigger_time[name]) > HOUSE_COOLDOWN_MS
-                    ):
-                        color_ready[name] = False
-                        last_trigger_time[name] = now
-                        mission_stage = STAGE_WAIT_BLUE
-
-                        # 住户已经识别完成，后面只等蓝色，不再识别住户色
-                        target_house_color = None
-
-                        new_event_state, new_event_cmd = event_to_state_cmd(
-                            name,
-                            fork_count
-                        )
-
-                        print("HOUSE %s lap=%d cmd=%s" %
-                              (name, lap_count, new_event_cmd))
-
-            elif detected_color == "blue":
-                if mission_stage == STAGE_WAIT_BLUE and color_ready["blue"]:
-                    if (
-                        last_trigger_time["blue"] == 0 or
-                        time.ticks_diff(now, last_trigger_time["blue"]) > COLOR_COOLDOWN_MS
-                    ):
-                        color_ready["blue"] = False
-                        last_trigger_time["blue"] = now
-                        mission_stage = STAGE_WAIT_FORK_GREEN
-                        lap_count += 1
-                        target_house_color = None
-
-                        new_event_state, new_event_cmd = event_to_state_cmd(
-                            "blue",
-                            fork_count
-                        )
-
-                        print("BLUE cmd=%s next_lap=%d" %
-                              (new_event_cmd, lap_count))
-
-            if new_event_state is not None and new_event_cmd is not None:
-                event_color = cmd_to_color_name(new_event_cmd)
-                if event_color is not None and sent_color_events[event_color]:
-                    new_event_state = None
-                    new_event_cmd = None
-                elif event_color is not None:
-                    sent_color_events[event_color] = True
-
-            if new_event_state is not None and new_event_cmd is not None:
-                event_state = new_event_state
-                event_cmd = new_event_cmd
-                event_frames_left = EVENT_SEND_FRAMES
-
-        # --------------------------------------------------------
-        # 6. 串口发送
-        # --------------------------------------------------------
-        if event_frames_left > 0:
-            state = event_state
-            cmd = event_cmd
-            event_frames_left -= 1
-
-        else:
-            event_state = None
-            event_cmd = None
-
-            if line_ok:
-                state = "1"
-                cmd = "T"
-            else:
-                state = "0"
-                cmd = "X"
-
-        send_error = int(filtered_error * ERROR_SEND_GAIN)
-        if abs(send_error) <= ERROR_DEADBAND:
-            send_error = 0
-
-        send_error = cmd_to_send_error(cmd, send_error)
-        if COLOR_STOP_TEST_ENABLE and color_stop_until != 0:
-            state = "0"
-            cmd = "X"
-            send_error = COLOR_STOP_TEST_VALUE
-
-        data = "%d\n" % send_error
-
-        uart.write(data)
-
-        if COLOR_STOP_TEST_ENABLE and color_stop_until != 0:
-            img.draw_string_advanced(
-                120, 200, 32,
-                "COLOR STOP: %s" % str(color_stop_color),
-                color=(255, 0, 0)
-            )
-
-        if last_ack_time != 0 and time.ticks_diff(now, last_ack_time) < 10000:
-            img.draw_string_advanced(
-                220, 20, 32,
-                "STM32 OK",
-                color=(0, 255, 0)
-            )
-
-        # --------------------------------------------------------
-        # 7. 显示图像到 K230 豪华版屏幕
-        # --------------------------------------------------------
+        draw_status(img, filtered_error, status_color)
         Display.show_image(img)
 
-        # --------------------------------------------------------
-        # 8. 串口调试打印
-        # --------------------------------------------------------
-        if time.ticks_diff(now, last_print_time) > PRINT_INTERVAL_MS:
-            print(
-                "[%s] %s color=%s cnt=%d lap=%d fork=%d fps=%.1f" %
-                (
-                    stage_to_text(mission_stage),
-                    data.strip(),
-                    str(detected_color),
-                    color_count,
-                    lap_count,
-                    fork_count,
-                    clock.fps()
-                )
-            )
+except KeyboardInterrupt:
+    pass
 
-            last_print_time = now
-
-except KeyboardInterrupt as e:
-    print("user stop: %s" % str(e))
-except BaseException as e:
-    print("Exception: %s" % str(e))
 finally:
-    # 清理资源
-    if isinstance(sensor, Sensor):
+    try:
         sensor.stop()
-    Display.deinit()
-    os.exitpoint(os.EXITPOINT_ENABLE_SLEEP)
-    time.sleep_ms(100)
-    MediaManager.deinit()
+    except Exception:
+        pass
+
+    try:
+        Display.deinit()
+    except Exception:
+        pass
+
+    try:
+        MediaManager.deinit()
+    except Exception:
+        pass
+
+    try:
+        uart.deinit()
+    except Exception:
+        pass
