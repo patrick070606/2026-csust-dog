@@ -78,6 +78,17 @@
 
 #define DOG_GAIT_SHIFT_LOW_MM                    20.0f
 
+#define DOG_GAIT_WALK_PHASE_PER_LEG              0.5f // 表示单条腿完成一次抬起、前摆和落下所占用的相位长度。由于四条腿的步态是交替进行的，所以每条腿的步态相位为 0.5，整个步态周期为 2.0。
+#define DOG_GAIT_WALK_TOTAL_PHASE                (DOG_GAIT_WALK_PHASE_PER_LEG * 4.0f)
+#define DOG_GAIT_WALK_BODY_READY_MM              4.0f // 表示重心 / 身体前后平移已经接近目标的判断阈值，当重心 / 身体前后平移的误差小于 4.0mm 时，认为已经接近目标位置，可以停止调整。
+#define DOG_GAIT_WALK_BODY_KP                    0.40f // 身体前后平移的一阶逼近系数，每次更新重心身体调整为当前误差的 40%。
+#define DOG_GAIT_WALK_FRONT_BODY_SHIFT_RATIO     0.25f // 前腿迈步前的重心前后调整幅度，乘以 step_length_mm。
+#define DOG_GAIT_WALK_REAR_BODY_SHIFT_RATIO      0.75f // 后腿迈步前的重心前后调整幅度，乘以 step_length_mm；可适当大于前腿。
+#define DOG_GAIT_WALK_ROLL_GAIN_MM               50.0f // roll 倾角到左右腿高度补偿的增益。
+#define DOG_GAIT_WALK_ROLL_MAX_MM                30.0f // roll 左右腿高度补偿限幅。
+#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            6.0f // 抬某侧腿前给另一侧支撑腿的预加载补偿。
+#define DOG_GAIT_DEG_TO_RAD                      (DOG_GAIT_PI / 180.0f) // 角度 -> 弧度
+
 #define DOG_GAIT_MAX_HIP_TEST_ANGLE_DEG         180.0f
 #define DOG_GAIT_MAX_KNEE_TEST_ANGLE_DEG        180.0f
 
@@ -114,6 +125,17 @@ static DogGaitInfo_t s_gait[DOG_GAIT_LEG_COUNT];
 static float s_foot_y_offset[DOG_GAIT_LEG_COUNT];
 static float s_trot_phase;
 static float s_trot_speed_freq = DOG_GAIT_DEFAULT_SPEED_FREQ;
+static float s_walk_phase; // walk 步态的当前相位，范围是 [0.0, DOG_GAIT_WALK_TOTAL_PHASE)，表示整个 walk 步态周期的进度。
+static float s_walk_speed_freq = 0.03f; // 表示 walk 步态的速度频率。
+static float s_walk_step_height_mm = 55.0f;
+static float s_walk_step_length_mm = 30.0f;
+static float s_walk_cg_base_x_mm; // 基础重心偏移
+static float s_walk_imu_gain_mm = 60.0f; // 表示 walk 步态中，IMU 前后倾角对重心前后偏移的增益系数。也就是说，如果 IMU 检测到机器人前倾 1 度，那么重心会向前偏移 60.0mm，从而调整机器人的步态，使其保持平衡。
+static float s_walk_body_x_goal_mm; // 目标重心偏移
+static float s_walk_body_x_state_mm; // 当前重心偏移
+static float s_walk_foot_x[DOG_GAIT_LEG_COUNT]; // walk 步态中各腿的足端 X 坐标
+static float s_walk_foot_y[DOG_GAIT_LEG_COUNT]; // walk 步态中各腿的足端 Y 坐标
+static uint8_t s_walk_cycle_done; // walk 步态周期是否完成
 static DogGaitLoadMode_t s_load_mode = DOG_GAIT_LOAD_WITH_PAYLOAD;
 static DogGaitFootBase_t s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
 static uint8_t s_is_initialized;
@@ -125,6 +147,9 @@ volatile float g_dog_gait_lf_hip_angle;
 volatile float g_dog_gait_lf_knee_angle;
 volatile float g_dog_gait_rf_hip_angle;
 volatile float g_dog_gait_rf_knee_angle;
+
+static void DogGait_UpdateLegAngles(void);
+static void DogGait_FillServoAngles(float angles[DOG_SERVO_COUNT]);
 
 /*
  * 名称：DogGait_ClampFloat
@@ -345,6 +370,65 @@ static void DogGait_ClearFootYOffsets(void)
     {
         s_foot_y_offset[i] = 0.0f;
     }
+}
+
+/*
+ * 名称：DogGait_ClearWalkFootOffsets
+ * 作用：清除 walk 步态中四条腿的足端坐标偏移。
+ * 输入：无。
+ * 输出：无返回值，更新 s_walk_foot_x 和 s_walk_foot_y。
+ */
+static void DogGait_ClearWalkFootOffsets(void)
+{
+    for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
+    {
+        s_walk_foot_x[i] = 0.0f;
+        s_walk_foot_y[i] = 0.0f;
+    }
+}
+
+/*
+ * 名称：DogGait_GetWalkBodyTarget
+ * 作用：获取 walk 步态中重心的目标偏移量。
+ * 输入：active_leg 当前活动的腿；pitch_deg IMU 检测到的俯仰角。
+ * 输出：返回重心的目标偏移量。
+ */
+static float DogGait_GetWalkBodyTarget(uint8_t active_leg, float pitch_deg)
+{
+    float pitch_adjust = s_walk_imu_gain_mm * tanf(pitch_deg * DOG_GAIT_DEG_TO_RAD);
+    float phase_adjust = 0.0f;
+
+    if ((active_leg == DOG_GAIT_LEG_LF) ||
+        (active_leg == DOG_GAIT_LEG_RF))
+    {
+        phase_adjust = DOG_GAIT_WALK_FRONT_BODY_SHIFT_RATIO * s_walk_step_length_mm;
+    }
+    else
+    {
+        phase_adjust = -DOG_GAIT_WALK_REAR_BODY_SHIFT_RATIO * s_walk_step_length_mm;
+    }
+
+    return s_walk_cg_base_x_mm + phase_adjust + pitch_adjust;
+}
+
+/*
+ * 名称：DogGait_OutputCurrentPose
+ * 作用：输出当前步态姿态。
+ * 输入：time_ms 更新时间。
+ * 输出：无返回值。
+ * 注解：和 DogGait_UpdateTrot() 本质相同。
+ */
+static void DogGait_OutputCurrentPose(uint16_t time_ms)
+{
+    float angles[DOG_SERVO_COUNT] = {0.0f};
+
+    DogGait_UpdateLegAngles();
+    DogGait_FillServoAngles(angles);
+    g_dog_gait_lf_hip_angle = angles[DOG_SERVO_LF_HIP];
+    g_dog_gait_lf_knee_angle = angles[DOG_SERVO_LF_KNEE];
+    g_dog_gait_rf_hip_angle = angles[DOG_SERVO_RF_HIP];
+    g_dog_gait_rf_knee_angle = angles[DOG_SERVO_RF_KNEE];
+    DogServo_SetAngles(angles, time_ms);
 }
 
 /*
@@ -620,10 +704,165 @@ void DogGait_Init(void)
     DogGait_InitLeg(&s_gait[DOG_GAIT_LEG_RB], DOG_GAIT_DEFAULT_H_MM, DOG_GAIT_DEFAULT_R_MM, DOG_GAIT_DEFAULT_L1_MM, DOG_GAIT_DEFAULT_L2_MM, 0.0f);
 
     s_trot_phase = 0.0f;
+    s_walk_phase = 0.0f;
+    s_walk_body_x_goal_mm = 0.0f;
+    s_walk_body_x_state_mm = 0.0f;
+    s_walk_cycle_done = 0U;
     s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
     s_trot_speed_freq = DOG_GAIT_DEFAULT_SPEED_FREQ;
     DogGait_ClearFootYOffsets();
+    DogGait_ClearWalkFootOffsets();
     s_is_initialized = 1U;
+}
+
+/*
+ * 名称：DogGait_ResetWalk
+ * 作用：重置 walk 步态参数。
+ * 输入：无。
+ * 输出：无返回值，更新 walk 步态参数。
+ */
+void DogGait_ResetWalk(void)
+{
+    s_walk_phase = 0.0f;
+    s_walk_body_x_goal_mm = s_walk_cg_base_x_mm;
+    s_walk_body_x_state_mm = s_walk_cg_base_x_mm;
+    s_walk_cycle_done = 0U;
+    DogGait_ClearWalkFootOffsets();
+}
+
+/*
+ * 名称：DogGait_SetWalkParams
+ * 作用：设置 walk 步态参数。
+ * 输入：step_height_mm 步高；step_length_mm 步长；speed_freq 速度频率；cg_base_x_mm 重心基准 X 坐标；imu_gain_mm IMU 增益。
+ * 输出：无返回值，更新 walk 步态参数。
+ */
+void DogGait_SetWalkParams(float step_height_mm,
+                           float step_length_mm,
+                           float speed_freq,
+                           float cg_base_x_mm,
+                           float imu_gain_mm)
+{
+    s_walk_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 80.0f);
+    s_walk_step_length_mm = DogGait_ClampFloat(step_length_mm, -80.0f, 80.0f);
+    s_walk_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.2f);
+    s_walk_cg_base_x_mm = DogGait_ClampFloat(cg_base_x_mm, -50.0f, 50.0f);
+    s_walk_imu_gain_mm = DogGait_ClampFloat(imu_gain_mm, -120.0f, 120.0f);
+    s_foot_base = DOG_GAIT_FOOT_BASE_WALK;
+    DogGait_ClearLegBiases();
+    DogGait_ClearFootYOffsets();
+}
+
+/*
+ * 名称：DogGait_UpdateWalk
+ * 作用：更新 walk 步态。
+ * 输入：time_ms 更新时间；pitch_deg IMU 检测到的俯仰角；roll_deg IMU 检测到的滚转角。
+ * 输出：无返回值，更新 walk 步态参数。
+ */
+void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
+{
+    static const DogGaitLeg_t leg_order[DOG_GAIT_LEG_COUNT] = {
+        DOG_GAIT_LEG_LF,
+        DOG_GAIT_LEG_RF,
+        DOG_GAIT_LEG_LB,
+        DOG_GAIT_LEG_RB,
+    };
+    DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(DOG_GAIT_FOOT_BASE_WALK);
+    uint8_t leg_phase = (uint8_t)(s_walk_phase / DOG_GAIT_WALK_PHASE_PER_LEG);
+    DogGaitLeg_t active_leg;
+    float local_phase;
+    float dx = 0.0f;
+    float lift = 0.0f;
+    float roll_adjust = DOG_GAIT_WALK_ROLL_GAIN_MM * tanf(roll_deg * DOG_GAIT_DEG_TO_RAD);
+
+    if (s_is_initialized == 0U)
+    {
+        DogGait_Init();
+    }
+
+    if (leg_phase >= DOG_GAIT_LEG_COUNT)
+    {
+        leg_phase = DOG_GAIT_LEG_COUNT - 1U;
+    }
+
+    active_leg = leg_order[leg_phase];
+    s_walk_body_x_goal_mm = DogGait_GetWalkBodyTarget((uint8_t)active_leg, pitch_deg);
+    s_walk_body_x_state_mm += (s_walk_body_x_goal_mm - s_walk_body_x_state_mm) * DOG_GAIT_WALK_BODY_KP;
+
+    local_phase = s_walk_phase - ((float)leg_phase * DOG_GAIT_WALK_PHASE_PER_LEG);
+    DogGait_ClearWalkFootOffsets();
+    DogGait_GetPosByCycloidalEquation(s_gait[active_leg].bias_angle,
+                                      local_phase,
+                                      s_walk_step_height_mm,
+                                      s_walk_step_length_mm,
+                                      &dx,
+                                      &lift);
+    s_walk_foot_x[active_leg] = dx;
+    s_walk_foot_y[active_leg] = lift;
+    roll_adjust = DogGait_ClampFloat(roll_adjust,
+                                     -DOG_GAIT_WALK_ROLL_MAX_MM,
+                                     DOG_GAIT_WALK_ROLL_MAX_MM);
+
+    for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
+    {
+        float side_adjust = 0.0f;
+
+        if ((i == DOG_GAIT_LEG_LF) ||
+            (i == DOG_GAIT_LEG_LB))
+        {
+            side_adjust = roll_adjust;
+        }
+        else
+        {
+            side_adjust = -roll_adjust;
+        }
+
+        if ((active_leg == DOG_GAIT_LEG_LF) ||
+            (active_leg == DOG_GAIT_LEG_LB))
+        {
+            if ((i == DOG_GAIT_LEG_RF) ||
+                (i == DOG_GAIT_LEG_RB))
+            {
+                side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
+            }
+        }
+        else
+        {
+            if ((i == DOG_GAIT_LEG_LF) ||
+                (i == DOG_GAIT_LEG_LB))
+            {
+                side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
+            }
+        }
+
+        s_gait[i].x = base_coord.x + s_walk_body_x_state_mm + s_walk_foot_x[i];
+        s_gait[i].y = base_coord.y + side_adjust + s_walk_foot_y[i];
+    }
+
+    DogGait_OutputCurrentPose(time_ms);
+
+    if (fabsf(s_walk_body_x_goal_mm - s_walk_body_x_state_mm) < DOG_GAIT_WALK_BODY_READY_MM)
+    {
+        s_walk_phase += s_walk_speed_freq;
+        if (s_walk_phase >= DOG_GAIT_WALK_TOTAL_PHASE)
+        {
+            s_walk_phase -= DOG_GAIT_WALK_TOTAL_PHASE;
+            s_walk_cycle_done = 1U;
+        }
+    }
+}
+
+/*
+    * 名称：DogGait_IsWalkCycleDone
+    * 作用：检查 walk 步态是否完成一个完整循环。
+    * 输入：无。
+    * 输出：返回 1 表示完成，0 表示未完成，并在返回后清除完成标志。
+*/
+uint8_t DogGait_IsWalkCycleDone(void)
+{
+    uint8_t result = s_walk_cycle_done;
+
+    s_walk_cycle_done = 0U;
+    return result;
 }
 
 /*
@@ -643,6 +882,7 @@ void DogGait_GotoStandPose(uint16_t time_ms)
 
     s_trot_phase = 0.0f;
     s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
+    DogGait_ResetWalk();
     DogGait_ClearLegBiases();
     DogGait_ClearFootYOffsets();
     DogGait_SetStandFootPos();

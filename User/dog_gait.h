@@ -38,6 +38,14 @@ void DogGait_SetShiftLeftParams(float step_height_mm, float speed_freq);
 void DogGait_SetShiftRightParams(float step_height_mm, float speed_freq);
 void DogGait_SetTurnLeftParams(float step_height_mm, float turn_step_mm, float speed_freq);
 void DogGait_SetTurnRightParams(float step_height_mm, float turn_step_mm, float speed_freq);
+void DogGait_ResetWalk(void);
+void DogGait_SetWalkParams(float step_height_mm,
+                           float step_length_mm,
+                           float speed_freq,
+                           float cg_base_x_mm,
+                           float imu_gain_mm);
+void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg);
+uint8_t DogGait_IsWalkCycleDone(void);
 void DogGait_GotoStandPose(uint16_t time_ms);
 void DogGait_UpdateTrot(uint16_t time_ms);
 void DogGait_AllStand(uint16_t time_ms);

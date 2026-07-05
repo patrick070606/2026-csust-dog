@@ -202,8 +202,25 @@ static uint8_t ImageCommand_ParseColorCommand(const char *frame,
         return 1U;
     }
 
-    if ((ImageCommand_MatchToken(frame, len, i, "green") != 0U) ||
-        (ImageCommand_MatchToken(frame, len, i, "none") != 0U))
+    if (ImageCommand_MatchToken(frame, len, i, "green") != 0U)
+    {
+        *command = IMAGE_COMMAND_GREEN;
+        return 1U;
+    }
+
+    if (ImageCommand_MatchToken(frame, len, i, "black") != 0U)
+    {
+        *command = IMAGE_COMMAND_BLACK;
+        return 1U;
+    }
+
+    if (ImageCommand_MatchToken(frame, len, i, "orange") != 0U)
+    {
+        *command = IMAGE_COMMAND_ORANGE;
+        return 1U;
+    }
+
+    if (ImageCommand_MatchToken(frame, len, i, "none") != 0U)
     {
         *command = IMAGE_COMMAND_NONE;
         return 1U;
@@ -277,8 +294,17 @@ static void ImageCommand_FinishFrame(void)
     {
         s_latest_command = command;
         s_has_command = 1U;
-        s_latest_track.valid = 0U;
-        s_has_track = 0U;
+        if ((command == IMAGE_COMMAND_BLACK) && (has_error != 0U))
+        {
+            s_latest_track.error = error;
+            s_latest_track.valid = 1U;
+            s_has_track = 1U;
+        }
+        else
+        {
+            s_latest_track.valid = 0U;
+            s_has_track = 0U;
+        }
     }
     else if (has_error != 0U) // 如果解析到误差字段，则根据误差值判断是循迹误差还是事件命令。
     {

@@ -5,9 +5,11 @@
 #include "image_command.h"
 #include "jy61p_imu.h"
 #include "main.h"
+#include "stair_walk.h"
 #include "throw_servo.h"
 #include "usart.h"
 
+#include <math.h>
 #include <stdio.h>
 
 #define DOG_TASK_GAIT_PERIOD_MS        150U // 表示机器人步态更新的时间间隔，单位毫秒。
@@ -43,6 +45,15 @@
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          30.0f // 表示平台循迹时的步高，单位毫米。
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  60.0f // 表示平台循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 45.0f // 表示平台循迹时向右前进的半径，单位毫米。
+#define DOG_TASK_START_SHIFT_LEFT_MS       2000U // 启动后，开始阶段机器狗向左平移的事件。
+#define DOG_TASK_BLACK_CENTER_STABLE_MS    500U // 上楼梯阶段，黑框识别到机器狗已经到中心后，需要稳定保持的时间。
+#define DOG_TASK_DOWNHILL_MIN_MS           1500U // 进入下坡循迹后，最少要跑的时间。
+#define DOG_TASK_LEVEL_PITCH_DEG           5.0f // 判断机身前后方向接近水平的 pitch 阈值。
+#define DOG_TASK_LEVEL_ROLL_DEG            6.0f // 判断机身左右方向接近水平的 roll 阈值。
+#define DOG_TASK_LEVEL_STABLE_MS           800U // 判断机身接近水平后，需要保持的时间，单位毫秒。   
+#define DOG_TASK_ORANGE_TRACK_DELAY_MS     5000U // 橙色循迹延迟时间，单位毫秒。
+#define DOG_TASK_SHIFT_RIGHT_MS            2000U // 右平移时间，单位毫秒。
+#define DOG_TASK_LAP_PAUSE_MS              5000U // 完成一圈后的暂停时间，单位毫秒。
 
 /* Left/right turn test entry is kept only for reference. */
 #define DOG_TASK_TURN_TEST_DURATION_MS 900U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。    
@@ -72,6 +83,8 @@ typedef enum
     DOG_TASK_MOTION_BACKWARD, // 表示机器人向后运动的状态。
     DOG_TASK_MOTION_TURN_LEFT, // 表示机器人向左转的状态。
     DOG_TASK_MOTION_TURN_RIGHT, // 表示机器人向右转的状态。
+    DOG_TASK_MOTION_SHIFT_LEFT, // 表示机器人向左平移的状态。
+    DOG_TASK_MOTION_SHIFT_RIGHT, // 表示机器人向右平移的状态。
 } DogTaskMotion_t; // 机器人步态的枚举类型。
 
 typedef enum
@@ -84,11 +97,37 @@ typedef enum
     DOG_TASK_EVENT_THROW_ROTATING, // 表示机器人在投掷时进行旋转的状态。
     DOG_TASK_EVENT_PLATFORM_PAUSE, // 表示蓝色平台事件触发后，测试用的停止等待状态。
     DOG_TASK_EVENT_PLATFORM_YES_SEND, // 表示蓝色平台暂停结束后，测试用的连续发送 YES 状态。
+    DOG_TASK_EVENT_STAIR_WALK, // 表示机器人爬楼梯的状态。
+    DOG_TASK_EVENT_START_SHIFT_LEFT, // 表示机器人启动后，开始阶段向左平移的状态。  
+    DOG_TASK_EVENT_SHIFT_TO_CENTER, // 表示机器人在上楼梯阶段，识别到黑色线条后，向中心位置平移的状态。
+    DOG_TASK_EVENT_ORANGE_TRACK_DELAY, // 表示机器人在橙色循迹阶段的延迟状态。
+    DOG_TASK_EVENT_SHIFT_RIGHT, // 表示机器人向右平移的状态。
+    DOG_TASK_EVENT_LAP_PAUSE, // 表示机器人完成一圈后的暂停状态。
 } DogTaskEventState_t; // 机器人事件处理状态的枚举类型。
 
+
+typedef enum
+{
+    DOG_TASK_STAGE_START_SHIFT_LEFT = 0, // 表示机器人启动后，开始阶段向左平移的任务阶段。
+    DOG_TASK_STAGE_TRACK_TO_BLUE, // 表示机器人循迹到蓝色平台的任务阶段。   
+    DOG_TASK_STAGE_STAIR_WALK, // 表示机器人爬楼梯的任务阶段。  
+    DOG_TASK_STAGE_WAIT_BLACK, // 表示机器人在上楼梯阶段，等待识别到黑色线条的任务阶段。
+    DOG_TASK_STAGE_SHIFT_TO_CENTER, // 表示机器人在上楼梯阶段，识别到黑色线条后，向中心位置平移的任务阶段。
+    DOG_TASK_STAGE_DOWNHILL_TRACK, // 表示机器人在下坡循迹阶段的任务阶段。
+    DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL, // 表示机器人在下坡后循迹阶段的任务阶段。
+    DOG_TASK_STAGE_GREEN_TURN, // 表示机器人在绿色转弯阶段的任务阶段。
+    DOG_TASK_STAGE_TRACK_TO_THROW, // 表示机器人在投掷前循迹阶段的任务阶段。
+    DOG_TASK_STAGE_THROW_TARGET, // 表示机器人在投掷目标阶段的任务阶段。
+    DOG_TASK_STAGE_TRACK_TO_ORANGE, // 表示机器人在橙色循迹阶段的任务阶段。
+    DOG_TASK_STAGE_ORANGE_TRACK_DELAY, // 表示机器人在橙色循迹阶段的延迟状态。
+    DOG_TASK_STAGE_SHIFT_RIGHT, // 表示机器人向右平移的任务阶段。
+    DOG_TASK_STAGE_LAP_PAUSE, // 表示机器人完成一圈后的暂停任务阶段。
+    DOG_TASK_STAGE_FINISHED, // 表示机器人任务完成的任务阶段。
+} DogTaskStage_t;
 static DogTaskMotion_t s_motion = DOG_TASK_MOTION_STOP; // 当前正在执行的运动模式，例如停止、前进、左转或右转。
 static DogTaskMotion_t s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD; // 短时间丢线时，用来记住上一帧循迹修正方向。
 static DogTaskEventState_t s_event_state = DOG_TASK_EVENT_IDLE; // 当前事件状态机所在状态，例如普通循迹、分岔转向、投掷流程等。
+static DogTaskStage_t s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT; // 当前任务阶段，例如循迹到蓝色平台、爬楼梯或等待黑色线条。
 static uint32_t s_event_start_ms; // 当前事件状态开始的系统时间，单位毫秒，用于计算事件已经执行多久。
 static uint32_t s_color_pause_ms = DOG_TASK_COLOR_PAUSE_MS; // 颜色暂停事件本次需要保持的时间，单位毫秒。
 static uint32_t s_color_pause_last_stand_ms; // 颜色暂停期间，上一次重新下发站立姿态的时间。
@@ -97,12 +136,15 @@ static uint32_t s_last_gait_ms; // 上一次更新步态的时间。
 static uint32_t s_last_track_ms; // 上一次收到有效循迹误差的时间。
 static uint32_t s_last_status_ms; // 上一次向视觉模块回传 ST 状态的时间。
 static uint32_t s_platform_yes_last_ms; // 蓝色平台暂停测试结束后，上一次向 K230 发送 YES 的时间。
+static uint32_t s_black_center_start_ms; // 上楼梯阶段，黑框识别到机器狗已经到中心后，开始计时的时间。  
+static uint32_t s_level_start_ms; // 上楼梯阶段，机器狗机身接近水平后，开始计时的时间。
 static uint8_t s_has_seen_track; // 是否已经收到过至少一帧有效循迹数据。
 static uint8_t s_is_track_correcting; // 当前是否处于左/右纠偏状态。
 static uint8_t s_platform_track_boost; // 蓝色平台事件触发后，是否启用平台循迹增强参数。
 static uint8_t s_wait_platform_imu; // 蓝色平台事件触发后，等待 IMU 确认机器狗已经上完高台。
 static uint8_t s_purple_throw_delay_used; // 紫色投掷事件是否已经使用过首次循迹延迟。
 static uint8_t s_brown_throw_delay_used; // 棕色投掷事件是否已经使用过首次循迹延迟。
+static uint8_t s_lap_count; // 圈数计数。
 
 volatile uint32_t g_dog_task_run_count; // DogTask_Run() 被调用的次数，方便调试器观察主循环是否正常运行。
 volatile uint32_t g_dog_task_gait_update_count; // 步态更新次数，方便判断是否持续下发步态。
@@ -127,6 +169,7 @@ static uint32_t s_auto_test_start_ms;
 
 /* 提前声明状态回传函数，供 OK 应答函数和周期 ST 回传复用。 */
 static void DogTask_SendVisionStatus(const char *tag);
+static void DogTask_ApplyTrackError(int16_t error);
 
 #if !DOG_TASK_PLATFORM_PAUSE_TEST_ENABLE
 static uint8_t DogTask_IsPlatformFinishedByImu(void)
@@ -149,6 +192,7 @@ static uint8_t DogTask_IsPlatformFinishedByImu(void)
 }
 #endif
 
+/* 向 K230 发送控制消息，包含消息内容和长度。 */
 static void DogTask_SendK230Control(uint8_t *message, uint16_t len)
 {
     if ((message == 0) || (len == 0U))
@@ -214,6 +258,16 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
                                    DOG_TASK_TURN_R_MM,
                                    DOG_TASK_SPEED_FREQ);
     }
+    else if (motion == DOG_TASK_MOTION_SHIFT_LEFT)
+    {
+        DogGait_SetShiftLeftParams(DOG_TASK_STEP_H_MM,
+                                   DOG_TASK_SPEED_FREQ);
+    }
+    else if (motion == DOG_TASK_MOTION_SHIFT_RIGHT)
+    {
+        DogGait_SetShiftRightParams(DOG_TASK_STEP_H_MM,
+                                    DOG_TASK_SPEED_FREQ);
+    }
     else
     {
         DogGait_AllStand(DOG_TASK_GAIT_MOVE_MS);
@@ -249,6 +303,14 @@ static const char *DogTask_MotionName(DogTaskMotion_t motion)
     {
         return "TURN_RIGHT";
     }
+    if (motion == DOG_TASK_MOTION_SHIFT_LEFT)
+    {
+        return "SHIFT_LEFT";
+    }
+    if (motion == DOG_TASK_MOTION_SHIFT_RIGHT)
+    {
+        return "SHIFT_RIGHT";
+    }
     return "STOP";
 }
 
@@ -264,6 +326,12 @@ static const char *DogTask_EventName(DogTaskEventState_t state)
         "THROW_ROTATING",
         "PLATFORM_PAUSE",
         "PLATFORM_YES_SEND",
+        "STAIR_WALK",
+        "START_SHIFT_LEFT",
+        "SHIFT_TO_CENTER",
+        "ORANGE_TRACK_DELAY",
+        "SHIFT_RIGHT",
+        "LAP_PAUSE",
     };
 
     if ((uint8_t)state < (uint8_t)(sizeof(names) / sizeof(names[0])))
@@ -282,7 +350,10 @@ static uint8_t DogTask_IsEventCommand(ImageCommand_t command)
                      (command == IMAGE_COMMAND_TURN_RIGHT) ||
                      (command == IMAGE_COMMAND_PLATFORM) ||
                      (command == IMAGE_COMMAND_PURPLE) ||
-                     (command == IMAGE_COMMAND_BROWN));
+                     (command == IMAGE_COMMAND_BROWN) ||
+                     (command == IMAGE_COMMAND_GREEN) ||
+                     (command == IMAGE_COMMAND_BLACK) ||
+                     (command == IMAGE_COMMAND_ORANGE));
 }
 
 /* 结束当前事件流程，清理事件和循迹标志，并恢复普通前进循迹。 */
@@ -295,6 +366,88 @@ static void DogTask_ResumeTracking(uint32_t now_ms)
     s_last_track_ms = now_ms;
     s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
     DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+}
+
+/* 进入启动后向左平移阶段，等待一段时间后再开始循迹。 */
+static void DogTask_BeginStartShiftLeft(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT;
+    s_event_state = DOG_TASK_EVENT_START_SHIFT_LEFT;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_platform_track_boost = 0U;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_SHIFT_LEFT;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_LEFT);
+}
+
+/* 进入循迹到蓝色平台阶段。 */
+static void DogTask_BeginTrackToBlue(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_TRACK_TO_BLUE;
+    s_platform_track_boost = 0U;
+    s_level_start_ms = 0U;
+    DogTask_ResumeTracking(now_ms);
+}
+
+/* 将状态机切到准备根据黑框偏差居中的状态。 */
+static void DogTask_BeginShiftToCenter(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_SHIFT_TO_CENTER;
+    s_event_state = DOG_TASK_EVENT_SHIFT_TO_CENTER;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_black_center_start_ms = 0U;
+    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+}
+
+/* 进入下坡循迹阶段。 */
+static void DogTask_BeginDownhillTrack(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_DOWNHILL_TRACK;
+    s_event_state = DOG_TASK_EVENT_IDLE;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_platform_track_boost = 0U;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_level_start_ms = 0U;
+    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+}
+
+/* 进入到判断机身是否平的状态。*/
+static uint8_t DogTask_IsBodyLevelStable(uint32_t now_ms)
+{
+    Jy61PImuStatus_t imu;
+
+    if (Jy61PImu_GetStatus(&imu) == 0U)
+    {
+        s_level_start_ms = 0U;
+        return 0U;
+    }
+
+    if ((fabsf(imu.pitch_deg) <= DOG_TASK_LEVEL_PITCH_DEG) &&
+        (fabsf(imu.roll_deg) <= DOG_TASK_LEVEL_ROLL_DEG))
+    {
+        if (s_level_start_ms == 0U)
+        {
+            s_level_start_ms = now_ms;
+            return 0U;
+        }
+
+        return (uint8_t)((uint32_t)(now_ms - s_level_start_ms) >= DOG_TASK_LEVEL_STABLE_MS);
+    }
+
+    s_level_start_ms = 0U;
+    return 0U;
 }
 
 /* 进入投掷前前进阶段；该阶段结束后会开始驱动投掷舵机旋转。 */
@@ -327,6 +480,62 @@ static void DogTask_BeginForkTurn(DogTaskMotion_t motion, uint32_t now_ms)
     DogTask_ApplyMotion(motion);
 }
 
+/* 进入上楼梯行走阶段。 */
+static void DogTask_BeginStairWalk(uint32_t now_ms)
+{
+    s_event_state = DOG_TASK_EVENT_STAIR_WALK;
+    s_task_stage = DOG_TASK_STAGE_STAIR_WALK;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+    StairWalk_Start();
+}
+
+/* 进入橙色循迹延迟阶段。*/
+static void DogTask_BeginOrangeTrackDelay(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_ORANGE_TRACK_DELAY;
+    s_event_state = DOG_TASK_EVENT_ORANGE_TRACK_DELAY;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+}
+
+/* 进入向右平移阶段。 */
+static void DogTask_BeginShiftRight(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_SHIFT_RIGHT;
+    s_event_state = DOG_TASK_EVENT_SHIFT_RIGHT;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_SHIFT_RIGHT;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_RIGHT);
+}
+
+/* 进入完成一圈后的暂停阶段。 */
+static void DogTask_BeginLapPause(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_LAP_PAUSE;
+    s_event_state = DOG_TASK_EVENT_LAP_PAUSE;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+}
 /* 进入投掷旋转阶段，停止机器狗步态，并按紫色/棕色选择投掷舵机旋转方向。 */
 static void DogTask_BeginThrowRotation(ImageCommand_t command, uint32_t now_ms)
 {
@@ -396,7 +605,33 @@ static void DogTask_SendVisionStatus(const char *tag)
 /* 执行视觉事件命令：分岔转向、平台循迹增强、紫/棕投掷或停止。 */
 static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
 {
-    if (command == IMAGE_COMMAND_TURN_LEFT)
+    if ((command == IMAGE_COMMAND_BLACK) &&
+        (s_task_stage == DOG_TASK_STAGE_WAIT_BLACK))
+    {
+        DogTask_SendVisionAck();
+        DogTask_BeginShiftToCenter(now_ms);
+    }
+    else if ((command == IMAGE_COMMAND_GREEN) &&
+             (s_task_stage == DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL))
+    {
+        DogTask_SendVisionAck();
+        s_task_stage = DOG_TASK_STAGE_GREEN_TURN;
+        if (s_lap_count == 0U)
+        {
+            DogTask_BeginForkTurn(DOG_TASK_MOTION_TURN_RIGHT, now_ms);
+        }
+        else
+        {
+            DogTask_BeginForkTurn(DOG_TASK_MOTION_TURN_LEFT, now_ms);
+        }
+    }
+    else if ((command == IMAGE_COMMAND_ORANGE) &&
+             (s_task_stage == DOG_TASK_STAGE_TRACK_TO_ORANGE))
+    {
+        DogTask_SendVisionAck();
+        DogTask_BeginOrangeTrackDelay(now_ms);
+    }
+    else if (command == IMAGE_COMMAND_TURN_LEFT)
     {
         DogTask_SendVisionAck();
         DogTask_BeginForkTurn(DOG_TASK_MOTION_TURN_LEFT, now_ms);
@@ -406,10 +641,11 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
         DogTask_SendVisionAck();
         DogTask_BeginForkTurn(DOG_TASK_MOTION_TURN_RIGHT, now_ms);
     }
-    else if ((command == IMAGE_COMMAND_PURPLE) ||
-             (command == IMAGE_COMMAND_BROWN))
+    else if (((command == IMAGE_COMMAND_PURPLE) && (s_task_stage == DOG_TASK_STAGE_TRACK_TO_THROW) && (s_lap_count == 0U)) ||
+             ((command == IMAGE_COMMAND_BROWN) && (s_task_stage == DOG_TASK_STAGE_TRACK_TO_THROW) && (s_lap_count != 0U)))
     {
         DogTask_SendVisionAck();
+        s_task_stage = DOG_TASK_STAGE_THROW_TARGET;
         if (((command == IMAGE_COMMAND_PURPLE) && (s_purple_throw_delay_used == 0U)) ||
             ((command == IMAGE_COMMAND_BROWN) && (s_brown_throw_delay_used == 0U)))
         {
@@ -441,29 +677,16 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     }
     else if (command == IMAGE_COMMAND_PLATFORM)
     {
-        DogTask_SendVisionAck();
-#if DOG_TASK_PLATFORM_PAUSE_TEST_ENABLE
-        s_event_state = DOG_TASK_EVENT_PLATFORM_PAUSE;
-        s_event_start_ms = now_ms;
-        s_pending_event_command = IMAGE_COMMAND_NONE;
-        s_has_seen_track = 0U;
-        s_is_track_correcting = 0U;
-        s_last_track_ms = now_ms;
-        s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
-        DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
-#else
-        s_wait_platform_imu = 1U;
-        DogTask_BeginPlatformTrackBoost();
-#endif
-    }
-    else
-    {
-        DogTask_ResumeTracking(now_ms);
+        if (s_task_stage == DOG_TASK_STAGE_TRACK_TO_BLUE)
+        {
+            DogTask_SendVisionAck();
+            DogTask_BeginStairWalk(now_ms);
+        }
     }
 }
 
 /* 推进当前事件状态机，根据已经经过的时间决定是否切换到下一阶段或恢复循迹。 */
-static void DogTask_UpdateEventState(uint32_t now_ms)
+static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
 {
     uint32_t elapsed_ms;
 
@@ -486,10 +709,68 @@ static void DogTask_UpdateEventState(uint32_t now_ms)
 
     s_is_track_correcting = 0U;
 
-    if (s_event_state == DOG_TASK_EVENT_FORK_TURN)
+    if (s_event_state == DOG_TASK_EVENT_START_SHIFT_LEFT)
+    {
+        if (elapsed_ms >= DOG_TASK_START_SHIFT_LEFT_MS)
+        {
+            DogTask_BeginTrackToBlue(now_ms);
+        }
+        else
+        {
+            DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_LEFT);
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_SHIFT_TO_CENTER)
+    {
+        if (track.valid != 0U)
+        {
+            s_has_seen_track = 1U;
+            s_last_track_ms = now_ms;
+
+            if ((track.error >= -(int16_t)DOG_TASK_TRACK_DEADBAND) &&
+                (track.error <= (int16_t)DOG_TASK_TRACK_DEADBAND))
+            {
+                DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+
+                if (s_black_center_start_ms == 0U)
+                {
+                    s_black_center_start_ms = now_ms;
+                }
+                else if ((uint32_t)(now_ms - s_black_center_start_ms) >= DOG_TASK_BLACK_CENTER_STABLE_MS)
+                {
+                    DogTask_BeginDownhillTrack(now_ms);
+                }
+            }
+            else
+            {
+                s_black_center_start_ms = 0U;
+
+                if (track.error > 0)
+                {
+                    DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_RIGHT);
+                }
+                else
+                {
+                    DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_LEFT);
+                }
+            }
+        }
+        else if ((s_has_seen_track == 0U) ||
+                 ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
+        {
+            s_black_center_start_ms = 0U;
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_FORK_TURN)
     {
         if (elapsed_ms >= DOG_TASK_TURN_TEST_DURATION_MS)
         {
+            if (s_task_stage == DOG_TASK_STAGE_GREEN_TURN)
+            {
+                s_task_stage = DOG_TASK_STAGE_TRACK_TO_THROW;
+            }
+
             DogTask_ResumeTracking(now_ms);
         }
     }
@@ -536,6 +817,68 @@ static void DogTask_UpdateEventState(uint32_t now_ms)
             DogTask_SendK230Yes();
         }
     }
+    else if (s_event_state == DOG_TASK_EVENT_STAIR_WALK)
+    {
+        StairWalk_Update();
+
+        if (StairWalk_IsFinished() != 0U)
+        {
+            DogTask_SendK230Yes();
+            s_task_stage = DOG_TASK_STAGE_WAIT_BLACK;
+            DogTask_BeginPlatformTrackBoost();
+            DogTask_ResumeTracking(now_ms);
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_ORANGE_TRACK_DELAY)
+    {
+        if (elapsed_ms >= DOG_TASK_ORANGE_TRACK_DELAY_MS)
+        {
+            DogTask_BeginShiftRight(now_ms);
+        }
+        else if (track.valid != 0U)
+        {
+            s_has_seen_track = 1U;
+            s_last_track_ms = now_ms;
+            DogTask_ApplyTrackError(track.error);
+        }
+        else if ((s_has_seen_track != 0U) &&
+                 ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
+        {
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_SHIFT_RIGHT)
+    {
+        if (elapsed_ms >= DOG_TASK_SHIFT_RIGHT_MS)
+        {
+            DogTask_BeginLapPause(now_ms);
+        }
+        else
+        {
+            DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_RIGHT);
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_LAP_PAUSE)
+    {
+        DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+
+        if (elapsed_ms >= DOG_TASK_LAP_PAUSE_MS)
+        {
+            if (s_lap_count == 0U)
+            {
+                s_lap_count++;
+                s_purple_throw_delay_used = 0U;
+                s_brown_throw_delay_used = 0U;
+                DogTask_BeginStartShiftLeft(now_ms);
+            }
+            else
+            {
+                s_task_stage = DOG_TASK_STAGE_FINISHED;
+                s_event_state = DOG_TASK_EVENT_IDLE;
+                DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+            }
+        }
+    }
     else if (s_event_state == DOG_TASK_EVENT_THROW_FORWARD)
     {
         if ((uint32_t)(now_ms - s_event_start_ms) >= DOG_TASK_THROW_FORWARD_MS)
@@ -553,6 +896,7 @@ static void DogTask_UpdateEventState(uint32_t now_ms)
         {
             ThrowServo_Stop();
             DogGait_SetLoadMode(DOG_GAIT_LOAD_NONE);
+            s_task_stage = DOG_TASK_STAGE_TRACK_TO_ORANGE;
             DogTask_ResumeTracking(now_ms);
         }
         else
@@ -719,7 +1063,7 @@ void DogTask_Init(void)
 
     ImageCommand_Init();
     Jy61PImu_Init();
-    DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+    StairWalk_Init();
     DogTask_SetCorrectionLed(0U);
 
     s_last_gait_ms = HAL_GetTick();
@@ -731,11 +1075,16 @@ void DogTask_Init(void)
     s_wait_platform_imu = 0U;
     s_purple_throw_delay_used = 0U;
     s_brown_throw_delay_used = 0U;
+    s_lap_count = 0U;
+    s_black_center_start_ms = 0U;
+    s_level_start_ms = 0U;
     s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
     s_platform_yes_last_ms = 0U;
     s_event_state = DOG_TASK_EVENT_IDLE;
+    s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT;
     s_event_start_ms = s_last_gait_ms;
     s_pending_event_command = IMAGE_COMMAND_NONE;
+    DogTask_BeginStartShiftLeft(s_last_gait_ms);
 #if 0
     s_turn_test_active = 0U;
     s_turn_test_start_ms = s_last_gait_ms;
@@ -754,10 +1103,6 @@ void DogTask_Init(void)
 /* 机器狗主循环任务：读取视觉数据、处理事件状态机、更新步态、控制 LED 并周期回传状态。 */
 void DogTask_Run(void)
 {
-    DogGait_SetShiftRightParams(DOG_TASK_STEP_H_MM, DOG_TASK_SPEED_FREQ);
-    DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
-    HAL_Delay(100);
-#if 0
     uint32_t now_ms = HAL_GetTick();
     ImageCommand_t command = ImageCommand_TakeLatest();
     ImageTrack_t track = ImageCommand_TakeLatestTrack();
@@ -784,9 +1129,13 @@ void DogTask_Run(void)
     }
 #endif
 
-    if (s_event_state == DOG_TASK_EVENT_THROW_TRACK_DELAY)
+    if (s_task_stage == DOG_TASK_STAGE_FINISHED)
     {
-        DogTask_UpdateEventState(now_ms);
+        DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+    }
+    else if (s_event_state == DOG_TASK_EVENT_THROW_TRACK_DELAY)
+    {
+        DogTask_UpdateEventState(now_ms, track);
 
         if (s_event_state == DOG_TASK_EVENT_THROW_TRACK_DELAY)
         {
@@ -812,7 +1161,7 @@ void DogTask_Run(void)
     }
     else if (s_event_state != DOG_TASK_EVENT_IDLE)
     {
-        DogTask_UpdateEventState(now_ms);
+        DogTask_UpdateEventState(now_ms, track);
     }
     else if (DogTask_IsEventCommand(command) != 0U)
     {
@@ -842,6 +1191,14 @@ void DogTask_Run(void)
         DogTask_ApplyCommand(command, now_ms);
     }
 
+    if ((s_task_stage == DOG_TASK_STAGE_DOWNHILL_TRACK) &&
+        ((uint32_t)(now_ms - s_event_start_ms) >= DOG_TASK_DOWNHILL_MIN_MS) &&
+        (DogTask_IsBodyLevelStable(now_ms) != 0U))
+    {
+        s_task_stage = DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL;
+        s_level_start_ms = 0U;
+    }
+
     if (s_event_state == DOG_TASK_EVENT_COLOR_PAUSE)
     {
         DogTask_SetCorrectionLed(1U);
@@ -865,6 +1222,5 @@ void DogTask_Run(void)
         s_last_status_ms = now_ms;
         DogTask_SendVisionStatus("ST");
     }
-#endif
 
 }
