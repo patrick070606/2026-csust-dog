@@ -200,7 +200,7 @@ static void DogTask_SendK230Control(uint8_t *message, uint16_t len)
         return;
     }
 
-    g_k230_tx_status = HAL_UART_Transmit(&huart2,
+    g_k230_tx_status = HAL_UART_Transmit(&huart1,
                                          message,
                                          len,
                                          DOG_TASK_VISION_ACK_TIMEOUT_MS);
@@ -284,7 +284,7 @@ static void DogTask_SetCorrectionLed(uint8_t is_on)
                       (is_on != 0U) ? DOG_TASK_LED_ON_STATE : DOG_TASK_LED_OFF_STATE);
 }
 
-/* 将运动枚举转换成字符串，供 USART2 状态回传使用。 */
+/* 将运动枚举转换成字符串，供 USART1 状态回传使用。 */
 static const char *DogTask_MotionName(DogTaskMotion_t motion)
 {
     if (motion == DOG_TASK_MOTION_FORWARD)
@@ -314,7 +314,7 @@ static const char *DogTask_MotionName(DogTaskMotion_t motion)
     return "STOP";
 }
 
-/* 将事件状态枚举转换成字符串，供 USART2 状态回传使用。 */
+/* 将事件状态枚举转换成字符串，供 USART1 状态回传使用。 */
 static const char *DogTask_EventName(DogTaskEventState_t state)
 {
     static const char *names[] = {
@@ -575,7 +575,7 @@ static void DogTask_SendVisionAck(void)
     DogTask_SendVisionStatus("OK");
 }
 
-/* 通过 USART2 向视觉模块发送当前事件状态和运动状态，tag 可为 OK 或 ST。 */
+/* 通过 USART1 向视觉模块发送当前事件状态和运动状态，tag 可为 OK 或 ST。 */
 static void DogTask_SendVisionStatus(const char *tag)
 {
     char message[64];
@@ -596,7 +596,7 @@ static void DogTask_SendVisionStatus(const char *tag)
         len = (int)sizeof(message) - 1;
     }
 
-    (void)HAL_UART_Transmit(&huart2,
+    (void)HAL_UART_Transmit(&huart1,
                             (uint8_t *)message,
                             (uint16_t)len,
                             DOG_TASK_VISION_ACK_TIMEOUT_MS);

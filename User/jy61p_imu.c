@@ -1,7 +1,7 @@
 #include "jy61p_imu.h"
 #include "usart.h"
 
-#define JY61P_IMU_UART                  huart3
+#define JY61P_IMU_UART                  huart2
 #define JY61P_IMU_FRAME_HEAD            0x55U
 #define JY61P_IMU_FRAME_LEN             11U
 #define JY61P_IMU_FRAME_ACCEL           0x51U
@@ -26,7 +26,7 @@ volatile uint8_t g_jy61p_imu_is_valid;
 volatile uint32_t g_jy61p_imu_frame_count;
 volatile uint32_t g_jy61p_imu_checksum_error_count;
 
-/* Live Watch counters for checking whether USART3 reception stalls. */
+/* Live Watch counters for checking whether USART2 reception stalls. */
 volatile uint32_t g_jy61p_imu_uart_error_count;
 volatile uint32_t g_jy61p_imu_last_uart_error;
 volatile uint32_t g_jy61p_imu_rx_restart_count;
@@ -214,7 +214,7 @@ uint8_t Jy61PImu_GetStatus(Jy61PImuStatus_t *status)
 
 void Jy61PImu_OnUartRxCplt(UART_HandleTypeDef *huart)
 {
-    if ((huart == 0) || (huart->Instance != USART3))
+    if ((huart == 0) || (huart->Instance != USART2))
     {
         return;
     }
@@ -230,7 +230,7 @@ void Jy61PImu_OnUartRxCplt(UART_HandleTypeDef *huart)
 
 void Jy61PImu_OnUartError(UART_HandleTypeDef *huart)
 {
-    if ((huart == 0) || (huart->Instance != USART3))
+    if ((huart == 0) || (huart->Instance != USART2))
     {
         return;
     }

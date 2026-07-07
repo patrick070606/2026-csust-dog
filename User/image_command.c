@@ -2,7 +2,7 @@
 #include "jy61p_imu.h"
 #include "usart.h"
 
-#define IMAGE_COMMAND_UART huart2
+#define IMAGE_COMMAND_UART huart1
 #define IMAGE_FRAME_MAX_LEN 48U
 #define IMAGE_FIELD_NOT_FOUND 0xFFU
 #define IMAGE_EVENT_TURN_RIGHT 1000
@@ -443,12 +443,12 @@ ImageTrack_t ImageCommand_TakeLatestTrack(void)
 /* 接收 K230 字节*/
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-    if (huart->Instance == USART2)
+    if (huart->Instance == USART1)
     {
         ImageCommand_ProcessByte(s_rx_data);
         HAL_UART_Receive_IT(&IMAGE_COMMAND_UART, &s_rx_data, 1U);
     }
-    else if (huart->Instance == USART3)
+    else if (huart->Instance == USART2)
     {
         Jy61PImu_OnUartRxCplt(huart);
     }

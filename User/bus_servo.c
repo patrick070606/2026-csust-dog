@@ -6,7 +6,7 @@
 
 // 你现在如果用的是 USART1，就保持 huart1。
 // 如果你用的是 USART2，把这里改成 huart2。
-#define BUS_SERVO_UART              huart1
+#define BUS_SERVO_UART              huart3
 
 volatile uint32_t g_bus_servo_tx_count;
 volatile int32_t g_bus_servo_last_status;

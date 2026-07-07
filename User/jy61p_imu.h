@@ -29,7 +29,7 @@ void Jy61PImu_Init(void);
 void Jy61PImu_Update(uint32_t now_ms);
 uint8_t Jy61PImu_GetStatus(Jy61PImuStatus_t *status);
 void Jy61PImu_OnUartRxCplt(UART_HandleTypeDef *huart);
-/* Called by HAL_UART_ErrorCallback to recover USART3 IMU reception. */
+/* Called by HAL_UART_ErrorCallback to recover USART2 IMU reception. */
 void Jy61PImu_OnUartError(UART_HandleTypeDef *huart);
 
 /* Mirrors kept as simple globals so Cortex Live Watch can read them reliably. */
