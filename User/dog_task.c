@@ -12,8 +12,8 @@
 #include <math.h>
 #include <stdio.h>
 
-#define DOG_TASK_GAIT_PERIOD_MS        150U // 表示机器人步态更新的时间间隔，单位毫秒。
-#define DOG_TASK_GAIT_MOVE_MS          100U // 表示每次下发步态更新时，舵机从当前角度移动到新目标所用的时间。
+#define DOG_TASK_GAIT_PERIOD_MS        120U // 表示机器人步态更新的时间间隔，单位毫秒。
+#define DOG_TASK_GAIT_MOVE_MS          120U // 表示每次下发步态更新时，舵机从当前角度移动到新目标所用的时间。
 /*DOG_TASK_GAIT_PERIOD_MS 和 DOG_TASK_GAIT_MOVE_MS 表示：任务每隔 150 ms 计算一次新的腿部目标姿态，但要求舵机用 100 ms 完成这次移动。*/
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
 #define DOG_TASK_LED_OFF_STATE         GPIO_PIN_RESET // 表示 LED 灯灭的状态，GPIO_PIN_RESET 表示将 GPIO 引脚设置为低电平，通常用于熄灭 LED。
@@ -41,7 +41,7 @@
 #define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   60.0f // 表示循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  45.0f // 表示循迹时向右前进的半径，单位毫米。
 #define DOG_TASK_TRACK_MAX_STEER_MM    18.0f // 表示循迹时的最大转向量，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离超过 ±35mm，就会根据偏离的距离计算出一个转向量 steer，然后将 steer 限制在 ±18mm 以内，防止机器人转向过度。
-#define DOG_TASK_TRACK_STEER_GAIN      0.18f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
+#define DOG_TASK_TRACK_STEER_GAIN      0.25f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          30.0f // 表示平台循迹时的步高，单位毫米。
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  60.0f // 表示平台循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 45.0f // 表示平台循迹时向右前进的半径，单位毫米。
@@ -276,7 +276,7 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
     s_motion = motion;
 }
 
-/* 控制 PC13 指示灯，用于显示颜色暂停或纠偏相关状态。 */
+/* 控制 PC13 指示灯，用于显示颜色暂停或、纠偏相关状态。 */
 static void DogTask_SetCorrectionLed(uint8_t is_on)
 {
     HAL_GPIO_WritePin(LED_GPIO_Port,

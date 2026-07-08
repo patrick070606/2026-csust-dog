@@ -21,8 +21,8 @@
 #define DOG_GAIT_PI                        3.14159265358979323846f
 #define DOG_GAIT_DEFAULT_H_MM              15.0f
 #define DOG_GAIT_DEFAULT_R_MM              15.0f
-#define DOG_GAIT_DEFAULT_L1_MM             100.0f
-#define DOG_GAIT_DEFAULT_L2_MM             100.0f
+#define DOG_GAIT_DEFAULT_L1_MM             80.0f
+#define DOG_GAIT_DEFAULT_L2_MM             90.0f
 #define DOG_GAIT_DEFAULT_SPEED_FREQ        0.20f
 
 /* 舵机输入角为 0 度时对应的机构零位足端坐标，用于把逆解绝对角转换为舵机相对角。 */
@@ -42,14 +42,14 @@
 #define DOG_GAIT_SHIFT_FOOT_BASE_ENABLE    1U //左右平移步态
 
 /* stand 基准坐标，x 偏移用于调整有负荷/无负荷时的重心。 */
-#define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -50.0f
-#define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -50.0f
+#define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM 10.0f
+#define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    10.0f
 #define DOG_GAIT_STAND_FOOT_Y_MM                (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 140.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -50.0f
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -50.0f
-#define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 140.0f)
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -60.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -60.0f
+#define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 130.0f)
 #else
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -571,8 +571,8 @@ void DogGait_SetTrackParams(float step_height_mm,
                             float speed_freq)
 {
     float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 80.0f);
-    float clamped_left_forward_step_mm = DogGait_ClampFloat(left_forward_step_mm, 0.0f, 80.0f);
-    float clamped_right_forward_step_mm = DogGait_ClampFloat(right_forward_step_mm, 0.0f, 80.0f);
+    float clamped_left_forward_step_mm = DogGait_ClampFloat(left_forward_step_mm, -100.0f, 80.0f);
+    float clamped_right_forward_step_mm = DogGait_ClampFloat(right_forward_step_mm, -100.0f, 80.0f);
     float clamped_steer_step_mm = DogGait_ClampFloat(steer_step_mm, -20.0f, 20.0f);
     float left_r = DogGait_ClampFloat(clamped_left_forward_step_mm + clamped_steer_step_mm, -80.0f, 80.0f);
     float right_r = DogGait_ClampFloat(clamped_right_forward_step_mm - clamped_steer_step_mm, -80.0f, 80.0f);
