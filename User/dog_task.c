@@ -33,7 +33,8 @@
 #define DOG_TASK_STEP_H_MM             20.0f // 表示机器人步态的步高，单位毫米。
 #define DOG_TASK_FORWARD_R_MM          50.0f // 表示机器人步态的前进半径，单位毫米。
 //0 LF 1 RF 2 LB 3 RB
-float step_length_mm[4] = {20.0f, 50.0f, 20.0f, 50.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
+float DOG_TASK_SHIFT_R_MML[4] = {0.0f, 0.0f, 0.0f, 0.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
+float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 10.0f, 10.0f, 10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
 #define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
@@ -257,14 +258,19 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
     else if (motion == DOG_TASK_MOTION_SHIFT_LEFT)
     {
         DogGait_SetShiftLeftParams(DOG_TASK_STEP_H_MM,
-                                   step_length_mm,
+                                   DOG_TASK_SHIFT_R_MML,
                                    DOG_TASK_SPEED_FREQ);
+
+        DogGait_SetShiftStepR(DOG_TASK_SHIFT_R_MML);
+
     }
     else if (motion == DOG_TASK_MOTION_SHIFT_RIGHT)
     {
         DogGait_SetShiftRightParams(DOG_TASK_STEP_H_MM,
-                                    step_length_mm,
+                                    DOG_TASK_SHIFT_R_MMR,
                                     DOG_TASK_SPEED_FREQ);
+
+        DogGait_SetShiftStepR(DOG_TASK_SHIFT_R_MMR);
     }
     else
     {
@@ -1115,8 +1121,10 @@ void DogTask_Run(void)
     g_dog_task_last_track_lost_ms = track_lost_ms;
     g_dog_task_last_gait_elapsed_ms = (uint32_t)(now_ms - s_last_gait_ms);
     
-    DogGait_SetShiftRightParams(DOG_TASK_STEP_H_MM, step_length_mm, DOG_TASK_SPEED_FREQ);
-    DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
+    DogGait_SetShiftRightParams(DOG_TASK_STEP_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ);
+
+    // 根据运动模式选择步态更新函数
+    DogGait_UpdateShift(DOG_TASK_GAIT_MOVE_MS);
     HAL_Delay(120U);
     #if 0
 
@@ -1216,8 +1224,16 @@ void DogTask_Run(void)
     {
         s_last_gait_ms = now_ms;
         g_dog_task_gait_update_count++;
-        DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
 
+        // 根据运动模式选择步态更新函数
+        if (s_motion == DOG_TASK_MOTION_SHIFT_LEFT || s_motion == DOG_TASK_MOTION_SHIFT_RIGHT)
+        {
+            DogGait_UpdateShift(DOG_TASK_GAIT_MOVE_MS);
+        }
+        else
+        {
+            DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
+        }
     }
 
     if ((uint32_t)(now_ms - s_last_status_ms) >= DOG_TASK_STATUS_INTERVAL_MS)

@@ -2,6 +2,34 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "DAPLink 烧录并调试",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/Debug/DogRobot.elf",
+      "preLaunchTask": "Build DogRobot",
+      "device": "STM32F103C8",
+      "interface": "swd",
+      "runToEntryPoint": "main",
+      "serverpath": "openocd",
+      "configFiles": [
+        "${workspaceFolder}/.vscode/cmsis-dap.cfg",
+        "target/stm32f1x.cfg"
+      ],
+      "openOCDLaunchCommands": [
+        "transport select swd",
+        "adapter speed 1000"
+      ],
+      "postLaunchCommands": [
+        "monitor reset halt"
+      ],
+      "overrideRestartCommands": [
+        "monitor reset halt"
+      ],
+      "showDevDebugOutput": "raw"
+    },
+    {
       "name": "STM32 ST-Link Debug",
       "type": "stlinkgdbtarget",
       "request": "launch",
@@ -58,46 +86,15 @@
       "svdFile": "C:/Users/zhou/AppData/Local/stm32cube/packs/STMicroelectronics/stm32f1xx_dfp/1.2.0/SVD/STM32F103.svd",
       "armToolchainPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin",
       "gdbPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
-      "serverpath": "C:/Users/zhou/AppData/Local/Microsoft/WinGet/Packages/xpack-dev-tools.openocd-xpack_Microsoft.Winget.Source_8wekyb3d8bbwe/xpack-openocd-0.12.0-7/bin/openocd.exe",
-      "searchDir": [
-        "C:/Users/zhou/AppData/Local/Microsoft/WinGet/Packages/xpack-dev-tools.openocd-xpack_Microsoft.Winget.Source_8wekyb3d8bbwe/xpack-openocd-0.12.0-7/openocd/scripts"
-      ],
+      "serverpath": "openocd",
       "configFiles": [
-        "interface/stlink.cfg",
+        "${workspaceFolder}/.vscode/cmsis-dap.cfg",
         "target/stm32f1x.cfg"
       ],
       "liveWatch": {
         "enabled": true,
         "samplesPerSecond": 4
       },
-      "showDevDebugOutput": "raw"
-    },
-    {
-      "name": "DAPLink OpenOCD STM32F103",
-      "type": "cortex-debug",
-      "request": "launch",
-      "servertype": "openocd",
-      "cwd": "${workspaceFolder}",
-      "executable": "${workspaceFolder}/build/Debug/DogRobot.elf",
-      "preLaunchTask": "Build DogRobot",
-      "device": "STM32F103C8",
-      "interface": "swd",
-      "runToEntryPoint": "main",
-      "serverpath": "openocd",
-      "configFiles": [
-        "interface/cmsis-dap.cfg",
-        "target/stm32f1x.cfg"
-      ],
-      "openOCDLaunchCommands": [
-        "transport select swd",
-        "adapter speed 1000"
-      ],
-      "postLaunchCommands": [
-        "monitor reset halt"
-      ],
-      "overrideRestartCommands": [
-        "monitor reset halt"
-      ],
       "showDevDebugOutput": "raw"
     }
   ]

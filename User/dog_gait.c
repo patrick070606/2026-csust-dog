@@ -72,8 +72,8 @@
 #endif
 
 #if (DOG_GAIT_SHIFT_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  7.5f
-#define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     7.5f
+#define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  4.0f
+#define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     4.0f
 #define DOG_GAIT_SHIFT_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 105.0f)
 #else
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
@@ -81,7 +81,7 @@
 #define DOG_GAIT_SHIFT_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
 #endif
 
-#define DOG_GAIT_SHIFT_LOW_MM                    20.0f
+#define DOG_GAIT_SHIFT_LOW_MM                    30.0f
 
 #define DOG_GAIT_WALK_PHASE_PER_LEG              0.5f // 表示单条腿完成一次抬起、前摆和落下所占用的相位长度。由于四条腿的步态是交替进行的，所以每条腿的步态相位为 0.5，整个步态周期为 2.0。
 #define DOG_GAIT_WALK_TOTAL_PHASE                (DOG_GAIT_WALK_PHASE_PER_LEG * 4.0f)
@@ -650,7 +650,7 @@ static void DogGait_SetShiftParams(DogGaitShiftDirection_t direction,
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.5f);
 
     DogGait_ApplySideStepsApart(clamped_step_height_mm,
-                           *step_length_mm,
+                           step_length_mm,
                            clamped_speed_freq,
                            DOG_GAIT_FOOT_BASE_SHIFT);
 
@@ -678,7 +678,7 @@ static void DogGait_SetShiftParams(DogGaitShiftDirection_t direction,
  */
 void DogGait_SetShiftLeftParams(float step_height_mm, float *step_length_mm, float speed_freq)
 {
-    DogGait_SetShiftParams(DOG_GAIT_SHIFT_LEFT, step_height_mm, *step_length_mm, speed_freq);
+    DogGait_SetShiftParams(DOG_GAIT_SHIFT_LEFT, step_height_mm, step_length_mm, speed_freq);
 }
 
 /*
@@ -689,7 +689,22 @@ void DogGait_SetShiftLeftParams(float step_height_mm, float *step_length_mm, flo
  */
 void DogGait_SetShiftRightParams(float step_height_mm, float *step_length_mm, float speed_freq)
 {
-    DogGait_SetShiftParams(DOG_GAIT_SHIFT_RIGHT, step_height_mm, *step_length_mm, speed_freq);
+    DogGait_SetShiftParams(DOG_GAIT_SHIFT_RIGHT, step_height_mm, step_length_mm, speed_freq);
+}
+
+/*
+ * 名称：DogGait_SetShiftStepR
+ * 作用：独立设置 shift 步态中四条腿的步长，允许每条腿有不同的步长。
+ * 输入：r 四条腿的步长数组，顺序为 LF/RF/LB/RB。
+ * 输出：无返回值，更新 s_gait 中四条腿的 r 和 old_r。
+ */
+void DogGait_SetShiftStepR(const float r[4])
+{
+    for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
+    {
+        s_gait[i].r = r[i];
+        s_gait[i].old_r = r[i];
+    }
 }
 
 /*
@@ -942,7 +957,7 @@ void DogGait_UpdateTrot(uint16_t time_ms)
 {
     float angles[DOG_SERVO_COUNT] = {0.0f};
     DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(s_foot_base);
-    float dx[4];
+    float dx;
     float lift;
 
     if (s_is_initialized == 0U)
@@ -956,19 +971,19 @@ void DogGait_UpdateTrot(uint16_t time_ms)
     if (s_trot_phase <= 0.5f)
     {
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx[DOG_GAIT_dx_LF];
+        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx;
         s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LF];
 
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_RB].h, s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx[DOG_GAIT_dx_RB];
+        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx;
         s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RB];
 
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx[DOG_GAIT_dx_RF];
+        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx;
         s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RF];
 
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx[DOG_GAIT_dx_LB];
+        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx;
         s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LB];
     }
     else
@@ -976,19 +991,97 @@ void DogGait_UpdateTrot(uint16_t time_ms)
         float phase = s_trot_phase - 0.5f;
 
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx[DOG_GAIT_dx_LF];
+        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx;
         s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LF];
 
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx[DOG_GAIT_dx_RB];
+        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx;
         s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RB];
 
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, phase, s_gait[DOG_GAIT_LEG_RF].h, s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx[DOG_GAIT_dx_RF];
+        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx;
         s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RF];
 
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, phase, s_gait[DOG_GAIT_LEG_LB].h, s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx[DOG_GAIT_dx_LB];
+        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx;
+        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LB];
+    }
+
+    DogGait_UpdateLegAngles();
+    DogGait_FillServoAngles(angles);
+    g_dog_gait_lf_hip_angle = angles[DOG_SERVO_LF_HIP];
+    g_dog_gait_lf_knee_angle = angles[DOG_SERVO_LF_KNEE];
+    g_dog_gait_rf_hip_angle = angles[DOG_SERVO_RF_HIP];
+    g_dog_gait_rf_knee_angle = angles[DOG_SERVO_RF_KNEE];
+    DogServo_SetAngles(angles, time_ms);
+
+    s_trot_phase += s_trot_speed_freq;
+    if (s_trot_phase >= 1.0f)
+    {
+        s_trot_phase -= 1.0f;
+    }
+    g_dog_gait_phase_after = s_trot_phase;
+}
+
+/*
+ * 名称：DogGait_UpdateShift
+ * 作用：推进一次 shift（平移）步态相位，更新四条腿足端轨迹、关节角和舵机目标角度。
+ *       与 DogGait_UpdateTrot 类似，但使用 DOG_GAIT_FOOT_BASE_SHIFT 足端基准，
+ *       允许四条腿有不同的步长，实现平移效果。
+ * 输入：time_ms 舵机动作过渡时间。
+ * 输出：无返回值，通过 DogServo_SetAngles() 输出舵机目标角度，并更新调试变量。
+ */
+void DogGait_UpdateShift(uint16_t time_ms)
+{
+    float angles[DOG_SERVO_COUNT] = {0.0f};
+    DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(DOG_GAIT_FOOT_BASE_SHIFT);
+    float dx;
+    float lift;
+
+    if (s_is_initialized == 0U)
+    {
+        DogGait_Init();
+    }
+
+    g_dog_gait_update_count++;
+    g_dog_gait_phase_before = s_trot_phase;
+
+    if (s_trot_phase <= 0.5f)
+    {
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx;
+        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LF];
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_RB].h, s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx;
+        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RB];
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx;
+        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RF];
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx;
+        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LB];
+    }
+    else
+    {
+        float phase = s_trot_phase - 0.5f;
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx;
+        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LF];
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx;
+        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RB];
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, phase, s_gait[DOG_GAIT_LEG_RF].h, s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx;
+        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RF];
+
+        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, phase, s_gait[DOG_GAIT_LEG_LB].h, s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
+        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx;
         s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LB];
     }
 
