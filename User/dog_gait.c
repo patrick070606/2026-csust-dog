@@ -11,7 +11,6 @@
 
 #include "dog_gait.h"
 #include "dog_servo.h"
-#include "jy61p_imu.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -79,12 +78,6 @@
 
 #define DOG_GAIT_SHIFT_LOW_MM                    20.0f
 
-/* Stair tracking pitch compensation: foot base X += (pitch - base) * gain. */
-#define DOG_GAIT_STAIR_PITCH_COMP_ENABLE         1U
-#define DOG_GAIT_STAIR_PITCH_BASE_DEG            10.0f
-#define DOG_GAIT_STAIR_PITCH_GAIN_MM_PER_DEG     1.5f
-#define DOG_GAIT_STAIR_PITCH_MAX_OFFSET_MM       20.0f
-
 #define DOG_GAIT_MAX_HIP_TEST_ANGLE_DEG         180.0f
 #define DOG_GAIT_MAX_KNEE_TEST_ANGLE_DEG        180.0f
 
@@ -132,11 +125,6 @@ volatile float g_dog_gait_lf_hip_angle;
 volatile float g_dog_gait_lf_knee_angle;
 volatile float g_dog_gait_rf_hip_angle;
 volatile float g_dog_gait_rf_knee_angle;
-volatile float g_dog_gait_stair_pitch_base_deg = DOG_GAIT_STAIR_PITCH_BASE_DEG;
-volatile float g_dog_gait_stair_pitch_diff_deg;
-volatile float g_dog_gait_stair_pitch_x_offset_mm;
-volatile float g_dog_gait_stair_pitch_gain_mm_per_deg = DOG_GAIT_STAIR_PITCH_GAIN_MM_PER_DEG;
-volatile uint8_t g_dog_gait_stair_pitch_comp_enable = DOG_GAIT_STAIR_PITCH_COMP_ENABLE;
 
 /*
  * 名称：DogGait_ClampFloat
@@ -147,33 +135,6 @@ volatile uint8_t g_dog_gait_stair_pitch_comp_enable = DOG_GAIT_STAIR_PITCH_COMP_
 static float DogGait_ClampFloat(float value, float min_value, float max_value)
 {
     return (value < min_value) ? min_value : ((value > max_value) ? max_value : value);
-}
-
-/*
- * 名称：DogGait_GetStairPitchFootXOffset
- * 作用：根据 IMU pitch 与楼梯综合角度基准的差值，生成循迹/行走足端 X 基准补偿。
- */
-static float DogGait_GetStairPitchFootXOffset(void)
-{
-    float pitch_diff_deg;
-    float x_offset_mm;
-
-    if ((g_dog_gait_stair_pitch_comp_enable == 0U) || (g_jy61p_imu_is_valid == 0U))
-    {
-        g_dog_gait_stair_pitch_diff_deg = 0.0f;
-        g_dog_gait_stair_pitch_x_offset_mm = 0.0f;
-        return 0.0f;
-    }
-
-    pitch_diff_deg = g_jy61p_imu_pitch_deg - g_dog_gait_stair_pitch_base_deg;
-    x_offset_mm = pitch_diff_deg * g_dog_gait_stair_pitch_gain_mm_per_deg;
-    x_offset_mm = DogGait_ClampFloat(x_offset_mm,
-                                     -DOG_GAIT_STAIR_PITCH_MAX_OFFSET_MM,
-                                     DOG_GAIT_STAIR_PITCH_MAX_OFFSET_MM);
-
-    g_dog_gait_stair_pitch_diff_deg = pitch_diff_deg;
-    g_dog_gait_stair_pitch_x_offset_mm = x_offset_mm;
-    return x_offset_mm;
 }
 
 /*
@@ -215,7 +176,6 @@ static DogGaitFootBaseCoord_t DogGait_GetFootBaseCoord(DogGaitFootBase_t base)
                   DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM :
                   DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM;
         coord.y = DOG_GAIT_WALK_FOOT_Y_MM;
-        coord.x += DogGait_GetStairPitchFootXOffset();
         break;
 
     case DOG_GAIT_FOOT_BASE_TURN:
