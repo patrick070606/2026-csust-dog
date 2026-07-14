@@ -32,9 +32,10 @@
 #define DOG_TASK_STATUS_INTERVAL_MS    200U // 表示 stm32 向 k230 周期性发送状态反馈的时间间隔，单位毫秒。
 #define DOG_TASK_STEP_H_MM             40.0f // 表示机器人步态的步高，单位毫米。
 #define DOG_TASK_FORWARD_R_MM          50.0f // 表示机器人步态的前进半径，单位毫米。
+#define DOG_TASK_SHIFT_H_MM             25.0f // 表示机器人步态的平移步高，单位毫米。
 //0 LF 1 RF 2 LB 3 RB
-float DOG_TASK_SHIFT_R_MML[4] = {0.0f, 10.0f, 10.0f, 10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
-float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 10.0f, 10.0f, 10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
+float DOG_TASK_SHIFT_R_MML[4] = {0.0f, -10.0f, 0.0f, -10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
+float DOG_TASK_SHIFT_R_MMR[4] = {-6.0f, 30.0f, -6.0f, 30.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
 #define DOG_TASK_SPEED_FREQ            0.2f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
@@ -1121,10 +1122,11 @@ void DogTask_Run(void)
     g_dog_task_last_track_lost_ms = track_lost_ms;
     g_dog_task_last_gait_elapsed_ms = (uint32_t)(now_ms - s_last_gait_ms);
     
-    //DogGait_SetShiftLeftParams(DOG_TASK_STEP_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ);
-    //DogGait_UpdateShift(DOG_TASK_GAIT_MOVE_MS);
-    //HAL_Delay(120U);
-    #if 1
+    //DogGait_SetShiftLeftParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MML, DOG_TASK_SPEED_FREQ);
+    DogGait_SetShiftRightParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ);
+    DogGait_UpdateShift(DOG_TASK_GAIT_MOVE_MS);
+    HAL_Delay(120U);
+    #if 0
 
     Jy61PImu_Update(now_ms);
     ThrowServo_Update();
