@@ -13,6 +13,10 @@
 #define JY61P_IMU_ANGLE_SCALE_DEG       (180.0f / 32768.0f)
 #define JY61P_IMU_ROLL_BASELINE_DEG     180.0f
 
+#define roll_offset     -0.89f
+#define pitch_offset    -2.77f
+
+
 static uint8_t s_rx_data;
 static uint8_t s_frame[JY61P_IMU_FRAME_LEN];
 static uint8_t s_frame_len;
@@ -48,25 +52,7 @@ static uint8_t Jy61PImu_ChecksumOk(const uint8_t frame[JY61P_IMU_FRAME_LEN])
     return (uint8_t)(sum == frame[JY61P_IMU_FRAME_LEN - 1U]);
 }
 
-static float Jy61PImu_NormalizeAngleDeg(float angle_deg)
-{
-    while (angle_deg > 180.0f)
-    {
-        angle_deg -= 360.0f;
-    }
 
-    while (angle_deg < -180.0f)
-    {
-        angle_deg += 360.0f;
-    }
-
-    return angle_deg;
-}
-
-static float Jy61PImu_MapRollDeg(float raw_roll_deg)
-{
-    return Jy61PImu_NormalizeAngleDeg(raw_roll_deg - JY61P_IMU_ROLL_BASELINE_DEG);
-}
 
 static void Jy61PImu_UpdateDebugMirrors(void)
 {
@@ -109,8 +95,8 @@ static void Jy61PImu_ParseFrame(const uint8_t frame[JY61P_IMU_FRAME_LEN])
     }
     else if (type == JY61P_IMU_FRAME_ANGLE)
     {
-        s_status.roll_deg = Jy61PImu_MapRollDeg((float)x * JY61P_IMU_ANGLE_SCALE_DEG);
-        s_status.pitch_deg = (float)y * JY61P_IMU_ANGLE_SCALE_DEG;
+        s_status.roll_deg = (float)x * JY61P_IMU_ANGLE_SCALE_DEG - roll_offset;
+        s_status.pitch_deg = (float)y * JY61P_IMU_ANGLE_SCALE_DEG - pitch_offset;
         s_status.yaw_deg = (float)z * JY61P_IMU_ANGLE_SCALE_DEG;
         s_status.has_angle = 1U;
     }
