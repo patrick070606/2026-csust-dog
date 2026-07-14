@@ -31,8 +31,8 @@
 #define DOG_GAIT_DEFAULT_SPEED_FREQ        0.25f
 
 /* 舵机输入角为 0 度时对应的机构零位足端坐标，用于把逆解绝对角转换为舵机相对角。 */
-#define DOG_GAIT_ZERO_FOOT_X_MM            100.0f
-#define DOG_GAIT_ZERO_FOOT_Y_MM            100.0f
+#define DOG_GAIT_ZERO_FOOT_X_MM            80.0f
+#define DOG_GAIT_ZERO_FOOT_Y_MM            90.0f
 
 /*
  * 足端基准坐标策略。
