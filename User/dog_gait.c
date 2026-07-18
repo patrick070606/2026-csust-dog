@@ -28,7 +28,7 @@
 #define DOG_GAIT_DEFAULT_R_MM              15.0f
 #define DOG_GAIT_DEFAULT_L1_MM             80.0f
 #define DOG_GAIT_DEFAULT_L2_MM             90.0f
-#define DOG_GAIT_DEFAULT_SPEED_FREQ        0.25f
+#define DOG_GAIT_DEFAULT_SPEED_FREQ        0.125f
 
 /* 舵机输入角为 0 度时对应的机构零位足端坐标，用于把逆解绝对角转换为舵机相对角。 */
 #define DOG_GAIT_ZERO_FOOT_X_MM            80.0f
@@ -52,8 +52,8 @@
 #define DOG_GAIT_STAND_FOOT_Y_MM                (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 140.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -30.0f
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -30.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -38.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -38.0f
 #define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 120.0f)
 #else
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
@@ -299,8 +299,8 @@ static void DogGait_CalcAbsoluteAngleByPos(float x,
     hip_link = acosf(DogGait_ClampFloat((ll2 + l1 * l1 - l2 * l2) / (2.0f * l1 * ll), -1.0f, 1.0f));
     knee_link = acosf(DogGait_ClampFloat((l1 * l1 + l2 * l2 - ll2) / (2.0f * l1 * l2), -1.0f, 1.0f));
 
-    *hip_angle = (hip_base - hip_link) * 180.0f / DOG_GAIT_PI;
-    *knee_angle = (DOG_GAIT_PI - knee_link) * 180.0f / DOG_GAIT_PI;
+    *hip_angle =DogGait_ClampFloat ((hip_base - hip_link) * 180.0f / DOG_GAIT_PI,-70,70);
+    *knee_angle =(DOG_GAIT_PI - knee_link) * 180.0f / DOG_GAIT_PI;
 }
 
 /*
@@ -583,8 +583,8 @@ static void DogGait_FillServoAngles(float angles[DOG_SERVO_COUNT])
  */
 void DogGait_SetTrotParams(float step_height_mm, float step_length_mm, float speed_freq)
 {
-    float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 60.0f);
-    float clamped_step_length_mm = DogGait_ClampFloat(step_length_mm, -60.0f, 60.0f);
+    float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 100.0f);
+    float clamped_step_length_mm = DogGait_ClampFloat(step_length_mm, -60.0f, 100.0f);
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.4f);
 
     DogGait_ApplySideSteps(clamped_step_height_mm,
@@ -625,12 +625,12 @@ void DogGait_SetTrackParams(float step_height_mm,
                             float steer_step_mm,
                             float speed_freq)
 {
-    float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 80.0f);
-    float clamped_left_forward_step_mm = DogGait_ClampFloat(left_forward_step_mm, -100.0f, 80.0f);
-    float clamped_right_forward_step_mm = DogGait_ClampFloat(right_forward_step_mm, -100.0f, 80.0f);
-    float clamped_steer_step_mm = DogGait_ClampFloat(steer_step_mm, -20.0f, 20.0f);
-    float left_r = DogGait_ClampFloat(clamped_left_forward_step_mm + clamped_steer_step_mm, -80.0f, 80.0f);
-    float right_r = DogGait_ClampFloat(clamped_right_forward_step_mm - clamped_steer_step_mm, -80.0f, 80.0f);
+    float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 100.0f);
+    float clamped_left_forward_step_mm = DogGait_ClampFloat(left_forward_step_mm, -100.0f, 100.0f);
+    float clamped_right_forward_step_mm = DogGait_ClampFloat(right_forward_step_mm, -100.0f, 100.0f);
+    float clamped_steer_step_mm = DogGait_ClampFloat(steer_step_mm, -100.0f, 100.0f);
+    float left_r = DogGait_ClampFloat(clamped_left_forward_step_mm + clamped_steer_step_mm, -80.0f, 100.0f);
+    float right_r = DogGait_ClampFloat(clamped_right_forward_step_mm - clamped_steer_step_mm, -80.0f, 100.0f);
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.5f);
 
     DogGait_ApplySideSteps(clamped_step_height_mm, right_r, left_r, clamped_speed_freq, DOG_GAIT_FOOT_BASE_WALK);
@@ -734,8 +734,8 @@ void DogGait_SetShiftStepR(const float r[4])
  */
 void DogGait_SetTurnLeftParams(float step_height_mm, float turn_step_mm, float speed_freq)
 {
-    float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 60.0f);
-    float clamped_turn_step_mm = DogGait_ClampFloat(turn_step_mm, 0.0f, 60.0f);
+    float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 80.0f);
+    float clamped_turn_step_mm = DogGait_ClampFloat(turn_step_mm, 0.0f, 80.0f);
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.5f);
 
 
@@ -754,8 +754,8 @@ void DogGait_SetTurnLeftParams(float step_height_mm, float turn_step_mm, float s
  */
 void DogGait_SetTurnRightParams(float step_height_mm, float turn_step_mm, float speed_freq)
 {
-    float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 60.0f);
-    float clamped_turn_step_mm = DogGait_ClampFloat(turn_step_mm, 0.0f, 60.0f);
+    float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 80.0f);
+    float clamped_turn_step_mm = DogGait_ClampFloat(turn_step_mm, 0.0f, 80.0f);
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.5f);
 
     DogGait_ApplySideSteps(clamped_step_height_mm,

@@ -12,8 +12,8 @@
 #include <math.h>
 #include <stdio.h>
 
-#define DOG_TASK_GAIT_PERIOD_MS        150U // 表示机器人步态更新的时间间隔，单位毫秒。
-#define DOG_TASK_GAIT_MOVE_MS          150U // 表示每次下发步态更新时，舵机从当前角度移动到新目标所用的时间。
+#define DOG_TASK_GAIT_PERIOD_MS        120U // 表示机器人步态更新的时间间隔，单位毫秒。
+#define DOG_TASK_GAIT_MOVE_MS          120U // 表示每次下发步态更新时，舵机从当前角度移动到新目标所用的时间。
 /*DOG_TASK_GAIT_PERIOD_MS 和 DOG_TASK_GAIT_MOVE_MS 表示：任务每隔 150 ms 计算一次新的腿部目标姿态，但要求舵机用 150 ms 完成这次移动。*/
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
 #define DOG_TASK_LED_OFF_STATE         GPIO_PIN_RESET // 表示 LED 灯灭的状态，GPIO_PIN_RESET 表示将 GPIO 引脚设置为低电平，通常用于熄灭 LED。
@@ -36,18 +36,18 @@
 float DOG_TASK_SHIFT_R_MML[4] = {0.0f, 10.0f, 10.0f, 10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
 float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 10.0f, 10.0f, 10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
-#define DOG_TASK_SPEED_FREQ            0.2f // 表示机器人步态的速度频率，单位为每毫秒的步长。
+#define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
 #define DOG_TASK_TRACK_DEADBAND        35U // 表示循迹误差的死区范围，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离在 ±35mm 以内，就认为机器人不需要调整方向，继续前进即可。 
 #define DOG_TASK_TRACK_RECOVER_MS      500U // 表示循迹丢失后，机器人保持上一次循迹动作的时间，单位毫秒。
 #define DOG_TASK_TRACK_STEP_H_MM       45.0f // 表示循迹时的步高，单位毫米。
-#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   65.0f // 表示循迹时向左前进的半径，单位毫米。    
+#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   75.0f // 表示循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  45.0f // 表示循迹时向右前进的半径，单位毫米。
-#define DOG_TASK_TRACK_MAX_STEER_MM    18.0f // 表示循迹时的最大转向量，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离超过 ±35mm，就会根据偏离的距离计算出一个转向量 steer，然后将 steer 限制在 ±18mm 以内，防止机器人转向过度。
-#define DOG_TASK_TRACK_STEER_GAIN      0.5f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
-#define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          30.0f // 表示平台循迹时的步高，单位毫米。
-#define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  60.0f // 表示平台循迹时向左前进的半径，单位毫米。    
-#define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 45.0f // 表示平台循迹时向右前进的半径，单位毫米。
+#define DOG_TASK_TRACK_MAX_STEER_MM    50.0f // 表示循迹时的最大转向量，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离超过 ±35mm，就会根据偏离的距离计算出一个转向量 steer，然后将 steer 限制在 ±18mm 以内，防止机器人转向过度。
+#define DOG_TASK_TRACK_STEER_GAIN      0.7f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
+#define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
+#define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  50.0f // 表示平台循迹时向左前进的半径，单位毫米。    
+#define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 30.0f // 表示平台循迹时向右前进的半径，单位毫米。
 #define DOG_TASK_START_SHIFT_LEFT_MS       2000U // 启动后，开始阶段机器狗向左平移的事件。
 #define DOG_TASK_BLACK_CENTER_STABLE_MS    500U // 上楼梯阶段，黑框识别到机器狗已经到中心后，需要稳定保持的时间。
 #define DOG_TASK_DOWNHILL_MIN_MS           1500U // 进入下坡循迹后，最少要跑的时间。
