@@ -9,8 +9,8 @@
 #define STAIR_WALK_TEST_GAIT_PERIOD_MS        100U  // 爬楼梯步态的更新周期：每隔 100 ms 计算并下发一次新的足端目标。
 #define STAIR_WALK_TEST_GAIT_MOVE_MS          80U   // 舵机完成每次步态目标的期望时间；小于更新周期，预留 20 ms 的稳定余量。
 
-#define STAIR_WALK_TEST_STEP_H_MM             60.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
-#define STAIR_WALK_TEST_STEP_LEN_MM           30.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
+#define STAIR_WALK_TEST_STEP_H_MM             70.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
+#define STAIR_WALK_TEST_STEP_LEN_MM           40.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
 #define STAIR_WALK_TEST_SPEED_FREQ            0.03f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
 #define STAIR_WALK_TEST_CG_BASE_X_MM          30.0f // 行走时机身重心在 X（前后）方向的基础偏移，单位 mm，用于提高爬台阶稳定性。
 #define STAIR_WALK_TEST_IMU_GAIN_MM           10.0f // IMU 姿态补偿增益：把俯仰/横滚角换算为足端或重心修正量，数值越大姿态修正越强。
