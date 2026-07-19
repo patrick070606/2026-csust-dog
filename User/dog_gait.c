@@ -74,14 +74,14 @@
 #if (DOG_GAIT_SHIFT_FOOT_BASE_ENABLE != 0U)
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  4.0f
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     4.0f
-#define DOG_GAIT_SHIFT_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 105.0f)
+#define DOG_GAIT_SHIFT_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 80.0f)
 #else
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
 #endif
 
-#define DOG_GAIT_SHIFT_LOW_MM                    30.0f
+#define DOG_GAIT_SHIFT_LOW_MM                    25.0f //平移步态下左右两边的高度差。
 
 #define DOG_GAIT_WALK_PHASE_PER_LEG              0.5f // 表示单条腿完成一次抬起、前摆和落下所占用的相位长度。由于四条腿的步态是交替进行的，所以每条腿的步态相位为 0.5，整个步态周期为 2.0。
 #define DOG_GAIT_WALK_TOTAL_PHASE                (DOG_GAIT_WALK_PHASE_PER_LEG * 4.0f)
