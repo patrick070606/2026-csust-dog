@@ -95,6 +95,7 @@
 #define DOG_GAIT_WALK_ROLL_GAIN_MM               70.0f // roll 倾角到左右腿高度补偿的增益。
 #define DOG_GAIT_WALK_ROLL_MAX_MM                20.0f // roll 左右腿高度补偿限幅。
 #define DOG_GAIT_WALK_SIDE_PRELOAD_MM            6.0f // 抬某侧腿前给另一侧支撑腿的预加载补偿。
+#define DOG_GAIT_WALK_SUPPORT_RETURN_MM          30.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
 #define DOG_GAIT_DEG_TO_RAD                      (DOG_GAIT_PI / 180.0f) // 角度 -> 弧度
 
 #define DOG_GAIT_MAX_HIP_TEST_ANGLE_DEG         180.0f
@@ -409,6 +410,13 @@ static float DogGait_SmoothStep(float phase)
     return phase * phase * (3.0f - 2.0f * phase);
 }
 
+static float DogGait_GetWalkSupportReturnMm(void)
+{
+    return DogGait_ClampFloat(s_walk_step_length_mm,
+                              -DOG_GAIT_WALK_SUPPORT_RETURN_MM,
+                               DOG_GAIT_WALK_SUPPORT_RETURN_MM);
+}
+
 static float DogGait_WrapWalkLegPhase(float phase)
 {
     while (phase < 0.0f)
@@ -424,6 +432,8 @@ static float DogGait_WrapWalkLegPhase(float phase)
 
 static void DogGait_ResetWalkFootStates(void)
 {
+    float support_return_mm = DogGait_GetWalkSupportReturnMm();
+
     /* Initialize a continuous stance arrangement at global phase 0. */
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
@@ -438,11 +448,11 @@ static void DogGait_ResetWalkFootStates(void)
             stance_phase = 0.0f;
         }
 
-        s_walk_touchdown_x[i] = s_walk_step_length_mm * DogGait_SmoothStep(stance_phase);
+        s_walk_touchdown_x[i] = support_return_mm * DogGait_SmoothStep(stance_phase);
         if (i == DOG_GAIT_LEG_LF)
         {
             /* First LF swing starts at the neutral point. */
-            s_walk_touchdown_x[i] = s_walk_step_length_mm;
+            s_walk_touchdown_x[i] = support_return_mm;
         }
         s_walk_swing_start_x[i] = 0.0f;
         s_walk_leg_in_swing[i] = 0U;
@@ -453,6 +463,8 @@ static void DogGait_ResetWalkFootStates(void)
 
 static void DogGait_UpdateWalkFootTrajectories(void)
 {
+    float support_return_mm = DogGait_GetWalkSupportReturnMm();
+
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
         float leg_phase = DogGait_WrapWalkLegPhase(
@@ -466,7 +478,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
             if (s_walk_leg_in_swing[i] == 0U)
             {
                 s_walk_swing_start_x[i] =
-                    s_walk_touchdown_x[i] - s_walk_step_length_mm;
+                    s_walk_touchdown_x[i] - support_return_mm;
                 s_walk_leg_in_swing[i] = 1U;
             }
 
@@ -491,7 +503,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
 
             s_walk_foot_x[i] =
                 s_walk_touchdown_x[i] -
-                s_walk_step_length_mm * DogGait_SmoothStep(support_phase);
+                support_return_mm * DogGait_SmoothStep(support_phase);
             s_walk_foot_y[i] = 0.0f;
         }
     }
