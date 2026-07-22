@@ -260,6 +260,9 @@ def apply_color_sequence_gate(detection, now):
     if detection is None:
         return None
 
+    if green_complete_count < 2 and detection["name"] == "brown":
+        return None
+
     if next_required_color is not None and detection["name"] != next_required_color:
         return None
 
