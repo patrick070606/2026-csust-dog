@@ -95,7 +95,7 @@
 #define DOG_GAIT_WALK_CG_AXIS_SIGN              (-1.0f) // Py-Apple 与本工程 X 轴方向相反；负号保持本工程原有的前/后重心移动方向。
 #define DOG_GAIT_WALK_ROLL_GAIN_MM               70.0f // roll 倾角到左右腿高度补偿的增益。
 #define DOG_GAIT_WALK_ROLL_MAX_MM                20.0f // roll 左右腿高度补偿限幅。
-#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            6.0f // 抬某侧腿前给另一侧支撑腿的预加载补偿。
+#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            0.0f // 抬某侧腿前给另一侧支撑腿的预加载补偿。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          40.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
 #define DOG_GAIT_WALK_REAR_LIFT_END_PHASE        0.25f // 后腿摆动前段结束相位：先以抬高为主，X 基本保持。
 #define DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE    0.50f // 后腿摆动中段结束相位：在高位完成向前移动。
@@ -152,6 +152,10 @@ static uint8_t s_walk_cycle_done; // walk 步态周期是否完成
 static float s_walk_touchdown_x[DOG_GAIT_LEG_COUNT];
 static float s_walk_swing_start_x[DOG_GAIT_LEG_COUNT];
 static uint8_t s_walk_leg_in_swing[DOG_GAIT_LEG_COUNT];
+static uint8_t s_walk_support_phase;
+static uint8_t s_walk_support_ready;
+static float s_walk_support_start_x[DOG_GAIT_LEG_COUNT];
+static float s_walk_support_start_y[DOG_GAIT_LEG_COUNT];
 static DogGaitLoadMode_t s_load_mode = DOG_GAIT_LOAD_WITH_PAYLOAD;
 static DogGaitFootBase_t s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
 static uint8_t s_is_initialized;
@@ -415,6 +419,13 @@ static float DogGait_SmoothStep(float phase)
     return phase * phase * (3.0f - 2.0f * phase);
 }
 
+static float DogGait_CalcLegReach(float x, float y, float l1, float l2)
+{
+    float dy = l1 + l2 - y;
+
+    return sqrtf(x * x + dy * dy);
+}
+
 static float DogGait_GetWalkSupportReturnMm(void)
 {
     return DogGait_ClampFloat(s_walk_step_length_mm,
@@ -464,6 +475,8 @@ static void DogGait_ResetWalkFootStates(void)
     }
 
     DogGait_ClearWalkFootOffsets();
+    s_walk_support_phase = 0U;
+    s_walk_support_ready = 0U;
 }
 
 static void DogGait_UpdateWalkFootTrajectories(void)
@@ -965,6 +978,84 @@ void DogGait_ResetWalk(void)
     s_walk_body_x_state_mm = s_walk_cg_base_x_mm;
     s_walk_cycle_done = 0U;
     DogGait_ResetWalkFootStates();
+}
+
+void DogGait_StartWalkSupportPhase(void)
+{
+    if (s_is_initialized == 0U)
+    {
+        DogGait_Init();
+    }
+
+    for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
+    {
+        s_walk_support_start_x[i] = s_gait[i].x;
+        s_walk_support_start_y[i] = s_gait[i].y;
+    }
+
+    /* Hold the exact pose at the end of WALK; do not force all legs to a common x/y. */
+    s_walk_support_ready = 1U;
+    s_walk_support_phase = 1U;
+}
+
+void DogGait_ResumeWalkFromSupportPhase(void)
+{
+    s_walk_support_phase = 0U;
+    s_walk_support_ready = 0U;
+}
+
+void DogGait_UpdateWalkSupport(uint16_t time_ms)
+{
+    if ((s_is_initialized == 0U) || (s_walk_support_phase == 0U))
+    {
+        return;
+    }
+
+    for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
+    {
+        s_gait[i].x = s_walk_support_start_x[i];
+        s_gait[i].y = s_walk_support_start_y[i];
+    }
+
+    DogGait_OutputCurrentPose(time_ms);
+}
+
+uint8_t DogGait_IsWalkSupportReady(void)
+{
+    return s_walk_support_ready;
+}
+
+uint8_t DogGait_GetWalkFrontRearAverageReach(float *front_reach_mm,
+                                              float *rear_reach_mm)
+{
+    if ((front_reach_mm == 0) ||
+        (rear_reach_mm == 0) ||
+        (s_walk_support_ready == 0U))
+    {
+        return 0U;
+    }
+
+    *front_reach_mm =
+        (DogGait_CalcLegReach(s_gait[DOG_GAIT_LEG_LF].x,
+                              s_gait[DOG_GAIT_LEG_LF].y,
+                              s_gait[DOG_GAIT_LEG_LF].l1,
+                              s_gait[DOG_GAIT_LEG_LF].l2) +
+         DogGait_CalcLegReach(s_gait[DOG_GAIT_LEG_RF].x,
+                              s_gait[DOG_GAIT_LEG_RF].y,
+                              s_gait[DOG_GAIT_LEG_RF].l1,
+                              s_gait[DOG_GAIT_LEG_RF].l2)) * 0.5f;
+
+    *rear_reach_mm =
+        (DogGait_CalcLegReach(s_gait[DOG_GAIT_LEG_LB].x,
+                              s_gait[DOG_GAIT_LEG_LB].y,
+                              s_gait[DOG_GAIT_LEG_LB].l1,
+                              s_gait[DOG_GAIT_LEG_LB].l2) +
+         DogGait_CalcLegReach(s_gait[DOG_GAIT_LEG_RB].x,
+                              s_gait[DOG_GAIT_LEG_RB].y,
+                              s_gait[DOG_GAIT_LEG_RB].l1,
+                              s_gait[DOG_GAIT_LEG_RB].l2)) * 0.5f;
+
+    return 1U;
 }
 
 /*

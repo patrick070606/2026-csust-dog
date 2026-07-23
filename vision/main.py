@@ -2,8 +2,8 @@
 # K230 vision + compact UART events for STM32
 # Functions:
 # 1. White-track error output.
-# 2. The full-width bottom fifth detects brown, green, and blue targets.
-# 3. UART status: E:<error>,C:<none|brown|green|blue|black>.
+# 2. The full-width bottom fifth detects brown, orange, green, blue, and purple targets.
+# 3. UART status: E:<error>,C:<none|brown|orange|green|blue|purple|black>.
 # 4. After blue C:blue, wait until STM32 replies Yes.
 # 5. Yes switches the display from the bottom color ROI to two black-frame ROIs.
 # 6. Confirmed black frame sends C:black in the UART status frame.
@@ -42,7 +42,7 @@ PRINT_INTERVAL_MS = 500
 
 # White road / white track threshold.
 # Tune under real lighting if the white floor/track is unstable.
-WHITE_TRACK_THRESHOLD = (16, 79, -21, 13, -8, 16)
+WHITE_TRACK_THRESHOLD = (50, 100, -30, 30, -30, 30)
 
 LINE_ROIS = [
     # x,   y,    w,    h,  weight
@@ -56,6 +56,17 @@ ERROR_DEADBAND = 3
 
 
 # ============================================================
+# COLOR SEQUENCE LOCK CONFIG
+# ============================================================
+
+# 0: no extra color recognition constraint.
+# 1: after green, pause color recognition for 6s; then require purple
+#    after the first green and brown after the second or later green.
+GREEN_SEQUENCE_LOCK_ENABLED = 1
+GREEN_SEQUENCE_PAUSE_MS = 6000
+
+
+# ============================================================
 # COLOR DETECTION CONFIG
 # ============================================================
 
@@ -63,8 +74,8 @@ ERROR_DEADBAND = 3
 # These thresholds cover target colors only.
 # IMPORTANT:
 # 1. white is NOT recognized as a color here.
-# 2. red and purple are NOT recognized independently.
-# 3. purple-looking targets are merged into blue and output as C:blue.
+# 2. red is not an active target color in the bottom ROI priority list.
+# 3. blue and purple are recognized independently.
 # 4. white is used only by WHITE_TRACK_THRESHOLD for line tracking error E.
 # If recognition is unstable, tune only this table first.
 # Brown is intentionally checked first because it is darker and easier to miss.
@@ -74,7 +85,7 @@ COLOR_CONFIGS = [
         "serial_color": "red",
         # Tight red threshold:
         # A and B must be positive enough, so black/shadow will not be treated as red.
-        "threshold": (26, 37, -6, 53, 1, 46),
+        "threshold": (28, 58, 18, 60, 8, 55),
         "box_color": (255, 0, 0),
         "text_color": (255, 80, 80),
         "min_pixels": 80,
@@ -92,9 +103,18 @@ COLOR_CONFIGS = [
     {
         "name": "blue",
         "serial_color": "blue",
-        "threshold": (12, 45, 3, 22, -34, -8),
+        "threshold": (16, 36, -10, 18, -35, -15),
         "box_color": (0, 80, 255),
         "text_color": (80, 160, 255),
+        "min_pixels": 60,
+        "min_area": 60,
+    },
+    {
+        "name": "orange",
+        "serial_color": "orange",
+        "threshold": (49, 68, 8, 32, 31, 59),
+        "box_color": (255, 140, 0),
+        "text_color": (255, 180, 60),
         "min_pixels": 60,
         "min_area": 60,
     },
@@ -103,7 +123,7 @@ COLOR_CONFIGS = [
         "serial_color": "purple",
         # Purple target threshold.
         # If purple is close to blue under lighting, tune A/B ranges here.
-        "threshold": (27, 86, -10, 3, -3, 16),
+        "threshold": (25, 44, 7, 34, -31, 1),
         "box_color": (160, 0, 255),
         "text_color": (200, 80, 255),
         "min_pixels": 60,
@@ -179,6 +199,10 @@ active_color_name = None
 detect_start_ms = 0
 last_print_ms = 0
 
+next_required_color = None
+green_complete_count = 0
+color_pause_until_ms = 0
+
 last_error = 0
 filtered_error = 0
 
@@ -217,6 +241,41 @@ def detection_to_serial_color(detection):
     if detection is None:
         return "none"
     return detection["serial_color"]
+
+
+def is_color_sequence_paused(now):
+    return (
+        GREEN_SEQUENCE_LOCK_ENABLED == 1 and
+        color_pause_until_ms != 0 and
+        time.ticks_diff(color_pause_until_ms, now) > 0
+    )
+
+
+def apply_color_sequence_gate(detection, now):
+    global next_required_color, green_complete_count, color_pause_until_ms
+
+    if GREEN_SEQUENCE_LOCK_ENABLED != 1:
+        return detection
+
+    if detection is None:
+        return None
+
+    if next_required_color is not None and detection["name"] != next_required_color:
+        return None
+
+    if next_required_color is not None:
+        if detection["name"] == next_required_color:
+            next_required_color = None
+
+    if detection["name"] == "green":
+        green_complete_count += 1
+        if green_complete_count == 1:
+            next_required_color = "purple"
+        else:
+            next_required_color = "brown"
+        color_pause_until_ms = now + GREEN_SEQUENCE_PAUSE_MS
+
+    return detection
 
 
 def is_black_like_blob(blob):
@@ -280,8 +339,8 @@ def find_track_error(img):
 # ============================================================
 
 def find_best_color_blob(img):
-    # Priority is important. Red and purple are not active target colors.
-    priority = ("brown", "green", "blue")
+    # Priority is important. Red is not an active target color.
+    priority = ("brown", "orange", "green", "blue", "purple")
 
     for target_name in priority:
         config = None
@@ -722,9 +781,10 @@ try:
             filtered_error = last_error
 
         # 2. Stop color recognition after blue; wait for Yes with no color ROI.
-        if step_state == STATE_WAIT_COLOR:
+        if step_state == STATE_WAIT_COLOR and not is_color_sequence_paused(now):
             draw_color_rois(img)
             detection = find_best_color_blob(img)
+            detection = apply_color_sequence_gate(detection, now)
         else:
             detection = None
 
