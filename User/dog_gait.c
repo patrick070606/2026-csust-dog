@@ -43,12 +43,12 @@
  */
 #define DOG_GAIT_STAND_FOOT_BASE_ENABLE    1U
 #define DOG_GAIT_WALK_FOOT_BASE_ENABLE     1U
-#define DOG_GAIT_TURN_FOOT_BASE_ENABLE     0U
+#define DOG_GAIT_TURN_FOOT_BASE_ENABLE     1U
 #define DOG_GAIT_SHIFT_FOOT_BASE_ENABLE    1U //左右平移步态
 
 /* stand 基准坐标，x 偏移用于调整有负荷/无负荷时的重心。 */
-#define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -30.0f
-#define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -30.0f
+#define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -35.0f
+#define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -35.0f
 #define DOG_GAIT_STAND_FOOT_Y_MM                (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 100.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
@@ -62,9 +62,9 @@
 #endif
 
 #if (DOG_GAIT_TURN_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -50.0f
-#define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     -50.0f
-#define DOG_GAIT_TURN_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 140.0f)
+#define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -35.0f
+#define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     -35.0f
+#define DOG_GAIT_TURN_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 100.0f)
 #else
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -752,7 +752,7 @@ static void DogGait_FillServoAngles(float angles[DOG_SERVO_COUNT])
 
 /*
  * 名称：DogGait_SetTrotParams
- * 作用：设置普通小跑步态参数。
+ * 作用：设置普通小跑步态参数，使用转向基准；转向基准未启用时自动复用站立基准。
  * 输入：step_height_mm 步高；step_length_mm 步长；speed_freq 每次更新的相位增量。
  * 输出：无返回值，更新小跑步态参数。
  */
@@ -766,7 +766,7 @@ void DogGait_SetTrotParams(float step_height_mm, float step_length_mm, float spe
                             clamped_step_length_mm,
                             clamped_step_length_mm,
                            clamped_speed_freq,
-                           DOG_GAIT_FOOT_BASE_WALK);
+                           DOG_GAIT_FOOT_BASE_TURN);
 }
 
 /*
@@ -789,7 +789,7 @@ void DogGait_SetLoadMode(DogGaitLoadMode_t mode)
 
 /*
  * 名称：DogGait_SetTrackParams
- * 作用：设置循迹行走步态参数，可通过左右步长和转向步长实现偏航调整。
+ * 作用：设置循迹行走步态参数，使用转向基准；可通过左右步长和转向步长实现偏航调整。
  * 输入：step_height_mm 步高；left_forward_step_mm 左侧前进步长；right_forward_step_mm 右侧前进步长；
  *       steer_step_mm 转向修正步长；speed_freq 每次更新的相位增量。
  * 输出：无返回值，更新循迹步态参数。
@@ -808,12 +808,12 @@ void DogGait_SetTrackParams(float step_height_mm,
     float right_r = DogGait_ClampFloat(clamped_right_forward_step_mm - clamped_steer_step_mm, -80.0f, 100.0f);
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.5f);
 
-    DogGait_ApplySideSteps(clamped_step_height_mm, right_r, left_r, clamped_speed_freq, DOG_GAIT_FOOT_BASE_WALK);
+    DogGait_ApplySideSteps(clamped_step_height_mm, right_r, left_r, clamped_speed_freq, DOG_GAIT_FOOT_BASE_TURN);
 }
 
 /*
  * 名称：DogGait_SetStepInPlaceParams
- * 作用：设置原地踏步参数，本质是步长为 0 的小跑。
+ * 作用：设置原地踏步参数，本质是步长为 0 的小跑，使用转向基准。
  * 输入：step_height_mm 步高；speed_freq 每次更新的相位增量。
  * 输出：无返回值，更新原地踏步参数。
  */
@@ -826,7 +826,7 @@ void DogGait_SetStepInPlaceParams(float step_height_mm, float speed_freq)
     DogGait_ApplySideStepsApart(clamped_step_height_mm,
                            r,
                            clamped_speed_freq,
-                           DOG_GAIT_FOOT_BASE_WALK);
+                           DOG_GAIT_FOOT_BASE_TURN);
 }
 
 /*
