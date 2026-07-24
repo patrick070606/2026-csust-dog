@@ -66,7 +66,9 @@ float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 30.0f, 0.0f, 30.0f}; // 表示机器人�
 #define DOG_TASK_LAP_PAUSE_MS              5000U // 完成一圈后的暂停时间，单位毫秒。
 
 /* Left/right turn test entry is kept only for reference. */
-#define DOG_TASK_TURN_TEST_DURATION_MS 900U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。    
+#define DOG_TASK_TURN_TEST_DURATION_MS 900U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。
+#define DOG_TASK_GREEN_TURN_DURATION_MS 2000U // 表示绿色岔路转弯的持续时间，单位毫秒。第二圈左转专用。
+#define DOG_TASK_GREEN_LEFT_STEER_MM     25.0f // 表示绿色岔路左转时的差速转向量，单位毫米。
 
 #if 0
 /* 自动测试入口：早期用于不依赖视觉模块，按固定时长依次测试前进、左转、右转；当前关闭，仅保留参考。 */
@@ -560,6 +562,26 @@ static void DogTask_BeginForkTurn(DogTaskMotion_t motion, uint32_t now_ms)
     DogTask_ApplyMotion(motion);
 }
 
+/* 进入绿色岔路左转阶段，使用循迹差速方式（左腿慢、右腿快），保持向前行进的同时左转。 */
+static void DogTask_BeginGreenLeftTurn(uint32_t now_ms)
+{
+    s_event_state = DOG_TASK_EVENT_FORK_TURN;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_TURN_LEFT;
+
+    /* 用循迹差速参数实现左转: steer 为负表示左侧步长减小、右侧步长增大 */
+    DogGait_SetTrackParams(DOG_TASK_TRACK_STEP_H_MM,
+                           DOG_TASK_TRACK_LEFT_FORWARD_R_MM,
+                           DOG_TASK_TRACK_RIGHT_FORWARD_R_MM,
+                           -DOG_TASK_GREEN_LEFT_STEER_MM,
+                           DOG_TASK_SPEED_FREQ);
+    s_motion = DOG_TASK_MOTION_TURN_LEFT;
+}
+
 /* 进入上楼梯行走阶段。 */
 static void DogTask_BeginStairWalk(uint32_t now_ms)
 {
@@ -702,7 +724,8 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
         }
         else
         {
-            DogTask_BeginForkTurn(DOG_TASK_MOTION_TURN_LEFT, now_ms);
+            /* 第二圈：循迹差速左转，左腿慢右腿快，保持向前行进 */
+            DogTask_BeginGreenLeftTurn(now_ms);
         }
     }
     else if ((command == IMAGE_COMMAND_ORANGE) &&
@@ -888,7 +911,11 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
     }
     else if (s_event_state == DOG_TASK_EVENT_FORK_TURN)
     {
-        if (elapsed_ms >= DOG_TASK_TURN_TEST_DURATION_MS)
+        uint32_t turn_duration_ms = (s_task_stage == DOG_TASK_STAGE_GREEN_TURN)
+                                    ? DOG_TASK_GREEN_TURN_DURATION_MS
+                                    : DOG_TASK_TURN_TEST_DURATION_MS;
+
+        if (elapsed_ms >= turn_duration_ms)
         {
             if (s_task_stage == DOG_TASK_STAGE_GREEN_TURN)
             {
