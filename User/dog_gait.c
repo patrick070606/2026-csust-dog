@@ -44,7 +44,8 @@
 #define DOG_GAIT_STAND_FOOT_BASE_ENABLE    1U
 #define DOG_GAIT_WALK_FOOT_BASE_ENABLE     1U
 #define DOG_GAIT_TURN_FOOT_BASE_ENABLE     1U
-#define DOG_GAIT_SHIFT_FOOT_BASE_ENABLE    1U //左右平移步态
+#define DOG_GAIT_SHIFT_FOOT_BASE_LEFT_ENABLE    1U //左右平移步态
+#define DOG_GAIT_SHIFT_FOOT_BASE_RIGHT_ENABLE    1U //左右平移步态
 
 /* stand 基准坐标，x 偏移用于调整有负荷/无负荷时的重心。 */
 #define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -35.0f
@@ -71,10 +72,20 @@
 #define DOG_GAIT_TURN_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
 #endif
 
-#if (DOG_GAIT_SHIFT_FOOT_BASE_ENABLE != 0U)
+#if (DOG_GAIT_SHIFT_FOOT_BASE_LEFT_ENABLE != 0U)
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  4.0f
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     4.0f
-#define DOG_GAIT_SHIFT_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 80.0f)
+#define DOG_GAIT_SHIFTR_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 90.0f)
+#else
+#define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
+#define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
+#define DOG_GAIT_SHIFT_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
+#endif
+
+#if (DOG_GAIT_SHIFT_FOOT_BASE_RIGHT_ENABLE != 0U)
+#define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  4.0f
+#define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     4.0f
+#define DOG_GAIT_SHIFTL_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 80.0f)
 #else
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -119,7 +130,8 @@ typedef enum
     DOG_GAIT_FOOT_BASE_STAND = 0,
     DOG_GAIT_FOOT_BASE_WALK,
     DOG_GAIT_FOOT_BASE_TURN,
-    DOG_GAIT_FOOT_BASE_SHIFT,
+    DOG_GAIT_FOOT_BASE_SHIFT_LEFT,
+    DOG_GAIT_FOOT_BASE_SHIFT_RIGHT,
 } DogGaitFootBase_t;
 
 typedef enum
@@ -229,11 +241,17 @@ static DogGaitFootBaseCoord_t DogGait_GetFootBaseCoord(DogGaitFootBase_t base)
                   DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM;
         coord.y = DOG_GAIT_TURN_FOOT_Y_MM;
         break;
-    case DOG_GAIT_FOOT_BASE_SHIFT:
+    case DOG_GAIT_FOOT_BASE_SHIFT_LEFT:
         coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
                   DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM :
                   DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM;
-        coord.y = DOG_GAIT_SHIFT_FOOT_Y_MM;
+        coord.y = DOG_GAIT_SHIFTL_FOOT_Y_MM;
+        break;
+    case DOG_GAIT_FOOT_BASE_SHIFT_RIGHT:
+        coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
+                  DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM :
+                  DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM;
+        coord.y = DOG_GAIT_SHIFTR_FOOT_Y_MM;
         break;
     case DOG_GAIT_FOOT_BASE_STAND:
     default:
@@ -838,15 +856,17 @@ void DogGait_SetStepInPlaceParams(float step_height_mm, float speed_freq)
 static void DogGait_SetShiftParams(DogGaitShiftDirection_t direction,
                                    float step_height_mm,
                                    float *step_length_mm,
-                                   float speed_freq)
+                                   float speed_freq,
+                                   DogGaitFootBase_t base)
 {
+    DogGaitFootBase_t foot_base = base;
     float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 80.0f);
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.5f);
 
     DogGait_ApplySideStepsApart(clamped_step_height_mm,
                            step_length_mm,
                            clamped_speed_freq,
-                           DOG_GAIT_FOOT_BASE_SHIFT);
+                           foot_base);
 
     if (direction == DOG_GAIT_SHIFT_LEFT)
     {
@@ -870,9 +890,9 @@ static void DogGait_SetShiftParams(DogGaitShiftDirection_t direction,
  * 输入：step_height_mm 步高；speed_freq 每次更新的相位增量。
  * 输出：无返回值，更新左平移步态参数。
  */
-void DogGait_SetShiftLeftParams(float step_height_mm, float *step_length_mm, float speed_freq)
+void DogGait_SetShiftLeftParams(float step_height_mm, float *step_length_mm, float speed_freq,DogGaitFootBase_t base)
 {
-    DogGait_SetShiftParams(DOG_GAIT_SHIFT_LEFT, step_height_mm, step_length_mm, speed_freq);
+    DogGait_SetShiftParams(DOG_GAIT_SHIFT_LEFT, step_height_mm, step_length_mm, speed_freq, base);
 }
 
 /*
@@ -881,9 +901,9 @@ void DogGait_SetShiftLeftParams(float step_height_mm, float *step_length_mm, flo
  * 输入：step_height_mm 步高；speed_freq 每次更新的相位增量。
  * 输出：无返回值，更新右平移步态参数。
  */
-void DogGait_SetShiftRightParams(float step_height_mm, float *step_length_mm, float speed_freq)
+void DogGait_SetShiftRightParams(float step_height_mm, float *step_length_mm, float speed_freq,DogGaitFootBase_t base)
 {
-    DogGait_SetShiftParams(DOG_GAIT_SHIFT_RIGHT, step_height_mm, step_length_mm, speed_freq);
+    DogGait_SetShiftParams(DOG_GAIT_SHIFT_RIGHT, step_height_mm, step_length_mm, speed_freq, base);
 }
 
 /*

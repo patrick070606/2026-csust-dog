@@ -14,8 +14,8 @@
 
 #define DOG_TASK_GAIT_NORMAL_PERIOD_MS      120U // 正常运行时的步态更新周期，单位毫秒。
 #define DOG_TASK_GAIT_NORMAL_MOVE_MS        120U // 正常运行时的舵机目标过渡时间，单位毫秒。
-#define DOG_TASK_GAIT_SHIFT_PERIOD_MS       120U // 左/右平移时的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_SHIFT_MOVE_MS         120U // 左/右平移时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_SHIFT_PERIOD_MS       110U // 左/右平移时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_SHIFT_MOVE_MS         110U // 左/右平移时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  150U // 减速带阶段的步态更新周期，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS    150U // 减速带阶段的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
@@ -38,8 +38,8 @@
 #define DOG_TASK_SHIFT_H_MM             40.0f // 表示机器人步态的平移步高，单位毫米。
 
 //0 LF 1 RF 2 LB 3 RB
-float DOG_TASK_SHIFT_R_MML[4] = {0.0f, -5.0f, 0.0f, -5.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
-float DOG_TASK_SHIFT_R_MMR[4] = {-14.0f, 22.0f, -14.0f, 22.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MML[4] = {23.0f, -10.0f, 23.0f, -10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 26.0f, 0.0f, 26.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
 #define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
@@ -302,7 +302,8 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
     {
         DogGait_SetShiftLeftParams(DOG_TASK_STEP_H_MM,
                                    DOG_TASK_SHIFT_R_MML,
-                                   DOG_TASK_SPEED_FREQ);
+                                   DOG_TASK_SPEED_FREQ,
+                                   DOG_GAIT_FOOT_BASE_SHIFT_LEFT);
 
         DogGait_SetShiftStepR(DOG_TASK_SHIFT_R_MML);
 
@@ -311,7 +312,9 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
     {
         DogGait_SetShiftRightParams(DOG_TASK_STEP_H_MM,
                                     DOG_TASK_SHIFT_R_MMR,
-                                    DOG_TASK_SPEED_FREQ);
+                                    DOG_TASK_SPEED_FREQ,
+                                    DOG_GAIT_FOOT_BASE_SHIFT_RIGHT
+                                   );
 
         DogGait_SetShiftStepR(DOG_TASK_SHIFT_R_MMR);
     }
@@ -1239,10 +1242,10 @@ void DogTask_Run(void)
     g_dog_task_last_gait_elapsed_ms = (uint32_t)(now_ms - s_last_gait_ms);
     
     //DogGait_SetShiftLeftParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MML, DOG_TASK_SPEED_FREQ);
-    //DogGait_SetShiftRightParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ);
-    //DogGait_UpdateShift(110U);
-    //HAL_Delay(110U);
-    #if 1
+    DogGait_SetShiftRightParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ);
+    DogGait_UpdateShift(110U);
+    HAL_Delay(110U);
+    #if 0
 
     Jy61PImu_Update(now_ms);
     ThrowServo_Update();
