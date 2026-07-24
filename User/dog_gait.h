@@ -48,6 +48,12 @@ void DogGait_SetWalkParams(float step_height_mm,
                            float imu_gain_mm);
 void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg);
 uint8_t DogGait_IsWalkCycleDone(void);
+void DogGait_StartWalkSupportPhase(void);
+void DogGait_ResumeWalkFromSupportPhase(void);
+void DogGait_UpdateWalkSupport(uint16_t time_ms);
+uint8_t DogGait_IsWalkSupportReady(void);
+uint8_t DogGait_GetWalkFrontRearAverageReach(float *front_reach_mm,
+                                              float *rear_reach_mm);
 void DogGait_GotoStandPose(uint16_t time_ms);
 void DogGait_UpdateTrot(uint16_t time_ms);
 void DogGait_AllStand(uint16_t time_ms);

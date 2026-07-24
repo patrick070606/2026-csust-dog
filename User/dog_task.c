@@ -12,9 +12,12 @@
 #include <math.h>
 #include <stdio.h>
 
-#define DOG_TASK_GAIT_PERIOD_MS        150U // 表示机器人步态更新的时间间隔，单位毫秒。
-#define DOG_TASK_GAIT_MOVE_MS          150U // 表示每次下发步态更新时，舵机从当前角度移动到新目标所用的时间。
-/*DOG_TASK_GAIT_PERIOD_MS 和 DOG_TASK_GAIT_MOVE_MS 表示：任务每隔 150 ms 计算一次新的腿部目标姿态，但要求舵机用 150 ms 完成这次移动。*/
+#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      120U // 正常运行时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_MOVE_MS        120U // 正常运行时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_SHIFT_PERIOD_MS       120U // 左/右平移时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_SHIFT_MOVE_MS         120U // 左/右平移时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  150U // 减速带阶段的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS    150U // 减速带阶段的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
 #define DOG_TASK_LED_OFF_STATE         GPIO_PIN_RESET // 表示 LED 灯灭的状态，GPIO_PIN_RESET 表示将 GPIO 引脚设置为低电平，通常用于熄灭 LED。
 #define DOG_TASK_COLOR_PAUSE_MS        2000U // 表示颜色暂停的时间，单位毫秒。
@@ -32,24 +35,27 @@
 #define DOG_TASK_STATUS_INTERVAL_MS    200U // 表示 stm32 向 k230 周期性发送状态反馈的时间间隔，单位毫秒。
 #define DOG_TASK_STEP_H_MM             40.0f // 表示机器人步态的步高，单位毫米。
 #define DOG_TASK_FORWARD_R_MM          50.0f // 表示机器人步态的前进半径，单位毫米。
-#define DOG_TASK_SHIFT_H_MM             25.0f // 表示机器人步态的平移步高，单位毫米。
+#define DOG_TASK_SHIFT_H_MM             40.0f // 表示机器人步态的平移步高，单位毫米。
+
 //0 LF 1 RF 2 LB 3 RB
-float DOG_TASK_SHIFT_R_MML[4] = {0.0f, -10.0f, 0.0f, -10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
-float DOG_TASK_SHIFT_R_MMR[4] = {-6.0f, 30.0f, -6.0f, 30.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同，这里设置为相同的值。
+float DOG_TASK_SHIFT_R_MML[4] = {0.0f, -5.0f, 0.0f, -5.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MMR[4] = {-14.0f, 22.0f, -14.0f, 22.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
-#define DOG_TASK_SPEED_FREQ            0.2f // 表示机器人步态的速度频率，单位为每毫秒的步长。
+#define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
 #define DOG_TASK_TRACK_DEADBAND        35U // 表示循迹误差的死区范围，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离在 ±35mm 以内，就认为机器人不需要调整方向，继续前进即可。 
 #define DOG_TASK_TRACK_RECOVER_MS      500U // 表示循迹丢失后，机器人保持上一次循迹动作的时间，单位毫秒。
 #define DOG_TASK_TRACK_STEP_H_MM       45.0f // 表示循迹时的步高，单位毫米。
-#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   65.0f // 表示循迹时向左前进的半径，单位毫米。    
+#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   55.0f // 表示循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  45.0f // 表示循迹时向右前进的半径，单位毫米。
-#define DOG_TASK_TRACK_MAX_STEER_MM    18.0f // 表示循迹时的最大转向量，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离超过 ±35mm，就会根据偏离的距离计算出一个转向量 steer，然后将 steer 限制在 ±18mm 以内，防止机器人转向过度。
+#define DOG_TASK_TRACK_MAX_STEER_MM    35.0f // 表示循迹时的最大转向量，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离超过 ±35mm，就会根据偏离的距离计算出一个转向量 steer，然后将 steer 限制在 ±18mm 以内，防止机器人转向过度。
 #define DOG_TASK_TRACK_STEER_GAIN      0.5f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
-#define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          30.0f // 表示平台循迹时的步高，单位毫米。
-#define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  60.0f // 表示平台循迹时向左前进的半径，单位毫米。    
-#define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 45.0f // 表示平台循迹时向右前进的半径，单位毫米。
-#define DOG_TASK_START_SHIFT_LEFT_MS       2000U // 启动后，开始阶段机器狗向左平移的事件。
+#define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
+#define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  50.0f // 表示平台循迹时向左前进的半径，单位毫米。    
+#define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 0.0f // 表示平台循迹时向右前进的半径，单位毫米。
+#define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 4000U // 启动后的左平移阶段持续时间，单位毫秒。
+#define DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS 6500U // 左平移结束后、进入减速带前的普通循迹时间，单位毫秒。
+#define DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS  9000U // 进入减速带状态后，退出到普通循迹前的保持时间，单位毫秒。
 #define DOG_TASK_BLACK_CENTER_STABLE_MS    500U // 上楼梯阶段，黑框识别到机器狗已经到中心后，需要稳定保持的时间。
 #define DOG_TASK_DOWNHILL_MIN_MS           1500U // 进入下坡循迹后，最少要跑的时间。
 #define DOG_TASK_LEVEL_PITCH_DEG           5.0f // 判断机身前后方向接近水平的 pitch 阈值。
@@ -103,6 +109,8 @@ typedef enum
     DOG_TASK_EVENT_PLATFORM_YES_SEND, // 表示蓝色平台暂停结束后，测试用的连续发送 YES 状态。
     DOG_TASK_EVENT_STAIR_WALK, // 表示机器人爬楼梯的状态。
     DOG_TASK_EVENT_START_SHIFT_LEFT, // 表示机器人启动后，开始阶段向左平移的状态。  
+    DOG_TASK_EVENT_SPEED_BUMP_ENTRY_TRACK, // 表示进入减速带前的普通循迹状态。
+    DOG_TASK_EVENT_SPEED_BUMP, // 表示机器人通过减速带的状态。
     DOG_TASK_EVENT_SHIFT_TO_CENTER, // 表示机器人在上楼梯阶段，识别到黑色线条后，向中心位置平移的状态。
     DOG_TASK_EVENT_ORANGE_TRACK_DELAY, // 表示机器人在橙色循迹阶段的延迟状态。
     DOG_TASK_EVENT_SHIFT_RIGHT, // 表示机器人向右平移的状态。
@@ -113,6 +121,8 @@ typedef enum
 typedef enum
 {
     DOG_TASK_STAGE_START_SHIFT_LEFT = 0, // 表示机器人启动后，开始阶段向左平移的任务阶段。
+    DOG_TASK_STAGE_SPEED_BUMP_ENTRY_TRACK, // 表示进入减速带前的普通循迹任务阶段。
+    DOG_TASK_STAGE_SPEED_BUMP, // 表示机器人通过减速带的任务阶段。
     DOG_TASK_STAGE_TRACK_TO_BLUE, // 表示机器人循迹到蓝色平台的任务阶段。   
     DOG_TASK_STAGE_STAIR_WALK, // 表示机器人爬楼梯的任务阶段。  
     DOG_TASK_STAGE_WAIT_BLACK, // 表示机器人在上楼梯阶段，等待识别到黑色线条的任务阶段。
@@ -225,6 +235,38 @@ static void DogTask_BeginPlatformTrackBoost(void)
     s_pending_event_command = IMAGE_COMMAND_NONE;
 }
 
+static uint16_t DogTask_GetGaitPeriodMs(void)
+{
+    if (s_task_stage == DOG_TASK_STAGE_SPEED_BUMP)
+    {
+        return DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS;
+    }
+
+    if ((s_motion == DOG_TASK_MOTION_SHIFT_LEFT) ||
+        (s_motion == DOG_TASK_MOTION_SHIFT_RIGHT))
+    {
+        return DOG_TASK_GAIT_SHIFT_PERIOD_MS;
+    }
+
+    return DOG_TASK_GAIT_NORMAL_PERIOD_MS;
+}
+
+static uint16_t DogTask_GetGaitMoveMs(void)
+{
+    if (s_task_stage == DOG_TASK_STAGE_SPEED_BUMP)
+    {
+        return DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS;
+    }
+
+    if ((s_motion == DOG_TASK_MOTION_SHIFT_LEFT) ||
+        (s_motion == DOG_TASK_MOTION_SHIFT_RIGHT))
+    {
+        return DOG_TASK_GAIT_SHIFT_MOVE_MS;
+    }
+
+    return DOG_TASK_GAIT_NORMAL_MOVE_MS;
+}
+
 /* 根据目标运动模式设置步态参数，并记录当前运动状态；重复设置同一状态时直接返回。 */
 static void DogTask_ApplyMotion(DogTaskMotion_t motion)
 {
@@ -275,7 +317,7 @@ static void DogTask_ApplyMotion(DogTaskMotion_t motion)
     }
     else
     {
-        DogGait_AllStand(DOG_TASK_GAIT_MOVE_MS);
+        DogGait_AllStand(DogTask_GetGaitMoveMs());
     }
 
     s_motion = motion;
@@ -333,6 +375,8 @@ static const char *DogTask_EventName(DogTaskEventState_t state)
         "PLATFORM_YES_SEND",
         "STAIR_WALK",
         "START_SHIFT_LEFT",
+        "SPEED_BUMP_ENTRY_TRACK",
+        "SPEED_BUMP",
         "SHIFT_TO_CENTER",
         "ORANGE_TRACK_DELAY",
         "SHIFT_RIGHT",
@@ -386,6 +430,34 @@ static void DogTask_BeginStartShiftLeft(uint32_t now_ms)
     s_last_track_ms = now_ms;
     s_last_track_recover_motion = DOG_TASK_MOTION_SHIFT_LEFT;
     DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_LEFT);
+}
+
+/* 左平移结束后，先按普通循迹运行一段时间，再进入减速带。 */
+static void DogTask_BeginSpeedBumpEntryTrack(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_SPEED_BUMP_ENTRY_TRACK;
+    s_event_state = DOG_TASK_EVENT_SPEED_BUMP_ENTRY_TRACK;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+}
+
+/* 进入减速带阶段：保持前进并改用减速带专用步态时序。 */
+static void DogTask_BeginSpeedBump(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_SPEED_BUMP;
+    s_event_state = DOG_TASK_EVENT_SPEED_BUMP;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
 }
 
 /* 进入循迹到蓝色平台阶段。 */
@@ -569,7 +641,7 @@ static void __attribute__((unused)) DogTask_BeginColorPause(uint32_t now_ms, uin
     s_last_track_ms = now_ms;
     s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
     s_color_pause_last_stand_ms = now_ms;
-    DogGait_AllStand(DOG_TASK_GAIT_MOVE_MS); // 在颜色事件发生时让机器人立即停止移动，进入站立姿态，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
+    DogGait_AllStand(DogTask_GetGaitMoveMs()); // 在颜色事件发生时让机器人立即停止移动，进入站立姿态，单位毫秒，根据实际情况调整，过大可能导致步态不够稳定。
     s_motion = DOG_TASK_MOTION_STOP;
     DogTask_SetCorrectionLed(1U);
 }
@@ -716,13 +788,57 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
 
     if (s_event_state == DOG_TASK_EVENT_START_SHIFT_LEFT)
     {
-        if (elapsed_ms >= DOG_TASK_START_SHIFT_LEFT_MS)
+        if (elapsed_ms >= DOG_TASK_START_SHIFT_LEFT_DURATION_MS)
         {
-            DogTask_BeginTrackToBlue(now_ms);
+            DogTask_BeginSpeedBumpEntryTrack(now_ms);
         }
         else
         {
             DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_LEFT);
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_SPEED_BUMP_ENTRY_TRACK)
+    {
+        if (elapsed_ms >= DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS)
+        {
+            DogTask_BeginSpeedBump(now_ms);
+        }
+        else if (track.valid != 0U)
+        {
+            s_has_seen_track = 1U;
+            s_last_track_ms = now_ms;
+            DogTask_ApplyTrackError(track.error);
+        }
+        else if ((s_has_seen_track != 0U) &&
+                 ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
+        {
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_SPEED_BUMP)
+    {
+        if (elapsed_ms >= DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS)
+        {
+            DogTask_BeginTrackToBlue(now_ms);
+        }
+        else if (track.valid != 0U)
+        {
+            s_has_seen_track = 1U;
+            s_last_track_ms = now_ms;
+            DogTask_ApplyTrackError(track.error);
+        }
+        else if ((s_has_seen_track != 0U) &&
+                 ((uint32_t)(now_ms - s_last_track_ms) < DOG_TASK_TRACK_RECOVER_MS))
+        {
+            /* 帧间空档保持上一帧纠偏，与普通循迹逻辑一致。 */
+            s_is_track_correcting =
+                (uint8_t)(s_last_track_recover_motion != DOG_TASK_MOTION_FORWARD);
+        }
+        else if ((s_has_seen_track != 0U) &&
+                 ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
+        {
+            s_is_track_correcting = 0U;
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
         }
     }
     else if (s_event_state == DOG_TASK_EVENT_SHIFT_TO_CENTER)
@@ -790,7 +906,7 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
             if ((uint32_t)(now_ms - s_color_pause_last_stand_ms) >= DOG_TASK_COLOR_PAUSE_HOLD_MS)
             {
                 s_color_pause_last_stand_ms = now_ms;
-                DogGait_AllStand(DOG_TASK_GAIT_MOVE_MS);
+                DogGait_AllStand(DogTask_GetGaitMoveMs());
                 s_motion = DOG_TASK_MOTION_STOP;
             }
         }
@@ -1032,10 +1148,10 @@ static void DogTask_RunMotionBlocking(DogTaskMotion_t motion, uint32_t duration_
     {
         uint32_t now_ms = HAL_GetTick();
 
-        if ((uint32_t)(now_ms - last_gait_ms) >= DOG_TASK_GAIT_PERIOD_MS)
+        if ((uint32_t)(now_ms - last_gait_ms) >= DOG_TASK_GAIT_NORMAL_PERIOD_MS)
         {
             last_gait_ms = now_ms;
-            DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
+            DogGait_UpdateTrot(DOG_TASK_GAIT_NORMAL_MOVE_MS);
         }
 
         HAL_Delay(1U);
@@ -1123,10 +1239,10 @@ void DogTask_Run(void)
     g_dog_task_last_gait_elapsed_ms = (uint32_t)(now_ms - s_last_gait_ms);
     
     //DogGait_SetShiftLeftParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MML, DOG_TASK_SPEED_FREQ);
-    DogGait_SetShiftRightParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ);
-    DogGait_UpdateShift(DOG_TASK_GAIT_MOVE_MS);
-    HAL_Delay(120U);
-    #if 0
+    //DogGait_SetShiftRightParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ);
+    //DogGait_UpdateShift(110U);
+    //HAL_Delay(110U);
+    #if 1
 
     Jy61PImu_Update(now_ms);
     ThrowServo_Update();
@@ -1220,7 +1336,7 @@ void DogTask_Run(void)
     }
 
     if ((s_motion != DOG_TASK_MOTION_STOP) &&
-        ((uint32_t)(now_ms - s_last_gait_ms) >= DOG_TASK_GAIT_PERIOD_MS))
+        ((uint32_t)(now_ms - s_last_gait_ms) >= DogTask_GetGaitPeriodMs()))
     {
         s_last_gait_ms = now_ms;
         g_dog_task_gait_update_count++;
@@ -1228,11 +1344,11 @@ void DogTask_Run(void)
         // 根据运动模式选择步态更新函数
         if (s_motion == DOG_TASK_MOTION_SHIFT_LEFT || s_motion == DOG_TASK_MOTION_SHIFT_RIGHT)
         {
-            DogGait_UpdateShift(DOG_TASK_GAIT_MOVE_MS);
+            DogGait_UpdateShift(DogTask_GetGaitMoveMs());
         }
         else
         {
-            DogGait_UpdateTrot(DOG_TASK_GAIT_MOVE_MS);
+            DogGait_UpdateTrot(DogTask_GetGaitMoveMs());
         }
     }
 

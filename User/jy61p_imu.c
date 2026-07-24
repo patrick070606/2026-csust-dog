@@ -13,8 +13,8 @@
 #define JY61P_IMU_ANGLE_SCALE_DEG       (180.0f / 32768.0f)
 #define JY61P_IMU_ROLL_BASELINE_DEG     180.0f
 
-#define roll_offset     -0.89f
-#define pitch_offset    -2.77f
+#define roll_offset     -0.83f
+#define pitch_offset    -2.59f
 
 
 static uint8_t s_rx_data;
