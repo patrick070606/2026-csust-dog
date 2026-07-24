@@ -2,7 +2,7 @@
 # K230 vision + compact UART events for STM32
 # Functions:
 # 1. White-track error output.
-# 2. The full-width bottom fifth detects brown, orange, green, blue, and purple targets.
+# 2. The full-width center fifth detects brown, orange, green, blue, and purple targets.
 # 3. UART status: E:<error>,C:<none|brown|orange|green|blue|purple|black>.
 # 4. After blue C:blue, wait until STM32 replies Yes.
 # 5. Yes switches the display from the bottom color ROI to two black-frame ROIs.
@@ -60,10 +60,15 @@ ERROR_DEADBAND = 3
 # ============================================================
 
 # 0: no extra color recognition constraint.
-# 1: after green, pause color recognition for 6s; then require purple
-#    after the first green and brown after the second or later green.
+# 1: use the two fixed color cycles below. Green pauses recognition for 6s.
 GREEN_SEQUENCE_LOCK_ENABLED = 1
 GREEN_SEQUENCE_PAUSE_MS = 6000
+
+# Cycle 1: blue -> green -> purple -> orange.
+# Cycle 2: blue -> green -> brown -> orange.
+# Orange switches to the other cycle and restarts it at blue.
+COLOR_CYCLE_ONE = ("blue", "green", "purple", "orange")
+COLOR_CYCLE_TWO = ("blue", "green", "brown", "orange")
 
 
 # ============================================================
@@ -97,8 +102,8 @@ COLOR_CONFIGS = [
         "threshold": (27, 43, -41, -19, -4, 28),
         "box_color": (0, 255, 0),
         "text_color": (0, 255, 0),
-        "min_pixels": 60,
-        "min_area": 60,
+        "min_pixels": 35,
+        "min_area": 35,
     },
     {
         "name": "blue",
@@ -106,8 +111,8 @@ COLOR_CONFIGS = [
         "threshold": (16, 36, -10, 18, -35, -15),
         "box_color": (0, 80, 255),
         "text_color": (80, 160, 255),
-        "min_pixels": 60,
-        "min_area": 60,
+        "min_pixels": 35,
+        "min_area": 35,
     },
     {
         "name": "orange",
@@ -115,8 +120,8 @@ COLOR_CONFIGS = [
         "threshold": (49, 68, 8, 32, 31, 59),
         "box_color": (255, 140, 0),
         "text_color": (255, 180, 60),
-        "min_pixels": 60,
-        "min_area": 60,
+        "min_pixels": 35,
+        "min_area": 35,
     },
     {
         "name": "purple",
@@ -126,8 +131,8 @@ COLOR_CONFIGS = [
         "threshold": (25, 44, 7, 34, -31, 1),
         "box_color": (160, 0, 255),
         "text_color": (200, 80, 255),
-        "min_pixels": 60,
-        "min_area": 60,
+        "min_pixels": 35,
+        "min_area": 35,
     },
     {
         "name": "brown",
@@ -135,13 +140,24 @@ COLOR_CONFIGS = [
         "threshold": (0, 33, 5, 40, 3, 35),
         "box_color": (255, 120, 40),
         "text_color": (255, 160, 80),
-        "min_pixels": 60,
-        "min_area": 60,
+        "min_pixels": 45,
+        "min_area": 45,
     },
 ]
 
-# Target colors are recognized only in the full-width bottom fifth.
-COLOR_ROI = (0, int(IMG_H * 0.8), IMG_W, int(IMG_H * 0.2))
+# Target colors are recognized in a full-width fifth. The position changes
+# between the lower (+40) and center locations as the color sequence advances.
+COLOR_ROI_H = int(IMG_H * 0.2)
+COLOR_ROI_MIDDLE_Y = IMG_H - int(IMG_H * 0.4)
+# This is the original "+40" position: IMG_H - IMG_H * 0.4 + 40.
+COLOR_ROI_DOWN_Y = IMG_H - int(IMG_H * 0.4) + 40
+
+# Start at the lower (+40) location.
+COLOR_ROI = (0, COLOR_ROI_DOWN_Y - COLOR_ROI_H // 2, IMG_W, COLOR_ROI_H)
+
+# Merge nearby color fragments created by motion blur before applying the
+# minimum-size test. This applies only to color detection, not black frames.
+COLOR_MERGE_MARGIN = 14
 
 
 # ============================================================
@@ -199,9 +215,9 @@ active_color_name = None
 detect_start_ms = 0
 last_print_ms = 0
 
-next_required_color = None
-green_complete_count = 0
 color_pause_until_ms = 0
+color_cycle_number = 1
+color_cycle_index = 0
 
 last_error = 0
 filtered_error = 0
@@ -243,6 +259,11 @@ def detection_to_serial_color(detection):
     return detection["serial_color"]
 
 
+def set_color_roi_center(center_y):
+    global COLOR_ROI
+    COLOR_ROI = (0, center_y - COLOR_ROI_H // 2, IMG_W, COLOR_ROI_H)
+
+
 def is_color_sequence_paused(now):
     return (
         GREEN_SEQUENCE_LOCK_ENABLED == 1 and
@@ -252,7 +273,7 @@ def is_color_sequence_paused(now):
 
 
 def apply_color_sequence_gate(detection, now):
-    global next_required_color, green_complete_count, color_pause_until_ms
+    global color_cycle_number, color_cycle_index, color_pause_until_ms
 
     if GREEN_SEQUENCE_LOCK_ENABLED != 1:
         return detection
@@ -260,25 +281,26 @@ def apply_color_sequence_gate(detection, now):
     if detection is None:
         return None
 
-    if green_complete_count < 2 and detection["name"] == "brown":
+    if color_cycle_number == 1:
+        sequence = COLOR_CYCLE_ONE
+    else:
+        sequence = COLOR_CYCLE_TWO
+
+    expected_color = sequence[color_cycle_index]
+    if detection["name"] != expected_color:
         return None
 
-    if next_required_color is not None and detection["name"] != next_required_color:
-        return None
-
-    if next_required_color is not None:
-        if detection["name"] == next_required_color:
-            next_required_color = None
+    color_cycle_index += 1
 
     if detection["name"] == "green":
-        green_complete_count += 1
-        if green_complete_count == 1:
-            next_required_color = "purple"
-        else:
-            next_required_color = "brown"
+        # After green, the frame reappears at the middle location.
+        set_color_roi_center(COLOR_ROI_MIDDLE_Y)
         color_pause_until_ms = now + GREEN_SEQUENCE_PAUSE_MS
-    elif detection["name"] == "purple" or detection["name"] == "brown":
-        next_required_color = "orange"
+    elif detection["name"] == "orange":
+        # After orange, return to the lower (+40) location for the next loop.
+        set_color_roi_center(COLOR_ROI_DOWN_Y)
+        color_cycle_number = 2 if color_cycle_number == 1 else 1
+        color_cycle_index = 0
 
     return detection
 
@@ -363,7 +385,7 @@ def find_best_color_blob(img):
             pixels_threshold=config["min_pixels"],
             area_threshold=config["min_area"],
             merge=True,
-            margin=MERGE_MARGIN
+            margin=COLOR_MERGE_MARGIN
         )
 
         if not blobs:
@@ -750,7 +772,7 @@ sensor.set_pixformat(Sensor.RGB565)
 
 uart = YbUart(baudrate=UART_BAUD)
 
-Display.init(Display.ST7701, width=DISPLAY_W, height=DISPLAY_H)
+Display.init(Display.ST7701, width=DISPLAY_W, height=DISPLAY_H, to_ide=True)
 MediaManager.init()
 sensor.run()
 
