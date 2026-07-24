@@ -21,7 +21,7 @@
 // #define STAIR_WALK_TEST_IMU_GAIN_MM           0.0f // IMU 姿态补偿增益：把俯仰/横滚角换算为足端或重心修正量，数值越大姿态修正越强。
 #define STAIR_WALK_TEST_PITCH_FILTER_ALPHA    0.15f // IMU 一阶低通滤波中新测量值的权重；越小越平滑，但姿态响应越慢（俯仰和横滚共用）。
 #define STAIR_WALK_MIN_CYCLES                 3U
-#define STAIR_WALK_LEVEL_PITCH_DEG            3.0f  // “机身恢复水平”的俯仰角阈值：滤波后 |pitch| 不得超过 3°。
+#define STAIR_WALK_LEVEL_PITCH_DEG            4.0f  // “机身恢复水平”的俯仰角阈值：滤波后 |pitch| 不得超过 3°。
 #define STAIR_WALK_LEVEL_ROLL_DEG             6.0f  // “机身恢复水平”的横滚角阈值：滤波后 |roll| 不得超过 6°。
 #define STAIR_WALK_LEVEL_STABLE_MS            2000U // pitch 和 roll 同时满足水平阈值后，必须连续稳定 2 s 才判定上高台完成。
 
