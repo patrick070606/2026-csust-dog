@@ -3,6 +3,15 @@
 
 #include <stdint.h>
 
+typedef enum
+{
+    DOG_GAIT_FOOT_BASE_STAND = 0,
+    DOG_GAIT_FOOT_BASE_WALK,
+    DOG_GAIT_FOOT_BASE_TURN,
+    DOG_GAIT_FOOT_BASE_SHIFT_LEFT,
+    DOG_GAIT_FOOT_BASE_SHIFT_RIGHT,
+} DogGaitFootBase_t;
+
 typedef struct
 {
     float h;
@@ -37,7 +46,7 @@ void DogGait_SetStepInPlaceParams(float step_height_mm, float speed_freq);
 void DogGait_SetShiftLeftParams(float step_height_mm, float *step_length_mm, float speed_freq,DogGaitFootBase_t base);
 void DogGait_SetShiftRightParams(float step_height_mm, float *step_length_mm, float speed_freq,DogGaitFootBase_t base);
 void DogGait_SetShiftStepR(const float r[4]);
-void DogGait_UpdateShift(uint16_t time_ms);
+void DogGait_UpdateShift(uint16_t time_ms,DogGaitFootBase_t base);
 void DogGait_SetTurnLeftParams(float step_height_mm, float turn_step_mm, float speed_freq);
 void DogGait_SetTurnRightParams(float step_height_mm, float turn_step_mm, float speed_freq);
 void DogGait_ResetWalk(void);

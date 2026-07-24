@@ -72,17 +72,17 @@
 #define DOG_GAIT_TURN_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
 #endif
 
-#if (DOG_GAIT_SHIFT_FOOT_BASE_LEFT_ENABLE != 0U)
+#if (DOG_GAIT_SHIFT_FOOT_BASE_RIGHT_ENABLE != 0U)
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  4.0f
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     4.0f
-#define DOG_GAIT_SHIFTR_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 90.0f)
+#define DOG_GAIT_SHIFTR_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 100.0f)
 #else
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
 #endif
 
-#if (DOG_GAIT_SHIFT_FOOT_BASE_RIGHT_ENABLE != 0U)
+#if (DOG_GAIT_SHIFT_FOOT_BASE_LEFT_ENABLE != 0U)
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  4.0f
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     4.0f
 #define DOG_GAIT_SHIFTL_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 80.0f)
@@ -124,15 +124,6 @@ typedef enum
     DOG_GAIT_LEG_RB,
     DOG_GAIT_LEG_COUNT,
 } DogGaitLeg_t;
-
-typedef enum
-{
-    DOG_GAIT_FOOT_BASE_STAND = 0,
-    DOG_GAIT_FOOT_BASE_WALK,
-    DOG_GAIT_FOOT_BASE_TURN,
-    DOG_GAIT_FOOT_BASE_SHIFT_LEFT,
-    DOG_GAIT_FOOT_BASE_SHIFT_RIGHT,
-} DogGaitFootBase_t;
 
 typedef enum
 {
@@ -1334,10 +1325,10 @@ void DogGait_UpdateTrot(uint16_t time_ms)
  * 输入：time_ms 舵机动作过渡时间。
  * 输出：无返回值，通过 DogServo_SetAngles() 输出舵机目标角度，并更新调试变量。
  */
-void DogGait_UpdateShift(uint16_t time_ms)
+void DogGait_UpdateShift(uint16_t time_ms,DogGaitFootBase_t base)
 {
     float angles[DOG_SERVO_COUNT] = {0.0f};
-    DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(DOG_GAIT_FOOT_BASE_SHIFT);
+    DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(base);
     float dx;
     float lift;
 

@@ -25,7 +25,7 @@
 #define DOG_TASK_VISION_COLOR_STOP_TEST_ENABLE 0U // 表示是否启用视觉颜色停止测试，0表示禁用，1表示启用。
 #define DOG_TASK_VISION_COLOR_STOP_MS          10000U // 表示「视觉颜色停止测试模式」的停止保持时间，单位毫秒。
 #define DOG_TASK_THROW_FORWARD_MS      0U // 表示投掷前前进阶段的持续时间，单位毫秒。这个现在是 0，我其实不知道这个变量是什么时候加上去的，可能是中间调试的时候为了让机器人在投掷前稍微前进一点点，避免投掷时机器人离目标太远。但是暂时可以不用管。
-#define DOG_TASK_THROW_TRACK_DELAY_MS  3000U // 表示首次识别到紫色 / 棕色投掷事件后，先继续循迹的延迟时间。体现在实际中，就是识别到紫色 / 棕色后，往前走 DOG_TASK_THROW_TRACK_DELAY_MS 这么多 ms，然后再开始旋转投掷。
+#define DOG_TASK_THROW_TRACK_DELAY_MS  1000U // 表示首次识别到紫色 / 棕色投掷事件后，先继续循迹的延迟时间。体现在实际中，就是识别到紫色 / 棕色后，往前走 DOG_TASK_THROW_TRACK_DELAY_MS 这么多 ms，然后再开始旋转投掷。
 #define DOG_TASK_VISION_ACK_TIMEOUT_MS 10U // 表示 stm32 给 k230 回传状态字符串时，发送超时的时间。也就是说如果串口发送在 10ms 内没有完成，就返回超时。
 #define DOG_TASK_PLATFORM_PAUSE_TEST_ENABLE 1U
 #define DOG_TASK_PLATFORM_PAUSE_TEST_MS 5000U
@@ -39,7 +39,7 @@
 
 //0 LF 1 RF 2 LB 3 RB
 float DOG_TASK_SHIFT_R_MML[4] = {23.0f, -10.0f, 23.0f, -10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
-float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 26.0f, 0.0f, 26.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 30.0f, 0.0f, 30.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
 #define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
@@ -53,7 +53,7 @@ float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 26.0f, 0.0f, 26.0f}; // 表示机器人�
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  50.0f // 表示平台循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 0.0f // 表示平台循迹时向右前进的半径，单位毫米。
-#define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 4000U // 启动后的左平移阶段持续时间，单位毫秒。
+#define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 8000U // 启动后的左平移阶段持续时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS 6500U // 左平移结束后、进入减速带前的普通循迹时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS  9000U // 进入减速带状态后，退出到普通循迹前的保持时间，单位毫秒。
 #define DOG_TASK_BLACK_CENTER_STABLE_MS    500U // 上楼梯阶段，黑框识别到机器狗已经到中心后，需要稳定保持的时间。
@@ -61,8 +61,8 @@ float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 26.0f, 0.0f, 26.0f}; // 表示机器人�
 #define DOG_TASK_LEVEL_PITCH_DEG           5.0f // 判断机身前后方向接近水平的 pitch 阈值。
 #define DOG_TASK_LEVEL_ROLL_DEG            6.0f // 判断机身左右方向接近水平的 roll 阈值。
 #define DOG_TASK_LEVEL_STABLE_MS           800U // 判断机身接近水平后，需要保持的时间，单位毫秒。   
-#define DOG_TASK_ORANGE_TRACK_DELAY_MS     5000U // 橙色循迹延迟时间，单位毫秒。
-#define DOG_TASK_SHIFT_RIGHT_MS            2000U // 右平移时间，单位毫秒。
+#define DOG_TASK_ORANGE_TRACK_DELAY_MS     10000U // 橙色循迹延迟时间，单位毫秒。
+#define DOG_TASK_SHIFT_RIGHT_MS            8000U // 右平移时间，单位毫秒。
 #define DOG_TASK_LAP_PAUSE_MS              5000U // 完成一圈后的暂停时间，单位毫秒。
 
 /* Left/right turn test entry is kept only for reference. */
@@ -1241,11 +1241,13 @@ void DogTask_Run(void)
     g_dog_task_last_track_lost_ms = track_lost_ms;
     g_dog_task_last_gait_elapsed_ms = (uint32_t)(now_ms - s_last_gait_ms);
     
-    //DogGait_SetShiftLeftParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MML, DOG_TASK_SPEED_FREQ);
-    DogGait_SetShiftRightParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ);
-    DogGait_UpdateShift(110U);
-    HAL_Delay(110U);
     #if 0
+    DogGait_SetShiftLeftParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MML, DOG_TASK_SPEED_FREQ,DOG_GAIT_FOOT_BASE_SHIFT_LEFT);
+    DogGait_SetShiftRightParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ,DOG_GAIT_FOOT_BASE_SHIFT_RIGHT);
+    DogGait_UpdateShift(110U,DOG_GAIT_FOOT_BASE_SHIFT_RIGHT);
+    HAL_Delay(110U);
+    #endif
+    #if 1
 
     Jy61PImu_Update(now_ms);
     ThrowServo_Update();
@@ -1345,9 +1347,13 @@ void DogTask_Run(void)
         g_dog_task_gait_update_count++;
 
         // 根据运动模式选择步态更新函数
-        if (s_motion == DOG_TASK_MOTION_SHIFT_LEFT || s_motion == DOG_TASK_MOTION_SHIFT_RIGHT)
+        if (s_motion == DOG_TASK_MOTION_SHIFT_LEFT)
         {
-            DogGait_UpdateShift(DogTask_GetGaitMoveMs());
+            DogGait_UpdateShift(DogTask_GetGaitMoveMs(), DOG_GAIT_FOOT_BASE_SHIFT_LEFT);
+        }
+        else if (s_motion == DOG_TASK_MOTION_SHIFT_RIGHT)
+        {
+            DogGait_UpdateShift(DogTask_GetGaitMoveMs(), DOG_GAIT_FOOT_BASE_SHIFT_RIGHT);
         }
         else
         {
