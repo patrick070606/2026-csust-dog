@@ -1210,11 +1210,11 @@ void DogTask_Init(void)
     DogGait_SetLoadMode((DOG_TASK_USE_PAYLOAD_GAIT != 0U) ? DOG_GAIT_LOAD_WITH_PAYLOAD : DOG_GAIT_LOAD_NONE);
     DogGait_Init();
     DogGait_GotoStandPose(DOG_TASK_STAND_MOVE_MS);
-    HAL_Delay(DOG_TASK_STAND_WAIT_MS);
+     HAL_Delay(DOG_TASK_STAND_WAIT_MS);
 
-    ImageCommand_Init();
-    Jy61PImu_Init();
-    StairWalk_Init();
+     ImageCommand_Init();
+     Jy61PImu_Init();
+     StairWalk_Init();
     DogTask_SetCorrectionLed(0U);
 
     s_last_gait_ms = HAL_GetTick();
