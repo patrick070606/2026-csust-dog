@@ -12,8 +12,8 @@
 #include <math.h>
 #include <stdio.h>
 
-#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      120U // 正常运行时的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_NORMAL_MOVE_MS        120U // 正常运行时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      110U // 正常运行时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_MOVE_MS        110U // 正常运行时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SHIFT_PERIOD_MS       110U // 左/右平移时的步态更新周期，单位毫秒。
 #define DOG_TASK_GAIT_SHIFT_MOVE_MS         110U // 左/右平移时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  150U // 减速带阶段的步态更新周期，单位毫秒。
@@ -34,12 +34,12 @@
 #define DOG_TASK_PLATFORM_FAKE_IMU_TEST_MS 5000U
 #define DOG_TASK_STATUS_INTERVAL_MS    200U // 表示 stm32 向 k230 周期性发送状态反馈的时间间隔，单位毫秒。
 #define DOG_TASK_STEP_H_MM             40.0f // 表示机器人步态的步高，单位毫米。
-#define DOG_TASK_FORWARD_R_MM          50.0f // 表示机器人步态的前进半径，单位毫米。
+#define DOG_TASK_FORWARD_R_MM          80.0f // 表示机器人步态的前进半径，单位毫米。
 #define DOG_TASK_SHIFT_H_MM             40.0f // 表示机器人步态的平移步高，单位毫米。
 
 //0 LF 1 RF 2 LB 3 RB
-float DOG_TASK_SHIFT_R_MML[4] = {23.0f, -10.0f, 23.0f, -10.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
-float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 30.0f, 0.0f, 30.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MML[4] = {40.0f, 60.0f, 40.0f, 60.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MMR[4] = {60.0f, 40.0f, 60.0f, 40.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
 #define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
@@ -1217,25 +1217,25 @@ void DogTask_Init(void)
      StairWalk_Init();
     DogTask_SetCorrectionLed(0U);
 
-    s_last_gait_ms = HAL_GetTick();
-    s_last_track_ms = s_last_gait_ms;
-    s_last_status_ms = s_last_gait_ms;
-    s_has_seen_track = 0U;
-    s_is_track_correcting = 0U;
-    s_platform_track_boost = 0U;
-    s_wait_platform_imu = 0U;
-    s_purple_throw_delay_used = 0U;
-    s_brown_throw_delay_used = 0U;
-    s_lap_count = 0U;
-    s_black_center_start_ms = 0U;
-    s_level_start_ms = 0U;
-    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
-    s_platform_yes_last_ms = 0U;
-    s_event_state = DOG_TASK_EVENT_IDLE;
-    s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT;
-    s_event_start_ms = s_last_gait_ms;
-    s_pending_event_command = IMAGE_COMMAND_NONE;
-    DogTask_BeginStartShiftLeft(s_last_gait_ms);
+    // s_last_gait_ms = HAL_GetTick();
+    // s_last_track_ms = s_last_gait_ms;
+    // s_last_status_ms = s_last_gait_ms;
+    // s_has_seen_track = 0U;
+    // s_is_track_correcting = 0U;
+    // s_platform_track_boost = 0U;
+    // s_wait_platform_imu = 0U;
+    // s_purple_throw_delay_used = 0U;
+    // s_brown_throw_delay_used = 0U;
+    // s_lap_count = 0U;
+    // s_black_center_start_ms = 0U;
+    // s_level_start_ms = 0U;
+    // s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    // s_platform_yes_last_ms = 0U;
+    // s_event_state = DOG_TASK_EVENT_IDLE;
+    // s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT;
+    // s_event_start_ms = s_last_gait_ms;
+    // s_pending_event_command = IMAGE_COMMAND_NONE;
+    // DogTask_BeginStartShiftLeft(s_last_gait_ms);
 #if 0
     s_turn_test_active = 0U;
     s_turn_test_start_ms = s_last_gait_ms;
@@ -1270,9 +1270,9 @@ void DogTask_Run(void)
     
     #if 0
     DogGait_SetShiftLeftParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MML, DOG_TASK_SPEED_FREQ,DOG_GAIT_FOOT_BASE_SHIFT_LEFT);
-    DogGait_SetShiftRightParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ,DOG_GAIT_FOOT_BASE_SHIFT_RIGHT);
-    DogGait_UpdateShift(110U,DOG_GAIT_FOOT_BASE_SHIFT_RIGHT);
-    HAL_Delay(110U);
+    //DogGait_SetShiftRightParams(DOG_TASK_SHIFT_H_MM, DOG_TASK_SHIFT_R_MMR, DOG_TASK_SPEED_FREQ,DOG_GAIT_FOOT_BASE_SHIFT_RIGHT);
+    DogGait_UpdateShift(90U,DOG_GAIT_FOOT_BASE_SHIFT_RIGHT);
+    HAL_Delay(90U);
     #endif
     #if 1
 
