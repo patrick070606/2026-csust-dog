@@ -6,13 +6,13 @@
  */
 static const DogServoConfig_t s_dog_servo_configs[DOG_SERVO_COUNT] = {
     [DOG_SERVO_LF_KNEE] = {1, -1, 500, 0, 200, 800},
-    [DOG_SERVO_LF_HIP]  = {2, -1, 500, -30, 200, 800},
-    [DOG_SERVO_RF_KNEE] = {3, 1, 500, 25, 200, 800},
-    [DOG_SERVO_RF_HIP]  = {4, 1, 500, -10, 200, 800},
-    [DOG_SERVO_LB_KNEE] = {5, -1, 500, -20, 200, 800},
-    [DOG_SERVO_LB_HIP]  = {6, -1, 500, 40, 200, 1000},
+    [DOG_SERVO_LF_HIP]  = {2, -1, 500, -65, 200, 800},
+    [DOG_SERVO_RF_KNEE] = {3, 1, 500, 20, 200, 800},
+    [DOG_SERVO_RF_HIP]  = {4, 1, 500, -20, 200, 800},
+    [DOG_SERVO_LB_KNEE] = {5, -1, 500, -15, 200, 800},
+    [DOG_SERVO_LB_HIP]  = {6, -1, 500, 50, 200, 800},
     [DOG_SERVO_RB_KNEE] = {7, 1, 500, 5, 200, 800},
-    [DOG_SERVO_RB_HIP]  = {8, 1, 500, 0, 0, 800},
+    [DOG_SERVO_RB_HIP]  = {8, 1, 500, -40, 200, 800},
 };
 
 const DogServoConfig_t *DogServoConfig_Get(DogServoId_t servo)

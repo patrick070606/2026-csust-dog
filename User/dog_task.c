@@ -46,8 +46,8 @@ float DOG_TASK_SHIFT_R_MMR[4] = {0.0f, 30.0f, 0.0f, 30.0f}; // 表示机器人�
 #define DOG_TASK_TRACK_DEADBAND        35U // 表示循迹误差的死区范围，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离在 ±35mm 以内，就认为机器人不需要调整方向，继续前进即可。 
 #define DOG_TASK_TRACK_RECOVER_MS      500U // 表示循迹丢失后，机器人保持上一次循迹动作的时间，单位毫秒。
 #define DOG_TASK_TRACK_STEP_H_MM       45.0f // 表示循迹时的步高，单位毫米。
-#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   55.0f // 表示循迹时向左前进的半径，单位毫米。    
-#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  45.0f // 表示循迹时向右前进的半径，单位毫米。
+#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   50.0f // 表示循迹时向左前进的半径，单位毫米。    
+#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  50.0f // 表示循迹时向右前进的半径，单位毫米。
 #define DOG_TASK_TRACK_MAX_STEER_MM    35.0f // 表示循迹时的最大转向量，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离超过 ±35mm，就会根据偏离的距离计算出一个转向量 steer，然后将 steer 限制在 ±18mm 以内，防止机器人转向过度。
 #define DOG_TASK_TRACK_STEER_GAIN      0.5f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
