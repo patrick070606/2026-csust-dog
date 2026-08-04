@@ -97,12 +97,15 @@
 #define DOG_GAIT_WALK_BODY_KP                    0.15f // 重心一阶平滑系数；每次只修正当前误差的 15%。
 #define DOG_GAIT_WALK_BODY_MAX_STEP_MM           2.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
 #define DOG_GAIT_WALK_BODY_LENGTH_MM             280.0f // 参考 Py-Apple 经验公式的机身前后支撑长度；应按本机前后髋关节间距实测调整。
+#define DOG_GAIT_WALK_BODY_WIDTH_MM              175.0f // 左右髋关节中心距；初值与原左右补偿的 ±70 mm 对应，应按本机实测调整。
 #define DOG_GAIT_WALK_PHASE_CG_GAIN              0.7f // 前/后腿阶段重心切换增益；首轮调试关闭，避免足端整体产生正负 60 mm 偏移。
 #define DOG_GAIT_WALK_PITCH_ANGLE_GAIN           1.5f // 参考公式 tan(pitch * 1.5) 中的倾角经验放大系数。
 #define DOG_GAIT_WALK_BODY_TARGET_MAX_MM         1000.0f // 前后重心目标的安全限幅，首轮调试限制在正负 20 mm。
 #define DOG_GAIT_WALK_CG_AXIS_SIGN              (-1.0f) // Py-Apple 与本工程 X 轴方向相反；负号保持本工程原有的前/后重心移动方向。
-#define DOG_GAIT_WALK_ROLL_GAIN_MM               70.0f // roll 倾角到左右腿高度补偿的增益。
-#define DOG_GAIT_WALK_ROLL_MAX_MM                70.0f // roll 左右腿高度补偿限幅。
+#define DOG_GAIT_WALK_ATTITUDE_PITCH_SIGN        1.0f  // 若实机补偿方向相反，改为 -1.0f。
+#define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN         1.0f  // 若实机补偿方向相反，改为 -1.0f。
+#define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
+#define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
 #define DOG_GAIT_WALK_SIDE_PRELOAD_MM            0.0f // 抬某侧腿前给另一侧支撑腿的预加载补偿。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          50.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
 #define DOG_GAIT_WALK_REAR_LIFT_END_PHASE        0.25f // 后腿摆动前段结束相位：先以抬高为主，X 基本保持。
@@ -616,6 +619,70 @@ static float DogGait_GetWalkBodyTarget(uint8_t active_leg, float pitch_deg)
 }
 
 /*
+ * 将灯哥 PA_ATTITUDE.cal_ges() 在 yaw=0 时的机身姿态几何关系，转换为
+ * 当前二维逆解所需的单腿 X/Y 基础坐标增量。平地、pitch=roll=0 时输出为 0。
+ *
+ * X 为前后方向，Y 为当前工程足端的竖直方向。前后腿获得相反的 pitch
+ * 补偿，左右腿获得相反的 roll 补偿；摆腿轨迹在该基础变换之后叠加。
+ */
+static void DogGait_GetWalkAttitudeOffset(DogGaitLeg_t leg,
+                                          float pitch_deg,
+                                          float roll_deg,
+                                          float *x_offset_mm,
+                                          float *y_offset_mm)
+{
+    float pitch_rad;
+    float roll_rad;
+    float pitch_cos;
+    float pitch_sin;
+    float roll_sin;
+    float roll_cos;
+    float pitch_x;
+    float pitch_y;
+    float roll_y;
+    uint8_t is_front;
+    uint8_t is_left;
+
+    pitch_deg = DogGait_ClampFloat(pitch_deg,
+                                   -DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG,
+                                    DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG);
+    roll_deg = DogGait_ClampFloat(roll_deg,
+                                  -DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG,
+                                   DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG);
+    pitch_rad = pitch_deg * DOG_GAIT_WALK_ATTITUDE_PITCH_SIGN * DOG_GAIT_DEG_TO_RAD;
+    roll_rad = roll_deg * DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN * DOG_GAIT_DEG_TO_RAD;
+    pitch_cos = cosf(pitch_rad);
+    pitch_sin = sinf(pitch_rad);
+    roll_sin = sinf(roll_rad);
+    roll_cos = cosf(roll_rad);
+    is_front = (uint8_t)((leg == DOG_GAIT_LEG_LF) || (leg == DOG_GAIT_LEG_RF));
+    is_left = (uint8_t)((leg == DOG_GAIT_LEG_LF) || (leg == DOG_GAIT_LEG_LB));
+
+    /* cal_ges(): front/rear X = +/- L * (1 - cos(pitch)) / 2. */
+    pitch_x = DOG_GAIT_WALK_BODY_LENGTH_MM * (1.0f - pitch_cos) * 0.5f;
+    if (is_front == 0U)
+    {
+        pitch_x = -pitch_x;
+    }
+
+    /* cal_ges(): pitch height term is coupled with roll by cos(roll). */
+    pitch_y = DOG_GAIT_WALK_BODY_LENGTH_MM * roll_cos * pitch_sin * 0.5f;
+    if (is_front != 0U)
+    {
+        pitch_y = -pitch_y;
+    }
+
+    roll_y = DOG_GAIT_WALK_BODY_WIDTH_MM * roll_sin * 0.5f;
+    if (is_left != 0U)
+    {
+        roll_y = -roll_y;
+    }
+
+    *x_offset_mm = pitch_x;
+    *y_offset_mm = pitch_y + roll_y;
+}
+
+/*
  * 名称：DogGait_OutputCurrentPose
  * 作用：输出当前步态姿态。
  * 输入：time_ms 更新时间。
@@ -1108,8 +1175,6 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     float local_phase;
     float dx = 0.0f;
     float lift = 0.0f;
-    float roll_adjust = -DOG_GAIT_WALK_ROLL_GAIN_MM * tanf(roll_deg * DOG_GAIT_DEG_TO_RAD);
-    //float roll_adjust = 0.0f;
 
     if (s_is_initialized == 0U)
     {
@@ -1144,23 +1209,17 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     s_walk_foot_x[active_leg] = dx;
     s_walk_foot_y[active_leg] = lift;
     DogGait_UpdateWalkFootTrajectories();
-    roll_adjust = DogGait_ClampFloat(roll_adjust,
-                                     -DOG_GAIT_WALK_ROLL_MAX_MM,
-                                     DOG_GAIT_WALK_ROLL_MAX_MM);
 
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
-        float side_adjust = 0.0f;
+        float attitude_x_mm;
+        float side_adjust;
 
-        if ((i == DOG_GAIT_LEG_LF) ||
-            (i == DOG_GAIT_LEG_LB))
-        {
-            side_adjust = roll_adjust;
-        }
-        else
-        {
-            side_adjust = -roll_adjust;
-        }
+        DogGait_GetWalkAttitudeOffset((DogGaitLeg_t)i,
+                                      pitch_deg,
+                                      roll_deg,
+                                      &attitude_x_mm,
+                                      &side_adjust);
 
         if ((active_leg == DOG_GAIT_LEG_LF) ||
             (active_leg == DOG_GAIT_LEG_LB))
@@ -1180,8 +1239,9 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
             }
         }
 
-        s_gait[i].x = base_coord.x + s_walk_body_x_state_mm + s_walk_foot_x[i]; // 足端 X = 基础 X + 机身前后重心偏移 + 当前腿前后迈步偏移
-        s_gait[i].y = base_coord.y + side_adjust + s_walk_foot_y[i]; // 足端Y = 基础 Y + 机身左右重心偏移 + 当前腿抬腿偏移
+        s_gait[i].x = base_coord.x + s_walk_body_x_state_mm +
+                      attitude_x_mm + s_walk_foot_x[i]; // 足端 X = 基础 X + 重心 + 姿态变换 + 摆腿偏移
+        s_gait[i].y = base_coord.y + side_adjust + s_walk_foot_y[i]; // 足端 Y = 基础 Y + 姿态变换 + 摆腿偏移
     }
 
     DogGait_OutputCurrentPose(time_ms);
