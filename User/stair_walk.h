@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+extern volatile uint8_t g_stair_walk_stage;
+extern volatile uint8_t g_stair_walk_pitch_band_mm;
+extern volatile uint8_t g_stair_walk_pitch_stable_samples;
+
 void StairWalk_Init(void);
 void StairWalk_Start(void);
 void StairWalk_Update(void);

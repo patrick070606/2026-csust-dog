@@ -1273,6 +1273,17 @@ uint8_t DogGait_IsWalkCycleDone(void)
 }
 
 /*
+ * Fixed decision window before the left-front leg starts its swing.  The stair
+ * state machine samples pitch only here, so the same body posture is compared
+ * at every stage.  With a 0.03 phase increment this 0.1-phase window contains
+ * at least three 100 ms updates.
+ */
+uint8_t DogGait_IsWalkLeftFrontPreSwing(void)
+{
+    return (s_walk_phase < 0.10f) ? 1U : 0U;
+}
+
+/*
  * 名称：DogGait_GotoStandPose
  * 作用：切换到站立姿态，并将计算出的站立角度下发给舵机。
  * 输入：time_ms 舵机动作过渡时间。

@@ -57,6 +57,7 @@ void DogGait_SetWalkParams(float step_height_mm,
                            float imu_gain_mm);
 void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg);
 uint8_t DogGait_IsWalkCycleDone(void);
+uint8_t DogGait_IsWalkLeftFrontPreSwing(void);
 void DogGait_StartWalkSupportPhase(void);
 void DogGait_ResumeWalkFromSupportPhase(void);
 void DogGait_UpdateWalkSupport(uint16_t time_ms);
