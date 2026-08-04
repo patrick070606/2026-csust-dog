@@ -55,7 +55,7 @@
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -30.0f
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -30.0f
-#define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 150.0f)
+#define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 160.0f)
 // #define DOG_GAIT_WALK_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
 #endif
 
@@ -106,7 +106,8 @@
 #define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN         1.0f  // 若实机补偿方向相反，改为 -1.0f。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            0.0f // 抬某侧腿前给另一侧支撑腿的预加载补偿。
+#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            -10.0f // 仅 RB 抬起前给 LF/LB 的左侧预加载量。
+#define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     3U // 当前 100 ms 更新周期下约 300 ms。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          50.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
 #define DOG_GAIT_WALK_REAR_LIFT_END_PHASE        0.25f // 后腿摆动前段结束相位：先以抬高为主，X 基本保持。
 #define DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE    0.50f // 后腿摆动中段结束相位：在高位完成向前移动。
@@ -124,6 +125,13 @@ typedef enum
     DOG_GAIT_LEG_RB,
     DOG_GAIT_LEG_COUNT,
 } DogGaitLeg_t;
+
+typedef enum
+{
+    DOG_GAIT_RB_PRELOAD_NONE = 0U,
+    DOG_GAIT_RB_PRELOAD_HOLD,
+    DOG_GAIT_RB_PRELOAD_SWING,
+} DogGaitRbPreloadState_t;
 
 typedef enum
 {
@@ -160,6 +168,10 @@ static float s_walk_swing_start_x[DOG_GAIT_LEG_COUNT];
 static uint8_t s_walk_leg_in_swing[DOG_GAIT_LEG_COUNT];
 static uint8_t s_walk_support_phase;
 static uint8_t s_walk_support_ready;
+static DogGaitRbPreloadState_t s_walk_rb_preload_state;
+static uint8_t s_walk_rb_preload_stable_updates;
+static float s_walk_rb_preload_hold_x_mm;
+static float s_walk_rb_preload_hold_y_mm;
 static float s_walk_support_start_x[DOG_GAIT_LEG_COUNT];
 static float s_walk_support_start_y[DOG_GAIT_LEG_COUNT];
 static DogGaitLoadMode_t s_load_mode = DOG_GAIT_LOAD_WITH_PAYLOAD;
@@ -492,6 +504,10 @@ static void DogGait_ResetWalkFootStates(void)
     DogGait_ClearWalkFootOffsets();
     s_walk_support_phase = 0U;
     s_walk_support_ready = 0U;
+    s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_NONE;
+    s_walk_rb_preload_stable_updates = 0U;
+    s_walk_rb_preload_hold_x_mm = 0.0f;
+    s_walk_rb_preload_hold_y_mm = 0.0f;
 }
 
 static float DogGait_ClampWalkSupportHeight(float height_mm)
@@ -527,6 +543,17 @@ static void DogGait_UpdateWalkFootTrajectories(void)
         float leg_phase = DogGait_WrapWalkLegPhase(
             s_walk_phase - ((float)i * DOG_GAIT_WALK_PHASE_PER_LEG));
 
+        if ((i == DOG_GAIT_LEG_RB) &&
+            (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD))
+        {
+            /* LB has just entered stance at phase 1.5. Hold RB on the
+             * ground while LF/LB establish the preload. */
+            s_walk_foot_x[i] = s_walk_rb_preload_hold_x_mm;
+            s_walk_foot_y[i] = s_walk_rb_preload_hold_y_mm;
+            s_walk_leg_in_swing[i] = 0U;
+            continue;
+        }
+
         if (leg_phase < DOG_GAIT_WALK_PHASE_PER_LEG) // 摆动相
         {
             float swing_phase =
@@ -534,10 +561,22 @@ static void DogGait_UpdateWalkFootTrajectories(void)
 
             if (s_walk_leg_in_swing[i] == 0U)
             {
-                s_walk_swing_start_x[i] =
-                    s_walk_touchdown_x[i] - support_return_mm;
-                s_walk_swing_start_height_mm[i] =
-                    s_walk_support_height_mm[i];
+                if ((i == DOG_GAIT_LEG_RB) &&
+                    (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING))
+                {
+                    /* Continue from the exact RB pose held during preload;
+                     * do not reapply support_return at swing start. */
+                    s_walk_swing_start_x[i] = s_walk_rb_preload_hold_x_mm;
+                    s_walk_swing_start_height_mm[i] =
+                        s_walk_rb_preload_hold_y_mm;
+                }
+                else
+                {
+                    s_walk_swing_start_x[i] =
+                        s_walk_touchdown_x[i] - support_return_mm;
+                    s_walk_swing_start_height_mm[i] =
+                        s_walk_support_height_mm[i];
+                }
                 s_walk_leg_in_swing[i] = 1U;
             }
 
@@ -667,6 +706,35 @@ static float DogGait_GetWalkBodyTarget(uint8_t active_leg, float pitch_deg)
     return DogGait_ClampFloat(target,
                               -DOG_GAIT_WALK_BODY_TARGET_MAX_MM,
                                DOG_GAIT_WALK_BODY_TARGET_MAX_MM);
+}
+
+static void DogGait_UpdateRbPreloadState(void)
+{
+    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING) &&
+        (s_walk_phase < (DOG_GAIT_WALK_PHASE_PER_LEG * 3.0f)))
+    {
+        /* The RB swing and landing are complete after the phase wraps. */
+        s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_NONE;
+        s_walk_rb_preload_stable_updates = 0U;
+    }
+
+    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_NONE) &&
+        (s_walk_phase >= (DOG_GAIT_WALK_PHASE_PER_LEG * 3.0f)) &&
+        (s_walk_phase < DOG_GAIT_WALK_TOTAL_PHASE))
+    {
+        /* This is the first update after LB has reached stance. */
+        s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_HOLD;
+        s_walk_rb_preload_stable_updates = 0U;
+        s_walk_rb_preload_hold_x_mm = s_walk_foot_x[DOG_GAIT_LEG_RB];
+        s_walk_rb_preload_hold_y_mm = s_walk_foot_y[DOG_GAIT_LEG_RB];
+    }
+
+    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) &&
+        (s_walk_rb_preload_stable_updates >=
+         DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES))
+    {
+        s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_SWING;
+    }
 }
 
 /*
@@ -1232,6 +1300,8 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         DogGait_Init();
     }
 
+    DogGait_UpdateRbPreloadState();
+
     if (leg_phase >= DOG_GAIT_LEG_COUNT)
     {
         leg_phase = DOG_GAIT_LEG_COUNT - 1U;
@@ -1272,22 +1342,13 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
                                       &attitude_x_mm,
                                       &side_adjust);
 
-        if ((active_leg == DOG_GAIT_LEG_LF) ||
-            (active_leg == DOG_GAIT_LEG_LB))
+        if ((s_walk_rb_preload_state != DOG_GAIT_RB_PRELOAD_NONE) &&
+            ((i == DOG_GAIT_LEG_LF) ||
+             (i == DOG_GAIT_LEG_LB)))
         {
-            if ((i == DOG_GAIT_LEG_RF) ||
-                (i == DOG_GAIT_LEG_RB))
-            {
-                side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
-            }
-        } // 给相较于活动腿的另一侧腿施加一个预加载的偏移量，使得在活动腿抬起时，另一侧腿能够更好地支撑身体。
-        else
-        {
-            if ((i == DOG_GAIT_LEG_LF) ||
-                (i == DOG_GAIT_LEG_LB))
-            {
-                side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
-            }
+            /* Only RB gets this pre-swing preload.  RF keeps the normal walk
+             * trajectory without a left-side preload. */
+            side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
         }
 
         s_gait[i].x = base_coord.x + s_walk_body_x_state_mm +
@@ -1300,6 +1361,16 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     /* 重心未到位时不增加 s_walk_phase，因此活动腿保持在当前轨迹点，相当于冻结摆腿。 */
     if (fabsf(s_walk_body_x_goal_mm - s_walk_body_x_state_mm) < DOG_GAIT_WALK_BODY_READY_MM)
     {
+        if (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD)
+        {
+            if (s_walk_rb_preload_stable_updates <
+                DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES)
+            {
+                s_walk_rb_preload_stable_updates++;
+                return;
+            }
+        }
+
         s_walk_phase += s_walk_speed_freq;
         if (s_walk_phase >= DOG_GAIT_WALK_TOTAL_PHASE)
         {

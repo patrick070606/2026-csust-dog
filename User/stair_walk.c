@@ -116,28 +116,35 @@ static void StairWalk_ApplyStageSupportHeights(void)
     switch ((StairWalkStage_t)g_stair_walk_stage)
     {
     case STAIR_WALK_STAGE_1_FRONT_30_REAR_0:
-        front_height_mm = 30.0f;
+        //front_height_mm = 30.0f;
+        front_height_mm = 0.0f;
         rear_height_mm = 0.0f;
         break;
     case STAIR_WALK_STAGE_2_FRONT_60_REAR_0:
-        front_height_mm = 60.0f;
+        //front_height_mm = 60.0f;
+        front_height_mm = 0.0f;
         rear_height_mm = 0.0f;
         break;
     case STAIR_WALK_STAGE_3_FRONT_60_REAR_30:
-        front_height_mm = 60.0f;
-        rear_height_mm = 30.0f;
+        front_height_mm = 0.0f;
+        rear_height_mm = 0.0f;
         break;
     case STAIR_WALK_STAGE_4_FRONT_90_REAR_30:
-        front_height_mm = 90.0f;
+        //front_height_mm = 90.0f;
+        front_height_mm = 0.0f;
         rear_height_mm = 30.0f;
         break;
     case STAIR_WALK_STAGE_5_FRONT_90_REAR_60:
-        front_height_mm = 90.0f;
-        rear_height_mm = 60.0f;
+        //front_height_mm = 90.0f;
+        front_height_mm = 0.0f;
+        //rear_height_mm = 60.0f;
+        rear_height_mm = 0.0f;
         break;
     case STAIR_WALK_STAGE_6_FRONT_90_REAR_90:
-        front_height_mm = 90.0f;
-        rear_height_mm = 90.0f;
+        //front_height_mm = 90.0f;
+        front_height_mm = 0.0f;
+        //rear_height_mm = 90.0f;
+        rear_height_mm = 0.0f;
         break;
     case STAIR_WALK_STAGE_0_FRONT_0_REAR_0:
     default:
