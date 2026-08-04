@@ -108,6 +108,47 @@ static StairWalkPitchBand_t StairWalk_GetExpectedNextPitchBand(void)
     }
 }
 
+static void StairWalk_ApplyStageSupportHeights(void)
+{
+    float front_height_mm;
+    float rear_height_mm;
+
+    switch ((StairWalkStage_t)g_stair_walk_stage)
+    {
+    case STAIR_WALK_STAGE_1_FRONT_30_REAR_0:
+        front_height_mm = 30.0f;
+        rear_height_mm = 0.0f;
+        break;
+    case STAIR_WALK_STAGE_2_FRONT_60_REAR_0:
+        front_height_mm = 60.0f;
+        rear_height_mm = 0.0f;
+        break;
+    case STAIR_WALK_STAGE_3_FRONT_60_REAR_30:
+        front_height_mm = 60.0f;
+        rear_height_mm = 30.0f;
+        break;
+    case STAIR_WALK_STAGE_4_FRONT_90_REAR_30:
+        front_height_mm = 90.0f;
+        rear_height_mm = 30.0f;
+        break;
+    case STAIR_WALK_STAGE_5_FRONT_90_REAR_60:
+        front_height_mm = 90.0f;
+        rear_height_mm = 60.0f;
+        break;
+    case STAIR_WALK_STAGE_6_FRONT_90_REAR_90:
+        front_height_mm = 90.0f;
+        rear_height_mm = 90.0f;
+        break;
+    case STAIR_WALK_STAGE_0_FRONT_0_REAR_0:
+    default:
+        front_height_mm = 0.0f;
+        rear_height_mm = 0.0f;
+        break;
+    }
+
+    DogGait_SetWalkSupportHeights(front_height_mm, rear_height_mm);
+}
+
 static void StairWalk_UpdateStageAtFrontPreSwing(float pitch_deg)
 {
     StairWalkPitchBand_t measured_band;
@@ -146,13 +187,11 @@ static void StairWalk_UpdateStageAtFrontPreSwing(float pitch_deg)
 
     g_stair_walk_pitch_stable_samples = 0U;
     g_stair_walk_stage++;
+    StairWalk_ApplyStageSupportHeights();
 
-    if (g_stair_walk_stage >= STAIR_WALK_STAGE_6_FRONT_90_REAR_90)
+    if (g_stair_walk_stage > STAIR_WALK_STAGE_6_FRONT_90_REAR_90)
     {
         g_stair_walk_stage = STAIR_WALK_STAGE_6_FRONT_90_REAR_90;
-        DogGait_StartWalkSupportPhase();
-        s_support_phase = 1U;
-        s_level_start_ms = 0U;
     }
 }
 
@@ -228,6 +267,7 @@ void StairWalk_Start(void)
                           STAIR_WALK_TEST_IMU_GAIN_MM);
     /* 先装载本次楼梯参数，再按新的基础重心复位，避免沿用上一次 walk 的重心初值。 */
     DogGait_ResetWalk();
+    StairWalk_ApplyStageSupportHeights();
 
     s_last_gait_ms = HAL_GetTick();
     s_filtered_pitch_deg = 0.0f;
@@ -281,6 +321,14 @@ void StairWalk_Update(void)
         if (s_support_phase == 0U)
         {
             DogGait_UpdateWalk(STAIR_WALK_TEST_GAIT_MOVE_MS, pitch_deg, roll_deg);
+
+            if (g_stair_walk_stage == STAIR_WALK_STAGE_6_FRONT_90_REAR_90)
+            {
+                /* Apply the final 90/90 coordinates once before holding. */
+                DogGait_StartWalkSupportPhase();
+                s_support_phase = 1U;
+                s_level_start_ms = 0U;
+            }
         }
     }
 }

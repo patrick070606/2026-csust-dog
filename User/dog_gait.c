@@ -151,6 +151,9 @@ static float s_walk_body_x_goal_mm; // 目标重心偏移
 static float s_walk_body_x_state_mm; // 当前重心偏移
 static float s_walk_foot_x[DOG_GAIT_LEG_COUNT]; // walk 步态中各腿的足端 X 坐标
 static float s_walk_foot_y[DOG_GAIT_LEG_COUNT]; // walk 步态中各腿的足端 Y 坐标
+static float s_walk_support_height_mm[DOG_GAIT_LEG_COUNT];
+static float s_walk_support_height_goal_mm[DOG_GAIT_LEG_COUNT];
+static float s_walk_swing_start_height_mm[DOG_GAIT_LEG_COUNT];
 static uint8_t s_walk_cycle_done; // walk 步态周期是否完成
 static float s_walk_touchdown_x[DOG_GAIT_LEG_COUNT];
 static float s_walk_swing_start_x[DOG_GAIT_LEG_COUNT];
@@ -481,11 +484,36 @@ static void DogGait_ResetWalkFootStates(void)
         }
         s_walk_swing_start_x[i] = 0.0f;
         s_walk_leg_in_swing[i] = 0U;
+        s_walk_support_height_mm[i] = 0.0f;
+        s_walk_support_height_goal_mm[i] = 0.0f;
+        s_walk_swing_start_height_mm[i] = 0.0f;
     }
 
     DogGait_ClearWalkFootOffsets();
     s_walk_support_phase = 0U;
     s_walk_support_ready = 0U;
+}
+
+static float DogGait_ClampWalkSupportHeight(float height_mm)
+{
+    return DogGait_ClampFloat(height_mm, 0.0f, 120.0f);
+}
+
+/*
+ * Set the terrain height currently expected under the front and rear leg
+ * pairs.  The value is expressed in the existing leg Y coordinate: a higher
+ * stair tread has a larger Y because the foot is closer to the hip.
+ */
+void DogGait_SetWalkSupportHeights(float front_height_mm,
+                                   float rear_height_mm)
+{
+    float front_height = DogGait_ClampWalkSupportHeight(front_height_mm);
+    float rear_height = DogGait_ClampWalkSupportHeight(rear_height_mm);
+
+    s_walk_support_height_goal_mm[DOG_GAIT_LEG_LF] = front_height;
+    s_walk_support_height_goal_mm[DOG_GAIT_LEG_RF] = front_height;
+    s_walk_support_height_goal_mm[DOG_GAIT_LEG_LB] = rear_height;
+    s_walk_support_height_goal_mm[DOG_GAIT_LEG_RB] = rear_height;
 }
 
 static void DogGait_UpdateWalkFootTrajectories(void)
@@ -494,6 +522,8 @@ static void DogGait_UpdateWalkFootTrajectories(void)
 
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
+        float support_progress;
+        float support_height;
         float leg_phase = DogGait_WrapWalkLegPhase(
             s_walk_phase - ((float)i * DOG_GAIT_WALK_PHASE_PER_LEG));
 
@@ -506,8 +536,16 @@ static void DogGait_UpdateWalkFootTrajectories(void)
             {
                 s_walk_swing_start_x[i] =
                     s_walk_touchdown_x[i] - support_return_mm;
+                s_walk_swing_start_height_mm[i] =
+                    s_walk_support_height_mm[i];
                 s_walk_leg_in_swing[i] = 1U;
             }
+
+            support_progress = DogGait_SmoothStep(swing_phase);
+            support_height =
+                s_walk_swing_start_height_mm[i] +
+                (s_walk_support_height_goal_mm[i] -
+                 s_walk_swing_start_height_mm[i]) * support_progress;
 
             if ((i == DOG_GAIT_LEG_LB) ||
                 (i == DOG_GAIT_LEG_RB))
@@ -522,6 +560,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                         s_walk_swing_start_x[i] -
                         DOG_GAIT_WALK_REAR_TUCK_X_MM * lift_smooth;
                     s_walk_foot_y[i] =
+                        support_height +
                         s_walk_step_height_mm * lift_smooth;
                 }
                 else if (swing_phase < DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE)
@@ -537,7 +576,8 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                         DOG_GAIT_WALK_REAR_TUCK_X_MM +
                         (s_walk_step_length_mm + DOG_GAIT_WALK_REAR_TUCK_X_MM) *
                         transfer_smooth;
-                    s_walk_foot_y[i] = s_walk_step_height_mm;
+                    s_walk_foot_y[i] =
+                        support_height + s_walk_step_height_mm;
                 }
                 else
                 {
@@ -548,6 +588,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                     s_walk_foot_x[i] =
                         s_walk_swing_start_x[i] + s_walk_step_length_mm;
                     s_walk_foot_y[i] =
+                        support_height +
                         s_walk_step_height_mm *
                         (1.0f - DogGait_SmoothStep(landing_phase));
                 }
@@ -558,6 +599,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                     s_walk_swing_start_x[i] +
                     s_walk_step_length_mm * DogGait_SmoothStep(swing_phase);
                 s_walk_foot_y[i] =
+                    support_height +
                     s_walk_step_height_mm * sinf(DOG_GAIT_PI * swing_phase);
             }
         }
@@ -571,13 +613,22 @@ static void DogGait_UpdateWalkFootTrajectories(void)
             {
                 s_walk_touchdown_x[i] =
                     s_walk_swing_start_x[i] + s_walk_step_length_mm;
+                s_walk_support_height_mm[i] =
+                    s_walk_support_height_goal_mm[i];
                 s_walk_leg_in_swing[i] = 0U;
+            }
+            else
+            {
+                /* A stance leg already known to be on the current tread can
+                 * follow a newly recognized terrain state immediately. */
+                s_walk_support_height_mm[i] =
+                    s_walk_support_height_goal_mm[i];
             }
 
             s_walk_foot_x[i] =
                 s_walk_touchdown_x[i] -
                 support_return_mm * DogGait_SmoothStep(support_phase);
-            s_walk_foot_y[i] = 0.0f;
+            s_walk_foot_y[i] = s_walk_support_height_mm[i];
         }
     }
 }
