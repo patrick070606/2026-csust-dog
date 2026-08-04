@@ -55,7 +55,7 @@
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -30.0f
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -30.0f
-#define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 140.0f)
+#define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 150.0f)
 // #define DOG_GAIT_WALK_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
 #endif
 
@@ -102,9 +102,9 @@
 #define DOG_GAIT_WALK_BODY_TARGET_MAX_MM         1000.0f // 前后重心目标的安全限幅，首轮调试限制在正负 20 mm。
 #define DOG_GAIT_WALK_CG_AXIS_SIGN              (-1.0f) // Py-Apple 与本工程 X 轴方向相反；负号保持本工程原有的前/后重心移动方向。
 #define DOG_GAIT_WALK_ROLL_GAIN_MM               70.0f // roll 倾角到左右腿高度补偿的增益。
-#define DOG_GAIT_WALK_ROLL_MAX_MM                30.0f // roll 左右腿高度补偿限幅。
+#define DOG_GAIT_WALK_ROLL_MAX_MM                70.0f // roll 左右腿高度补偿限幅。
 #define DOG_GAIT_WALK_SIDE_PRELOAD_MM            0.0f // 抬某侧腿前给另一侧支撑腿的预加载补偿。
-#define DOG_GAIT_WALK_SUPPORT_RETURN_MM          40.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
+#define DOG_GAIT_WALK_SUPPORT_RETURN_MM          50.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
 #define DOG_GAIT_WALK_REAR_LIFT_END_PHASE        0.25f // 后腿摆动前段结束相位：先以抬高为主，X 基本保持。
 #define DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE    0.50f // 后腿摆动中段结束相位：在高位完成向前移动。
 #define DOG_GAIT_WALK_REAR_TUCK_X_MM             15.0f // 后腿抬起初期主动后收量；先设为 0，仅观察逆运动学自然收腿效果。

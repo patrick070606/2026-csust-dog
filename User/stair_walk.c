@@ -10,10 +10,10 @@
 #define STAIR_WALK_TEST_GAIT_MOVE_MS          80U   // 舵机完成每次步态目标的期望时间；小于更新周期，预留 20 ms 的稳定余量。
 
 #define STAIR_WALK_TEST_STEP_H_MM             60.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
-#define STAIR_WALK_TEST_STEP_LEN_MM           40.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
+#define STAIR_WALK_TEST_STEP_LEN_MM           50.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
 #define STAIR_WALK_TEST_SPEED_FREQ            0.03f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
 #define STAIR_WALK_TEST_CG_BASE_X_MM          0.0f // 行走时机身重心在 X（前后）方向的基础偏移，单位 mm，用于提高爬台阶稳定性。
-#define STAIR_WALK_TEST_IMU_GAIN_MM           -100.0f // 首轮调试关闭 IMU 前后纠偏，先单独观察后腿轨迹与髋关节运动。
+#define STAIR_WALK_TEST_IMU_GAIN_MM           -120.0f // 首轮调试关闭 IMU 前后纠偏，先单独观察后腿轨迹与髋关节运动。
 // #define STAIR_WALK_TEST_STEP_H_MM             0.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
 // #define STAIR_WALK_TEST_STEP_LEN_MM           0.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
 // #define STAIR_WALK_TEST_SPEED_FREQ            0.0f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
