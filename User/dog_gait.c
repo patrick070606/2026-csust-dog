@@ -55,7 +55,7 @@
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -30.0f
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -30.0f
-#define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 160.0f)
+#define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 // #define DOG_GAIT_WALK_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
 #endif
 
@@ -106,7 +106,7 @@
 #define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN         1.0f  // 若实机补偿方向相反，改为 -1.0f。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            -10.0f // 仅 RB 抬起前给 LF/LB 的左侧预加载量。
+#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            -15.0f // 仅 RB 抬起前给 LF/LB 的左侧预加载量。
 #define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     3U // 当前 100 ms 更新周期下约 300 ms。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          50.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
 #define DOG_GAIT_WALK_REAR_LIFT_END_PHASE        0.25f // 后腿摆动前段结束相位：先以抬高为主，X 基本保持。
@@ -1343,11 +1343,10 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
                                       &side_adjust);
 
         if ((s_walk_rb_preload_state != DOG_GAIT_RB_PRELOAD_NONE) &&
-            ((i == DOG_GAIT_LEG_LF) ||
-             (i == DOG_GAIT_LEG_LB)))
+            (i == DOG_GAIT_LEG_LF))
         {
-            /* Only RB gets this pre-swing preload.  RF keeps the normal walk
-             * trajectory without a left-side preload. */
+            /* Only RB gets this pre-swing preload, applied to LF only.
+             * RF and LB keep the normal walk trajectory. */
             side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
         }
 
