@@ -106,8 +106,9 @@
 #define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN         1.0f  // 若实机补偿方向相反，改为 -1.0f。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            -15.0f // 仅 RB 抬起前给 LF/LB 的左侧预加载量。
+#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            -15.0f // 最后抬起的后腿之前，给对侧前腿的镜像侧向预加载量。
 #define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     3U // 当前 100 ms 更新周期下约 300 ms。
+#define DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES      3U // 奇偶腿序切换时的平滑过渡时间，当前约 300 ms。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          50.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
 #define DOG_GAIT_WALK_REAR_LIFT_END_PHASE        0.25f // 后腿摆动前段结束相位：先以抬高为主，X 基本保持。
 #define DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE    0.50f // 后腿摆动中段结束相位：在高位完成向前移动。
@@ -153,6 +154,8 @@ static float s_walk_phase; // walk 步态的当前相位，范围是 [0.0, DOG_G
 static float s_walk_speed_freq = 0.03f; // 表示 walk 步态的速度频率。
 static float s_walk_step_height_mm = 55.0f;
 static float s_walk_step_length_mm = 50.0f;
+/* 0: odd cycle (left first); 1: even cycle (right first). */
+static uint8_t s_walk_cycle_parity;
 static float s_walk_cg_base_x_mm; // 基础重心偏移
 static float s_walk_imu_gain_mm = 60.0f; // 表示 walk 步态中，IMU 前后倾角对重心前后偏移的增益系数。也就是说，如果 IMU 检测到机器人前倾 1 度，那么重心会向前偏移 60.0mm，从而调整机器人的步态，使其保持平衡。
 static float s_walk_body_x_goal_mm; // 目标重心偏移
@@ -172,6 +175,10 @@ static DogGaitRbPreloadState_t s_walk_rb_preload_state;
 static uint8_t s_walk_rb_preload_stable_updates;
 static float s_walk_rb_preload_hold_x_mm;
 static float s_walk_rb_preload_hold_y_mm;
+static uint8_t s_walk_order_transition_active;
+static uint8_t s_walk_order_transition_updates;
+static float s_walk_order_transition_start_x[DOG_GAIT_LEG_COUNT];
+static float s_walk_order_transition_start_y[DOG_GAIT_LEG_COUNT];
 static float s_walk_support_start_x[DOG_GAIT_LEG_COUNT];
 static float s_walk_support_start_y[DOG_GAIT_LEG_COUNT];
 static DogGaitLoadMode_t s_load_mode = DOG_GAIT_LOAD_WITH_PAYLOAD;
@@ -470,6 +477,73 @@ static float DogGait_WrapWalkLegPhase(float phase)
     return phase;
 }
 
+static DogGaitLeg_t DogGait_GetWalkLegByPhaseIndex(uint8_t phase_index)
+{
+    static const DogGaitLeg_t left_first_order[DOG_GAIT_LEG_COUNT] = {
+        DOG_GAIT_LEG_LF, DOG_GAIT_LEG_RF,
+        DOG_GAIT_LEG_LB, DOG_GAIT_LEG_RB,
+    };
+    static const DogGaitLeg_t right_first_order[DOG_GAIT_LEG_COUNT] = {
+        DOG_GAIT_LEG_RF, DOG_GAIT_LEG_LF,
+        DOG_GAIT_LEG_RB, DOG_GAIT_LEG_LB,
+    };
+
+    if (phase_index >= DOG_GAIT_LEG_COUNT)
+    {
+        phase_index = DOG_GAIT_LEG_COUNT - 1U;
+    }
+
+    return (s_walk_cycle_parity == 0U) ?
+           left_first_order[phase_index] : right_first_order[phase_index];
+}
+
+static float DogGait_GetWalkLegPhaseStart(DogGaitLeg_t leg)
+{
+    for (uint8_t phase_index = 0U;
+         phase_index < DOG_GAIT_LEG_COUNT;
+         phase_index++)
+    {
+        if (DogGait_GetWalkLegByPhaseIndex(phase_index) == leg)
+        {
+            return (float)phase_index * DOG_GAIT_WALK_PHASE_PER_LEG;
+        }
+    }
+
+    return 0.0f;
+}
+
+static DogGaitLeg_t DogGait_GetWalkRearPreloadSwingLeg(void)
+{
+    return (s_walk_cycle_parity == 0U) ?
+           DOG_GAIT_LEG_RB : DOG_GAIT_LEG_LB;
+}
+
+static DogGaitLeg_t DogGait_GetWalkRearPreloadSupportLeg(void)
+{
+    return (s_walk_cycle_parity == 0U) ?
+           DOG_GAIT_LEG_LF : DOG_GAIT_LEG_RF;
+}
+
+static void DogGait_ApplyWalkOrderTransition(void)
+{
+    float transition_phase =
+        ((float)s_walk_order_transition_updates + 1.0f) /
+        (float)DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES;
+    float transition_smooth = DogGait_SmoothStep(transition_phase);
+
+    for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
+    {
+        s_walk_foot_x[i] =
+            s_walk_order_transition_start_x[i] +
+            (s_walk_foot_x[i] - s_walk_order_transition_start_x[i]) *
+            transition_smooth;
+        s_walk_foot_y[i] =
+            s_walk_order_transition_start_y[i] +
+            (s_walk_foot_y[i] - s_walk_order_transition_start_y[i]) *
+            transition_smooth;
+    }
+}
+
 static void DogGait_ResetWalkFootStates(void)
 {
     float support_return_mm = DogGait_GetWalkSupportReturnMm();
@@ -508,6 +582,53 @@ static void DogGait_ResetWalkFootStates(void)
     s_walk_rb_preload_stable_updates = 0U;
     s_walk_rb_preload_hold_x_mm = 0.0f;
     s_walk_rb_preload_hold_y_mm = 0.0f;
+    s_walk_order_transition_active = 0U;
+    s_walk_order_transition_updates = 0U;
+    for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
+    {
+        s_walk_order_transition_start_x[i] = 0.0f;
+        s_walk_order_transition_start_y[i] = 0.0f;
+    }
+}
+
+/* A changed left/right order must not inherit the old order's per-leg
+ * touchdown offsets. Rebuild the same phase template under the new order:
+ * phase slots 0/1/2/3 receive R, 0.741R, 0.259R, 0 respectively. */
+static void DogGait_RebaseWalkFootStatesForNewOrder(void)
+{
+    float support_return_mm = DogGait_GetWalkSupportReturnMm();
+
+    for (uint8_t phase_index = 0U;
+         phase_index < DOG_GAIT_LEG_COUNT;
+         phase_index++)
+    {
+        DogGaitLeg_t leg = DogGait_GetWalkLegByPhaseIndex(phase_index);
+        float leg_phase = DogGait_WrapWalkLegPhase(
+            -((float)phase_index * DOG_GAIT_WALK_PHASE_PER_LEG));
+        float stance_phase =
+            (leg_phase - DOG_GAIT_WALK_PHASE_PER_LEG) /
+            (DOG_GAIT_WALK_TOTAL_PHASE - DOG_GAIT_WALK_PHASE_PER_LEG);
+
+        if (stance_phase < 0.0f)
+        {
+            stance_phase = 0.0f;
+        }
+
+        s_walk_touchdown_x[leg] =
+            support_return_mm * DogGait_SmoothStep(stance_phase);
+        if (phase_index == 0U)
+        {
+            /* The first swing starts from the neutral X position. */
+            s_walk_touchdown_x[leg] = support_return_mm;
+        }
+        s_walk_swing_start_x[leg] = 0.0f;
+        s_walk_swing_start_height_mm[leg] =
+            s_walk_support_height_mm[leg];
+        s_walk_leg_in_swing[leg] = 0U;
+    }
+
+    s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_NONE;
+    s_walk_rb_preload_stable_updates = 0U;
 }
 
 static float DogGait_ClampWalkSupportHeight(float height_mm)
@@ -541,13 +662,13 @@ static void DogGait_UpdateWalkFootTrajectories(void)
         float support_progress;
         float support_height;
         float leg_phase = DogGait_WrapWalkLegPhase(
-            s_walk_phase - ((float)i * DOG_GAIT_WALK_PHASE_PER_LEG));
+            s_walk_phase - DogGait_GetWalkLegPhaseStart((DogGaitLeg_t)i));
 
-        if ((i == DOG_GAIT_LEG_RB) &&
+        if ((i == DogGait_GetWalkRearPreloadSwingLeg()) &&
             (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD))
         {
-            /* LB has just entered stance at phase 1.5. Hold RB on the
-             * ground while LF/LB establish the preload. */
+            /* Hold the final rear swing leg while the opposite front leg
+             * establishes its side preload. */
             s_walk_foot_x[i] = s_walk_rb_preload_hold_x_mm;
             s_walk_foot_y[i] = s_walk_rb_preload_hold_y_mm;
             s_walk_leg_in_swing[i] = 0U;
@@ -561,11 +682,10 @@ static void DogGait_UpdateWalkFootTrajectories(void)
 
             if (s_walk_leg_in_swing[i] == 0U)
             {
-                if ((i == DOG_GAIT_LEG_RB) &&
+                if ((i == DogGait_GetWalkRearPreloadSwingLeg()) &&
                     (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING))
                 {
-                    /* Continue from the exact RB pose held during preload;
-                     * do not reapply support_return at swing start. */
+                    /* Continue from the exact pose held during preload. */
                     s_walk_swing_start_x[i] = s_walk_rb_preload_hold_x_mm;
                     s_walk_swing_start_height_mm[i] =
                         s_walk_rb_preload_hold_y_mm;
@@ -708,12 +828,14 @@ static float DogGait_GetWalkBodyTarget(uint8_t active_leg, float pitch_deg)
                                DOG_GAIT_WALK_BODY_TARGET_MAX_MM);
 }
 
-static void DogGait_UpdateRbPreloadState(void)
+static void DogGait_UpdateRearPreloadState(void)
 {
+    DogGaitLeg_t swing_leg = DogGait_GetWalkRearPreloadSwingLeg();
+
     if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING) &&
         (s_walk_phase < (DOG_GAIT_WALK_PHASE_PER_LEG * 3.0f)))
     {
-        /* The RB swing and landing are complete after the phase wraps. */
+        /* The selected rear-leg swing and landing are complete after wrap. */
         s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_NONE;
         s_walk_rb_preload_stable_updates = 0U;
     }
@@ -722,11 +844,11 @@ static void DogGait_UpdateRbPreloadState(void)
         (s_walk_phase >= (DOG_GAIT_WALK_PHASE_PER_LEG * 3.0f)) &&
         (s_walk_phase < DOG_GAIT_WALK_TOTAL_PHASE))
     {
-        /* This is the first update after LB has reached stance. */
+        /* This is the first update after the other rear leg reaches stance. */
         s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_HOLD;
         s_walk_rb_preload_stable_updates = 0U;
-        s_walk_rb_preload_hold_x_mm = s_walk_foot_x[DOG_GAIT_LEG_RB];
-        s_walk_rb_preload_hold_y_mm = s_walk_foot_y[DOG_GAIT_LEG_RB];
+        s_walk_rb_preload_hold_x_mm = s_walk_foot_x[swing_leg];
+        s_walk_rb_preload_hold_y_mm = s_walk_foot_y[swing_leg];
     }
 
     if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) &&
@@ -1168,6 +1290,7 @@ void DogGait_Init(void)
 void DogGait_ResetWalk(void)
 {
     s_walk_phase = 0.0f;
+    s_walk_cycle_parity = 0U;
     s_walk_body_x_goal_mm = s_walk_cg_base_x_mm;
     s_walk_body_x_state_mm = s_walk_cg_base_x_mm;
     s_walk_cycle_done = 0U;
@@ -1282,12 +1405,6 @@ void DogGait_SetWalkParams(float step_height_mm,
  */
 void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
 {
-    static const DogGaitLeg_t leg_order[DOG_GAIT_LEG_COUNT] = {
-        DOG_GAIT_LEG_LF,
-        DOG_GAIT_LEG_RF,
-        DOG_GAIT_LEG_LB,
-        DOG_GAIT_LEG_RB,
-    }; // 规定迈腿顺序：左前 -> 右前 -> 左后 -> 右后，循环。
     DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(DOG_GAIT_FOOT_BASE_WALK); // 获取当前足端基准坐标。
     uint8_t leg_phase = (uint8_t)(s_walk_phase / DOG_GAIT_WALK_PHASE_PER_LEG); // 根据总相位选择活动腿。
     DogGaitLeg_t active_leg;
@@ -1300,14 +1417,14 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         DogGait_Init();
     }
 
-    DogGait_UpdateRbPreloadState();
+    DogGait_UpdateRearPreloadState();
 
     if (leg_phase >= DOG_GAIT_LEG_COUNT)
     {
         leg_phase = DOG_GAIT_LEG_COUNT - 1U;
     }
 
-    active_leg = leg_order[leg_phase];
+    active_leg = DogGait_GetWalkLegByPhaseIndex(leg_phase);
     s_walk_body_x_goal_mm = DogGait_GetWalkBodyTarget((uint8_t)active_leg, pitch_deg); // 使用活动腿、机身长度和 IMU 倾角计算经验重心目标。
     {
         float body_step_mm =
@@ -1319,7 +1436,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         s_walk_body_x_state_mm += body_step_mm; // 平滑移动重心，并限制每次更新的最大变化量。
     }
 
-    local_phase = s_walk_phase - ((float)leg_phase * DOG_GAIT_WALK_PHASE_PER_LEG); // 计算当前活动腿的局部相位，范围为 [0, DOG_GAIT_WALK_PHASE_PER_LEG]。
+    local_phase = s_walk_phase - DogGait_GetWalkLegPhaseStart(active_leg); // 计算当前活动腿的局部相位，范围为 [0, DOG_GAIT_WALK_PHASE_PER_LEG]。
     DogGait_ClearWalkFootOffsets();
     DogGait_GetPosByCycloidalEquation(s_gait[active_leg].bias_angle,
                                       local_phase,
@@ -1330,6 +1447,12 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     s_walk_foot_x[active_leg] = dx;
     s_walk_foot_y[active_leg] = lift;
     DogGait_UpdateWalkFootTrajectories();
+    if (s_walk_order_transition_active != 0U)
+    {
+        /* The trajectory code above produces the new-order phase-0 target.
+         * Blend from the previous cycle's final foot offsets before using it. */
+        DogGait_ApplyWalkOrderTransition();
+    }
 
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
@@ -1343,11 +1466,18 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
                                       &side_adjust);
 
         if ((s_walk_rb_preload_state != DOG_GAIT_RB_PRELOAD_NONE) &&
-            (i == DOG_GAIT_LEG_LF))
+            (i == DogGait_GetWalkRearPreloadSupportLeg()))
         {
-            /* Only RB gets this pre-swing preload, applied to LF only.
-             * RF and LB keep the normal walk trajectory. */
-            side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
+            if (DogGait_GetWalkRearPreloadSwingLeg() == DOG_GAIT_LEG_RB)
+            {
+                /* Odd cycle: preload LF before RB swings. */
+                side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
+            }
+            else
+            {
+                /* Even cycle: empirical RF preload direction before LB swings. */
+                side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
+            }
         }
 
         s_gait[i].x = base_coord.x + s_walk_body_x_state_mm +
@@ -1360,6 +1490,17 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     /* 重心未到位时不增加 s_walk_phase，因此活动腿保持在当前轨迹点，相当于冻结摆腿。 */
     if (fabsf(s_walk_body_x_goal_mm - s_walk_body_x_state_mm) < DOG_GAIT_WALK_BODY_READY_MM)
     {
+        if (s_walk_order_transition_active != 0U)
+        {
+            s_walk_order_transition_updates++;
+            if (s_walk_order_transition_updates >=
+                DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES)
+            {
+                s_walk_order_transition_active = 0U;
+            }
+            return;
+        }
+
         if (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD)
         {
             if (s_walk_rb_preload_stable_updates <
@@ -1374,6 +1515,15 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         if (s_walk_phase >= DOG_GAIT_WALK_TOTAL_PHASE)
         {
             s_walk_phase -= DOG_GAIT_WALK_TOTAL_PHASE;
+            s_walk_cycle_parity ^= 1U;
+            for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
+            {
+                s_walk_order_transition_start_x[i] = s_walk_foot_x[i];
+                s_walk_order_transition_start_y[i] = s_walk_foot_y[i];
+            }
+            DogGait_RebaseWalkFootStatesForNewOrder();
+            s_walk_order_transition_updates = 0U;
+            s_walk_order_transition_active = 1U;
             s_walk_cycle_done = 1U;
         }
     }
@@ -1401,6 +1551,11 @@ uint8_t DogGait_IsWalkCycleDone(void)
  */
 uint8_t DogGait_IsWalkLeftFrontPreSwing(void)
 {
+    if (s_walk_order_transition_active != 0U)
+    {
+        return 0U;
+    }
+
     return (s_walk_phase < 0.10f) ? 1U : 0U;
 }
 
