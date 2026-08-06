@@ -13,8 +13,17 @@
 #define JY61P_IMU_ANGLE_SCALE_DEG       (180.0f / 32768.0f)
 #define JY61P_IMU_ROLL_BASELINE_DEG     180.0f
 
-#define roll_offset     -0.83f
-#define pitch_offset    -2.59f
+/* The IMU is mounted 180 degrees about the robot Z axis: X/Y are reversed,
+ * while Z keeps the same direction.  Convert every raw vector at this
+ * boundary so all users see robot-body coordinates. */
+#define JY61P_IMU_BODY_X_SIGN           (-1.0f)
+#define JY61P_IMU_BODY_Y_SIGN           (-1.0f)
+#define JY61P_IMU_BODY_Z_SIGN           (1.0f)
+
+/* These offsets are expressed in the robot-body frame.  Recalibrate them
+ * after changing the IMU coordinate convention. */
+#define JY61P_IMU_ROLL_OFFSET_DEG        (-0.8459f)
+#define JY61P_IMU_PITCH_OFFSET_DEG       (0.6427f)
 
 
 static uint8_t s_rx_data;
@@ -81,23 +90,28 @@ static void Jy61PImu_ParseFrame(const uint8_t frame[JY61P_IMU_FRAME_LEN])
 
     if (type == JY61P_IMU_FRAME_ACCEL)
     {
-        s_status.acc_x_g = (float)x * JY61P_IMU_ACC_SCALE_G;
-        s_status.acc_y_g = (float)y * JY61P_IMU_ACC_SCALE_G;
-        s_status.acc_z_g = (float)z * JY61P_IMU_ACC_SCALE_G;
+        s_status.acc_x_g = (float)x * JY61P_IMU_ACC_SCALE_G * JY61P_IMU_BODY_X_SIGN;
+        s_status.acc_y_g = (float)y * JY61P_IMU_ACC_SCALE_G * JY61P_IMU_BODY_Y_SIGN;
+        s_status.acc_z_g = (float)z * JY61P_IMU_ACC_SCALE_G * JY61P_IMU_BODY_Z_SIGN;
         s_status.has_accel = 1U;
     }
     else if (type == JY61P_IMU_FRAME_GYRO)
     {
-        s_status.gyro_x_dps = (float)x * JY61P_IMU_GYRO_SCALE_DPS;
-        s_status.gyro_y_dps = (float)y * JY61P_IMU_GYRO_SCALE_DPS;
-        s_status.gyro_z_dps = (float)z * JY61P_IMU_GYRO_SCALE_DPS;
+        s_status.gyro_x_dps = (float)x * JY61P_IMU_GYRO_SCALE_DPS * JY61P_IMU_BODY_X_SIGN;
+        s_status.gyro_y_dps = (float)y * JY61P_IMU_GYRO_SCALE_DPS * JY61P_IMU_BODY_Y_SIGN;
+        s_status.gyro_z_dps = (float)z * JY61P_IMU_GYRO_SCALE_DPS * JY61P_IMU_BODY_Z_SIGN;
         s_status.has_gyro = 1U;
     }
     else if (type == JY61P_IMU_FRAME_ANGLE)
     {
-        s_status.roll_deg = (float)x * JY61P_IMU_ANGLE_SCALE_DEG - roll_offset;
-        s_status.pitch_deg = (float)y * JY61P_IMU_ANGLE_SCALE_DEG - pitch_offset;
-        s_status.yaw_deg = (float)z * JY61P_IMU_ANGLE_SCALE_DEG;
+        s_status.roll_deg =
+            ((float)x * JY61P_IMU_ANGLE_SCALE_DEG * JY61P_IMU_BODY_X_SIGN) -
+            JY61P_IMU_ROLL_OFFSET_DEG;
+        s_status.pitch_deg =
+            ((float)y * JY61P_IMU_ANGLE_SCALE_DEG * JY61P_IMU_BODY_Y_SIGN) -
+            JY61P_IMU_PITCH_OFFSET_DEG;
+        s_status.yaw_deg =
+            (float)z * JY61P_IMU_ANGLE_SCALE_DEG * JY61P_IMU_BODY_Z_SIGN;
         s_status.has_angle = 1U;
     }
     else

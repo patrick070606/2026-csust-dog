@@ -238,14 +238,14 @@ static float StairWalkTest_GetRollDeg(void)
 
     if (s_has_roll_filter == 0U)
     {
-        s_filtered_roll_deg = -imu.roll_deg;
+        s_filtered_roll_deg = imu.roll_deg;
         s_has_roll_filter = 1U;
     }
     else
     {
         s_filtered_roll_deg =
             (s_filtered_roll_deg * (1.0f - STAIR_WALK_TEST_PITCH_FILTER_ALPHA)) +
-            (-imu.roll_deg * STAIR_WALK_TEST_PITCH_FILTER_ALPHA);
+            (imu.roll_deg * STAIR_WALK_TEST_PITCH_FILTER_ALPHA);
     }
 
     return s_filtered_roll_deg;

@@ -103,10 +103,11 @@
 #define DOG_GAIT_WALK_BODY_TARGET_MAX_MM         1000.0f // 前后重心目标的安全限幅，首轮调试限制在正负 20 mm。
 #define DOG_GAIT_WALK_CG_AXIS_SIGN              (-1.0f) // Py-Apple 与本工程 X 轴方向相反；负号保持本工程原有的前/后重心移动方向。
 #define DOG_GAIT_WALK_ATTITUDE_PITCH_SIGN        1.0f  // 若实机补偿方向相反，改为 -1.0f。
-#define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN         1.0f  // 若实机补偿方向相反，改为 -1.0f。
+#define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN        -1.0f  // IMU 坐标已统一到机身坐标；实机左右足端纠偏方向需反转。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_SIDE_PRELOAD_MM            -15.0f // 最后抬起的后腿之前，给对侧前腿的镜像侧向预加载量。
+#define DOG_GAIT_WALK_RB_LEFT_PRELOAD_MM         -15.0f // 奇数周期：RB 抬起前施加到 LF 的左侧预加载量。
+#define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -20.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
 #define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     3U // 当前 100 ms 更新周期下约 300 ms。
 #define DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES      3U // 奇偶腿序切换时的平滑过渡时间，当前约 300 ms。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          50.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
@@ -1471,12 +1472,12 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
             if (DogGait_GetWalkRearPreloadSwingLeg() == DOG_GAIT_LEG_RB)
             {
                 /* Odd cycle: preload LF before RB swings. */
-                side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
+                side_adjust -= DOG_GAIT_WALK_RB_LEFT_PRELOAD_MM;
             }
             else
             {
                 /* Even cycle: empirical RF preload direction before LB swings. */
-                side_adjust -= DOG_GAIT_WALK_SIDE_PRELOAD_MM;
+                side_adjust -= DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
             }
         }
 
