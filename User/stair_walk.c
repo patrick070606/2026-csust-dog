@@ -26,7 +26,6 @@
 #define STAIR_WALK_PITCH_DIFF_30_MAX_DEG      (-1.3f)
 #define STAIR_WALK_PITCH_DIFF_60_MIN_DEG      (-7.0f)
 #define STAIR_WALK_PITCH_DIFF_60_MAX_DEG      (-4.0f)
-#define STAIR_WALK_STAGE_CONFIRM_SAMPLES       3U
 #define STAIR_WALK_LEVEL_PITCH_DEG            4.0f  // “机身恢复水平”的俯仰角阈值：滤波后 |pitch| 不得超过 3°。
 #define STAIR_WALK_LEVEL_ROLL_DEG             6.0f  // “机身恢复水平”的横滚角阈值：滤波后 |roll| 不得超过 6°。
 #define STAIR_WALK_LEVEL_STABLE_MS            2000U // pitch 和 roll 同时满足水平阈值后，必须连续稳定 2 s 才判定上高台完成。
@@ -183,16 +182,8 @@ static void StairWalk_UpdateStageAtFrontPreSwing(float pitch_deg)
         return;
     }
 
-    if (g_stair_walk_pitch_stable_samples < STAIR_WALK_STAGE_CONFIRM_SAMPLES)
-    {
-        g_stair_walk_pitch_stable_samples++;
-    }
-
-    if (g_stair_walk_pitch_stable_samples < STAIR_WALK_STAGE_CONFIRM_SAMPLES)
-    {
-        return;
-    }
-
+    /* A single matching band at the designated pre-swing instant advances
+     * the stair state immediately. */
     g_stair_walk_pitch_stable_samples = 0U;
     g_stair_walk_stage++;
     StairWalk_ApplyStageSupportHeights();
