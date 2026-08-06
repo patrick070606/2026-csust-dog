@@ -108,6 +108,7 @@
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
 #define DOG_GAIT_WALK_RB_LEFT_PRELOAD_MM         -20.0f // 奇数周期：RB 抬起前施加到 LF 的左侧预加载量。
 #define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -25.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
+#define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        150U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
 #define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     3U // 当前 100 ms 更新周期下约 300 ms。
 #define DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES      3U // 奇偶腿序切换时的平滑过渡时间，当前约 300 ms。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          50.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
@@ -1412,6 +1413,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     float local_phase;
     float dx = 0.0f;
     float lift = 0.0f;
+    uint16_t output_time_ms;
 
     if (s_is_initialized == 0U)
     {
@@ -1486,7 +1488,11 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         s_gait[i].y = base_coord.y + side_adjust + s_walk_foot_y[i]; // 足端 Y = 基础 Y + 姿态变换 + 摆腿偏移
     }
 
-    DogGait_OutputCurrentPose(time_ms);
+    /* Both odd-cycle LF and even-cycle RF preloads use the same slower
+     * command time; normal walk trajectory updates keep the caller time. */
+    output_time_ms = (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ?
+                     DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS : time_ms;
+    DogGait_OutputCurrentPose(output_time_ms);
 
     /* 重心未到位时不增加 s_walk_phase，因此活动腿保持在当前轨迹点，相当于冻结摆腿。 */
     if (fabsf(s_walk_body_x_goal_mm - s_walk_body_x_state_mm) < DOG_GAIT_WALK_BODY_READY_MM)
