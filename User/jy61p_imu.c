@@ -22,8 +22,8 @@
 
 /* These offsets are expressed in the robot-body frame.  Recalibrate them
  * after changing the IMU coordinate convention. */
-#define JY61P_IMU_ROLL_OFFSET_DEG        (-0.8459f)
-#define JY61P_IMU_PITCH_OFFSET_DEG       (0.6427f)
+#define JY61P_IMU_ROLL_OFFSET_DEG        (1.2139f)
+#define JY61P_IMU_PITCH_OFFSET_DEG       (-2.4114f)
 
 
 static uint8_t s_rx_data;

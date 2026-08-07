@@ -33,13 +33,13 @@
 #define DOG_TASK_PLATFORM_YES_INTERVAL_MS 200U
 #define DOG_TASK_PLATFORM_FAKE_IMU_TEST_MS 5000U
 #define DOG_TASK_STATUS_INTERVAL_MS    200U // 表示 stm32 向 k230 周期性发送状态反馈的时间间隔，单位毫秒。
-#define DOG_TASK_STEP_H_MM             40.0f // 表示机器人步态的步高，单位毫米。
+#define DOG_TASK_STEP_H_MM             45.0f // 表示机器人步态的步高，单位毫米。
 #define DOG_TASK_FORWARD_R_MM          80.0f // 表示机器人步态的前进半径，单位毫米。
-#define DOG_TASK_SHIFT_H_MM             40.0f // 表示机器人步态的平移步高，单位毫米。
+#define DOG_TASK_SHIFT_H_MM             45.0f // 表示机器人步态的平移步高，单位毫米。
 
 //0 LF 1 RF 2 LB 3 RB
-float DOG_TASK_SHIFT_R_MML[4] = {40.0f, 60.0f, 40.0f, 60.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
-float DOG_TASK_SHIFT_R_MMR[4] = {60.0f, 40.0f, 60.0f, 40.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MML[4] = {40.0f, 80.0f, 40.0f, 80.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 40.0f, 80.0f, 40.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
 #define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
@@ -53,7 +53,7 @@ float DOG_TASK_SHIFT_R_MMR[4] = {60.0f, 40.0f, 60.0f, 40.0f}; // 表示机器人
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  50.0f // 表示平台循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 0.0f // 表示平台循迹时向右前进的半径，单位毫米。
-#define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 8000U // 启动后的左平移阶段持续时间，单位毫秒。
+#define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 6000U // 启动后的左平移阶段持续时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS 6500U // 左平移结束后、进入减速带前的普通循迹时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS  9000U // 进入减速带状态后，退出到普通循迹前的保持时间，单位毫秒。
 #define DOG_TASK_BLACK_CENTER_STABLE_MS    500U // 上楼梯阶段，黑框识别到机器狗已经到中心后，需要稳定保持的时间。
@@ -61,14 +61,14 @@ float DOG_TASK_SHIFT_R_MMR[4] = {60.0f, 40.0f, 60.0f, 40.0f}; // 表示机器人
 #define DOG_TASK_LEVEL_PITCH_DEG           5.0f // 判断机身前后方向接近水平的 pitch 阈值。
 #define DOG_TASK_LEVEL_ROLL_DEG            6.0f // 判断机身左右方向接近水平的 roll 阈值。
 #define DOG_TASK_LEVEL_STABLE_MS           800U // 判断机身接近水平后，需要保持的时间，单位毫秒。   
-#define DOG_TASK_ORANGE_TRACK_DELAY_MS     10000U // 橙色循迹延迟时间，单位毫秒。
-#define DOG_TASK_SHIFT_RIGHT_MS            8000U // 右平移时间，单位毫秒。
-#define DOG_TASK_LAP_PAUSE_MS              5000U // 完成一圈后的暂停时间，单位毫秒。
+#define DOG_TASK_ORANGE_TRACK_DELAY_MS     4000U // 橙色循迹延迟时间，单位毫秒。
+#define DOG_TASK_SHIFT_RIGHT_MS            4000U // 右平移时间，单位毫秒。
+#define DOG_TASK_LAP_PAUSE_MS              8000U // 完成一圈后的暂停时间，单位毫秒。
 
 /* Left/right turn test entry is kept only for reference. */
-#define DOG_TASK_TURN_TEST_DURATION_MS 900U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。
+#define DOG_TASK_TURN_TEST_DURATION_MS 2000U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。
 #define DOG_TASK_GREEN_TURN_DURATION_MS 2000U // 表示绿色岔路转弯的持续时间，单位毫秒。第二圈左转专用。
-#define DOG_TASK_GREEN_LEFT_STEER_MM     25.0f // 表示绿色岔路左转时的差速转向量，单位毫米。
+#define DOG_TASK_GREEN_LEFT_STEER_MM     25.0f // 表示绿色岔路差速转向量，单位毫米；正/负号分别对应右/左转。
 
 #if 0
 /* 自动测试入口：早期用于不依赖视觉模块，按固定时长依次测试前进、左转、右转；当前关闭，仅保留参考。 */
