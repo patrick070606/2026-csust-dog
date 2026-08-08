@@ -463,11 +463,21 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
     s_last_track_ms = now_ms;
     s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
     DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+
+    /* 减速带阶段改用直角三角形轨迹：基准直角边取 dog_task.h 宏定义，
+     * 相位从 0 重新开始；循迹时差速 r 由 ApplyTrackError 叠加。 */
+    DogGait_SetTrajectoryMode(DOG_GAIT_TRAJ_TRIANGLE);
+    DogGait_ResetPhase();
+    DogGait_SetTrotParams(DOG_TASK_TRI_H_MM, DOG_TASK_TRI_R_MM, DOG_TASK_SPEED_FREQ);
 }
 
 /* 进入循迹到蓝色平台阶段。 */
 static void DogTask_BeginTrackToBlue(uint32_t now_ms)
 {
+    /* 退出减速带，恢复摆线轨迹并从周期起点重新开始。 */
+    DogGait_SetTrajectoryMode(DOG_GAIT_TRAJ_CYCLOID);
+    DogGait_ResetPhase();
+
     s_task_stage = DOG_TASK_STAGE_TRACK_TO_BLUE;
     s_platform_track_boost = 0U;
     s_level_start_ms = 0U;
@@ -1116,6 +1126,15 @@ static void DogTask_ApplyTrackError(int16_t error)
         track_right_forward = DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM;
     }
 
+    if (s_task_stage == DOG_TASK_STAGE_SPEED_BUMP)
+    {
+        /* 减速带阶段用直角三角形轨迹，基准直角边取 dog_task.h 宏定义，
+         * 循迹差速 steer 仍叠加到左右步长上。 */
+        track_step_h = DOG_TASK_TRI_H_MM;
+        track_left_forward = DOG_TASK_TRI_R_MM;
+        track_right_forward = DOG_TASK_TRI_R_MM;
+    }
+
     if (error > DOG_TASK_TRACK_DEADBAND)
     {
         s_is_track_correcting = 1U;
@@ -1394,4 +1413,52 @@ void DogTask_Run(void)
         DogTask_SendVisionStatus("ST");
     }
         #endif
+}
+
+/* 单独测试减速带阶段（直角三角形轨迹）的持续时间，单位毫秒。 */
+#define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS  10000U
+
+/*
+ * 名称：DogTask_RunSpeedBumpTest
+ * 作用：单独运行减速带阶段（直角三角形轨迹）的测试入口，供 main() 中临时调用。
+ *       直接进入减速带状态：切三角形轨迹、复位相位、用宏设定基准直角边，
+ *       按减速带周期循环调用 DogGait_UpdateTrot()，运行结束后恢复摆线并站立。
+ * 输入：无。
+ * 输出：无返回值。
+ */
+void DogTask_RunSpeedBumpTest(void)
+{
+    uint32_t start_ms = HAL_GetTick();
+    uint32_t last_gait_ms = start_ms;
+
+    /* 确保步态已初始化（main 中 DogTask_Init() 已调用，这里兜底）。 */
+    DogGait_Init();
+    s_task_stage = DOG_TASK_STAGE_SPEED_BUMP;
+
+    /* 与 DogTask_BeginSpeedBump() 相同的配置。 */
+    DogGait_SetTrajectoryMode(DOG_GAIT_TRAJ_TRIANGLE);
+    DogGait_ResetPhase();
+    DogGait_SetTrotParams(DOG_TASK_TRI_H_MM, DOG_TASK_TRI_R_MM, DOG_TASK_SPEED_FREQ);
+
+    while ((uint32_t)(HAL_GetTick() - start_ms) < DOG_TASK_SPEED_BUMP_TEST_DURATION_MS)
+    {
+        uint32_t now_ms = HAL_GetTick();
+
+        if ((uint32_t)(now_ms - last_gait_ms) >= DogTask_GetGaitPeriodMs())
+        {
+            last_gait_ms = now_ms;
+            DogGait_UpdateTrot(DogTask_GetGaitMoveMs());
+        }
+
+        HAL_Delay(1U);
+    }
+
+    /* 测试结束：恢复摆线轨迹并回到站立姿态。 */
+    DogGait_SetTrajectoryMode(DOG_GAIT_TRAJ_CYCLOID);
+    DogGait_AllStand(1000U);
+
+    while (1)
+    {
+        HAL_Delay(10U);
+    }
 }

@@ -34,6 +34,14 @@ typedef enum
     DOG_GAIT_LOAD_WITH_PAYLOAD,
 } DogGaitLoadMode_t;
 
+typedef enum
+{
+    DOG_GAIT_TRAJ_CYCLOID = 0,
+    DOG_GAIT_TRAJ_TRIANGLE,
+} DogGaitTrajectoryMode_t;
+
+void DogGait_SetTrajectoryMode(DogGaitTrajectoryMode_t mode);
+void DogGait_ResetPhase(void);
 void DogGait_Init(void);
 void DogGait_SetLoadMode(DogGaitLoadMode_t mode);
 void DogGait_SetTrotParams(float step_height_mm, float step_length_mm, float speed_freq);

@@ -11,6 +11,7 @@
 
 #include "dog_gait.h"
 #include "dog_servo.h"
+#include "dog_task.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -186,6 +187,7 @@ static float s_walk_support_start_y[DOG_GAIT_LEG_COUNT];
 static DogGaitLoadMode_t s_load_mode = DOG_GAIT_LOAD_WITH_PAYLOAD;
 static DogGaitFootBase_t s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
 static uint8_t s_is_initialized;
+static DogGaitTrajectoryMode_t s_traj_mode = DOG_GAIT_TRAJ_CYCLOID;
 
 volatile uint32_t g_dog_gait_update_count;
 volatile float g_dog_gait_phase_before;
@@ -313,6 +315,94 @@ static void DogGait_GetPosByCycloidalEquation(float bias_angle_deg,
     *y = raw_y * cosf(angle_rad) - raw_x * sinf(angle_rad);
 }
 
+/*
+ * 直角三角形足端轨迹：
+ * 参考一个直角三角形，两条直角边分别沿 x 轴和 y 轴：
+ *   直角顶点 (0, 0)，顶角 (0, h)，另一底角 (r, 0)。
+ * 一个周期（t ∈ [0,1)）内经过 4 个坐标更新点：
+ *   1) (0, 0)  直角顶点
+ *   2) (0, h)  顶角
+ *   3) (r, 0)  底角（y=0 直角边远端，摆动落地点）
+ *   4) (0, 0)  回到直角顶点
+ * 摆动相 1→2→3：抬升后斜降至远端落地；支撑相 3→4→1：沿 y=0 底边滑回并在直角顶点停留。
+ * 两条直角边由调用方按每腿 h/r 传入（与摆线一致，r 为差速后的步长）；
+ * 减速带阶段的基准直角边由 dog_task.h 中宏定义（可调）：
+ *   竖直直角边 DOG_TASK_TRI_H_MM，水平直角边 DOG_TASK_TRI_R_MM。
+ */
+
+/*
+ * 名称：DogGait_GetPosByTriangleEquation
+ * 作用：用直角三角形轨迹计算一个周期内足端相对基准的偏移，作为摆线轨迹的替代。
+ * 输入：bias_angle_deg 轨迹偏转角；t 周期相位，范围 [0,1)；h 竖直直角边（抬脚高度）；r 水平直角边（步长）。
+ * 输出：通过 x/y 指针输出足端 x/y 偏移坐标。
+ */
+static void DogGait_GetPosByTriangleEquation(float bias_angle_deg,
+                                             float t,
+                                             float h,
+                                             float r,
+                                             float *x,
+                                             float *y)
+{
+    float raw_x;
+    float raw_y;
+    float k;
+    float angle_rad;
+
+    if (t < 0.25f)
+    {
+        /* 第 1→2 段：直角顶点 -> 顶角，沿竖直直角边上升。 */
+        k = t / 0.25f;
+        raw_x = 0.0f;
+        raw_y = h * k;
+    }
+    else if (t < 0.5f)
+    {
+        /* 第 2→3 段：顶角 -> 底角 (r,0)，沿斜边下降并前伸落地。 */
+        k = (t - 0.25f) / 0.25f;
+        raw_x = r * k;
+        raw_y = h * (1.0f - k);
+    }
+    else if (t < 0.75f)
+    {
+        /* 第 3→4 段：底角 (r,0) -> 直角顶点，沿 y=0 底边滑回。 */
+        k = (t - 0.5f) / 0.25f;
+        raw_x = r * (1.0f - k);
+        raw_y = 0.0f;
+    }
+    else
+    {
+        /* 第 4→1 段：在直角顶点 (0,0) 停留，等待下一周期。 */
+        raw_x = 0.0f;
+        raw_y = 0.0f;
+    }
+
+    angle_rad = bias_angle_deg * DOG_GAIT_PI / 180.0f;
+    *x = raw_x * cosf(angle_rad) + raw_y * sinf(angle_rad);
+    *y = raw_y * cosf(angle_rad) - raw_x * sinf(angle_rad);
+}
+
+/*
+ * 名称：DogGait_SetLegTrianglePos
+ * 作用：按直角三角形轨迹计算单腿足端坐标，叠加足端基准与 y 偏移。
+ * 输入：leg 腿序号；phase 该腿整周期相位 [0,1)；base_coord 足端基准坐标。
+ * 输出：无返回值，更新 s_gait[leg].x/y。
+ */
+static void DogGait_SetLegTrianglePos(DogGaitLeg_t leg,
+                                      float phase,
+                                      const DogGaitFootBaseCoord_t *base_coord)
+{
+    float dx;
+    float lift;
+
+    DogGait_GetPosByTriangleEquation(s_gait[leg].bias_angle,
+                                     phase,
+                                     s_gait[leg].h,
+                                     s_gait[leg].r,
+                                     &dx,
+                                     &lift);
+    s_gait[leg].x = base_coord->x + dx;
+    s_gait[leg].y = base_coord->y + lift + s_foot_y_offset[leg];
+}
 /*
  * 名称：DogGait_CalcAbsoluteAngleByPos
  * 作用：根据足端绝对坐标和两段连杆长度，计算髋关节和膝关节的绝对角度。
@@ -1593,6 +1683,27 @@ void DogGait_GotoStandPose(uint16_t time_ms)
 }
 
 /*
+ * 名称：DogGait_SetTrajectoryMode
+ * 作用：设置 trot/转向/循迹共用的足端轨迹模式（摆线或直角三角形）。
+ * 输入：mode 轨迹模式。
+ * 输出：无返回值，更新内部轨迹模式。
+ */
+void DogGait_SetTrajectoryMode(DogGaitTrajectoryMode_t mode)
+{
+    s_traj_mode = (mode == DOG_GAIT_TRAJ_TRIANGLE) ? DOG_GAIT_TRAJ_TRIANGLE : DOG_GAIT_TRAJ_CYCLOID;
+}
+
+/*
+ * 名称：DogGait_ResetPhase
+ * 作用：将 trot 步态相位复位到 0，用于轨迹切换时从各自周期起点重新开始，避免足端跳变。
+ * 输入：无。
+ * 输出：无返回值，更新 s_trot_phase。
+ */
+void DogGait_ResetPhase(void)
+{
+    s_trot_phase = 0.0f;
+}
+/*
  * 名称：DogGait_UpdateTrot
  * 作用：推进一次小跑相位，更新四条腿足端轨迹、关节角和舵机目标角度。
  * 输入：time_ms 舵机动作过渡时间。
@@ -1613,7 +1724,25 @@ void DogGait_UpdateTrot(uint16_t time_ms)
     g_dog_gait_update_count++;
     g_dog_gait_phase_before = s_trot_phase;
 
-    if (s_trot_phase <= 0.5f)
+    if (s_traj_mode == DOG_GAIT_TRAJ_TRIANGLE)
+    {
+        /* 直角三角形轨迹模式：每条腿按整周期相位 q 驱动，
+         * LF/RB 先摆（偏移 0），RF/LB 错开半周期（偏移 0.5）。
+         * 摆动相 1→2→3、支撑相 3→4→1 由相位自动区分，
+         * h/r 取当前每腿参数（含循迹差速后的 r）。 */
+        float phase_half = s_trot_phase + 0.5f;
+
+        if (phase_half >= 1.0f)
+        {
+            phase_half -= 1.0f;
+        }
+
+        DogGait_SetLegTrianglePos(DOG_GAIT_LEG_LF, s_trot_phase, &base_coord);
+        DogGait_SetLegTrianglePos(DOG_GAIT_LEG_RB, s_trot_phase, &base_coord);
+        DogGait_SetLegTrianglePos(DOG_GAIT_LEG_RF, phase_half, &base_coord);
+        DogGait_SetLegTrianglePos(DOG_GAIT_LEG_LB, phase_half, &base_coord);
+    }
+    else if (s_trot_phase <= 0.5f)
     {
         DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
         s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx;
