@@ -10,8 +10,8 @@ static const DogServoConfig_t s_dog_servo_configs[DOG_SERVO_COUNT] = {
     [DOG_SERVO_LF_KNEE] = {1, -1, 500, 0, 300, 800}, //500 - 200 = 300
     [DOG_SERVO_LF_HIP]  = {2, -1, 500, -65, 200, 700}, // 435+260 = 695
     [DOG_SERVO_RF_KNEE] = {3, 1, 500, 20, 200, 720},
-    [DOG_SERVO_RF_HIP]  = {4, 1, 500, -20, 220, 800},
-    [DOG_SERVO_LB_KNEE] = {5, -1, 500, -10, 290, 800},
+    [DOG_SERVO_RF_HIP]  = {4, 1, 500, -15, 215, 800},
+    [DOG_SERVO_LB_KNEE] = {5, -1, 500, 0, 300, 800},
     [DOG_SERVO_LB_HIP]  = {6, -1, 500, 50, 200, 940},
     [DOG_SERVO_RB_KNEE] = {7, 1, 500, 5, 200, 705},
     [DOG_SERVO_RB_HIP]  = {8, 1, 500, -40, 60, 800},
