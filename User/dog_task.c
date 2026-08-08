@@ -53,21 +53,21 @@ float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 40.0f, 80.0f, 40.0f}; // 表示机器人
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  50.0f // 表示平台循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 0.0f // 表示平台循迹时向右前进的半径，单位毫米。
-#define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 6000U // 启动后的左平移阶段持续时间，单位毫秒。
-#define DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS 6500U // 左平移结束后、进入减速带前的普通循迹时间，单位毫秒。
-#define DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS  9000U // 进入减速带状态后，退出到普通循迹前的保持时间，单位毫秒。
+#define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 4000U // 启动后的左平移阶段持续时间，单位毫秒。
+#define DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS 13000U // 左平移结束后、进入减速带前的普通循迹时间，单位毫秒。
+#define DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS  20000U // 进入减速带状态后，退出到普通循迹前的保持时间，单位毫秒。
 #define DOG_TASK_BLACK_CENTER_STABLE_MS    500U // 上楼梯阶段，黑框识别到机器狗已经到中心后，需要稳定保持的时间。
 #define DOG_TASK_DOWNHILL_MIN_MS           1500U // 进入下坡循迹后，最少要跑的时间。
 #define DOG_TASK_LEVEL_PITCH_DEG           5.0f // 判断机身前后方向接近水平的 pitch 阈值。
 #define DOG_TASK_LEVEL_ROLL_DEG            6.0f // 判断机身左右方向接近水平的 roll 阈值。
 #define DOG_TASK_LEVEL_STABLE_MS           800U // 判断机身接近水平后，需要保持的时间，单位毫秒。   
 #define DOG_TASK_ORANGE_TRACK_DELAY_MS     4000U // 橙色循迹延迟时间，单位毫秒。
-#define DOG_TASK_SHIFT_RIGHT_MS            4000U // 右平移时间，单位毫秒。
+#define DOG_TASK_SHIFT_RIGHT_MS            8000U // 右平移时间，单位毫秒。
 #define DOG_TASK_LAP_PAUSE_MS              8000U // 完成一圈后的暂停时间，单位毫秒。
 
 /* Left/right turn test entry is kept only for reference. */
-#define DOG_TASK_TURN_TEST_DURATION_MS 2000U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。
-#define DOG_TASK_GREEN_TURN_DURATION_MS 2000U // 表示绿色岔路转弯的持续时间，单位毫秒。第二圈左转专用。
+#define DOG_TASK_TURN_TEST_DURATION_MS 3000U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。
+#define DOG_TASK_GREEN_TURN_DURATION_MS 3000U // 表示绿色岔路转弯的持续时间，单位毫秒。第二圈左转专用。
 #define DOG_TASK_GREEN_LEFT_STEER_MM     25.0f // 表示绿色岔路差速转向量，单位毫米；正/负号分别对应右/左转。
 
 #if 0
@@ -582,6 +582,26 @@ static void DogTask_BeginGreenLeftTurn(uint32_t now_ms)
     s_motion = DOG_TASK_MOTION_TURN_LEFT;
 }
 
+/* 进入绿色岔路右转阶段，使用循迹差速方式（右腿慢、左腿快），保持向前行进的同时右转。 */
+static void DogTask_BeginGreenRightTurn(uint32_t now_ms)
+{
+    s_event_state = DOG_TASK_EVENT_FORK_TURN;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_TURN_RIGHT;
+
+    /* 用循迹差速参数实现右转: steer 为正表示右侧步长减小、左侧步长增大 */
+    DogGait_SetTrackParams(DOG_TASK_TRACK_STEP_H_MM,
+                           DOG_TASK_TRACK_LEFT_FORWARD_R_MM,
+                           DOG_TASK_TRACK_RIGHT_FORWARD_R_MM,
+                           DOG_TASK_GREEN_LEFT_STEER_MM,
+                           DOG_TASK_SPEED_FREQ);
+    s_motion = DOG_TASK_MOTION_TURN_RIGHT;
+}
+
 /* 进入上楼梯行走阶段。 */
 static void DogTask_BeginStairWalk(uint32_t now_ms)
 {
@@ -720,7 +740,8 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
         s_task_stage = DOG_TASK_STAGE_GREEN_TURN;
         if (s_lap_count == 0U)
         {
-            DogTask_BeginForkTurn(DOG_TASK_MOTION_TURN_RIGHT, now_ms);
+            /* 第一圈：循迹差速右转，右腿慢左腿快，保持向前行进 */
+            DogTask_BeginGreenRightTurn(now_ms);
         }
         else
         {
