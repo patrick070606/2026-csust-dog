@@ -731,7 +731,9 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
         (s_task_stage == DOG_TASK_STAGE_WAIT_BLACK))
     {
         DogTask_SendVisionAck();
-        DogTask_BeginShiftToCenter(now_ms);
+        /* Black frame confirms the downhill entry.  Go straight into the
+         * normal forward/track trot; do not pause for lateral centering. */
+        DogTask_BeginDownhillTrack(now_ms);
     }
     else if ((command == IMAGE_COMMAND_GREEN) &&
              (s_task_stage == DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL))
