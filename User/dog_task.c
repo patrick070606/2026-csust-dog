@@ -16,8 +16,8 @@
 #define DOG_TASK_GAIT_NORMAL_MOVE_MS        120U // 正常运行时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SHIFT_PERIOD_MS       110U // 左/右平移时的步态更新周期，单位毫秒。
 #define DOG_TASK_GAIT_SHIFT_MOVE_MS         110U // 左/右平移时的舵机目标过渡时间，单位毫秒。
-#define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  150U // 减速带阶段的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS    150U // 减速带阶段的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  120U // 减速带阶段的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS    120U // 减速带阶段的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
 #define DOG_TASK_LED_OFF_STATE         GPIO_PIN_RESET // 表示 LED 灯灭的状态，GPIO_PIN_RESET 表示将 GPIO 引脚设置为低电平，通常用于熄灭 LED。
 #define DOG_TASK_COLOR_PAUSE_MS        2000U // 表示颜色暂停的时间，单位毫秒。
@@ -56,6 +56,13 @@ float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 40.0f, 80.0f, 40.0f}; // 表示机器人
 #define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 4000U // 启动后的左平移阶段持续时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS 13000U // 左平移结束后、进入减速带前的普通循迹时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS  20000U // 进入减速带状态后，退出到普通循迹前的保持时间，单位毫秒。
+
+/* 直角三角形足端轨迹参数（宏定义可调）：
+ * DOG_TASK_TRI_H_MM 竖直直角边（抬脚高度），命名参考 h 系列；
+ * DOG_TASK_TRI_R_MM 水平直角边（底边长度），命名参考 r 系列。 */
+#define DOG_TASK_TRI_H_MM   50.0f
+#define DOG_TASK_TRI_R_MM   50.0f
+
 #define DOG_TASK_BLACK_CENTER_STABLE_MS    500U // 上楼梯阶段，黑框识别到机器狗已经到中心后，需要稳定保持的时间。
 #define DOG_TASK_DOWNHILL_MIN_MS           1500U // 进入下坡循迹后，最少要跑的时间。
 #define DOG_TASK_LEVEL_PITCH_DEG           5.0f // 判断机身前后方向接近水平的 pitch 阈值。
@@ -469,6 +476,8 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
     DogGait_SetTrajectoryMode(DOG_GAIT_TRAJ_TRIANGLE);
     DogGait_ResetPhase();
     DogGait_SetTrotParams(DOG_TASK_TRI_H_MM, DOG_TASK_TRI_R_MM, DOG_TASK_SPEED_FREQ);
+    /* 过减速带阶段使用专用足端基准，便于独立调整重心。 */
+    DogGait_SetFootBase(DOG_GAIT_FOOT_BASE_SPEED_BUMP);
 }
 
 /* 进入循迹到蓝色平台阶段。 */
@@ -1203,6 +1212,12 @@ static void DogTask_ApplyTrackError(int16_t error)
                                DOG_TASK_SPEED_FREQ);
         s_motion = DOG_TASK_MOTION_FORWARD;
     }
+
+    /* 减速带阶段固定使用专用足端基准，避免被循迹差速设置切回转向基准。 */
+    if (s_task_stage == DOG_TASK_STAGE_SPEED_BUMP)
+    {
+        DogGait_SetFootBase(DOG_GAIT_FOOT_BASE_SPEED_BUMP);
+    }
 }
 
 #if 0
@@ -1442,8 +1457,10 @@ void DogTask_Run(void)
 /*
  * 名称：DogTask_RunSpeedBumpTest
  * 作用：单独运行减速带阶段（直角三角形轨迹）的测试入口，供 main() 中临时调用。
- *       直接进入减速带状态：切三角形轨迹、复位相位、用宏设定基准直角边，
- *       按减速带周期循环调用 DogGait_UpdateTrot()，运行结束后恢复摆线并站立。
+ *       直接进入减速带状态：切三角形轨迹、复位相位、用宏设定基准直角边；
+ *       循环中读取摄像头循迹帧并调用 DogTask_ApplyTrackError()，与正常减速带阶段
+ *       一样叠加差速纠偏（track.valid 有效才纠偏，帧间空档保持上一帧，丢失超时停止）；
+ *       运行结束后恢复摆线并站立。
  * 输入：无。
  * 输出：无返回值。
  */
@@ -1457,13 +1474,40 @@ void DogTask_RunSpeedBumpTest(void)
     s_task_stage = DOG_TASK_STAGE_SPEED_BUMP;
 
     /* 与 DogTask_BeginSpeedBump() 相同的配置。 */
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = start_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
     DogGait_SetTrajectoryMode(DOG_GAIT_TRAJ_TRIANGLE);
     DogGait_ResetPhase();
     DogGait_SetTrotParams(DOG_TASK_TRI_H_MM, DOG_TASK_TRI_R_MM, DOG_TASK_SPEED_FREQ);
+    /* 与 DogTask_BeginSpeedBump() 一致，使用减速带专用足端基准。 */
+    DogGait_SetFootBase(DOG_GAIT_FOOT_BASE_SPEED_BUMP);
 
     while ((uint32_t)(HAL_GetTick() - start_ms) < DOG_TASK_SPEED_BUMP_TEST_DURATION_MS)
     {
         uint32_t now_ms = HAL_GetTick();
+        ImageTrack_t track = ImageCommand_TakeLatestTrack();
+
+        /* 与正常流程减速带阶段一致：有效帧应用差速纠偏，帧间空档保持上一帧，丢失超时停止。 */
+        if (track.valid != 0U)
+        {
+            s_has_seen_track = 1U;
+            s_last_track_ms = now_ms;
+            DogTask_ApplyTrackError(track.error);
+        }
+        else if ((s_has_seen_track != 0U) &&
+                 ((uint32_t)(now_ms - s_last_track_ms) < DOG_TASK_TRACK_RECOVER_MS))
+        {
+            s_is_track_correcting =
+                (uint8_t)(s_last_track_recover_motion != DOG_TASK_MOTION_FORWARD);
+        }
+        else if ((s_has_seen_track != 0U) &&
+                 ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
+        {
+            s_is_track_correcting = 0U;
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+        }
 
         if ((uint32_t)(now_ms - last_gait_ms) >= DogTask_GetGaitPeriodMs())
         {

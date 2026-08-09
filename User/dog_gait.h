@@ -10,6 +10,7 @@ typedef enum
     DOG_GAIT_FOOT_BASE_TURN,
     DOG_GAIT_FOOT_BASE_SHIFT_LEFT,
     DOG_GAIT_FOOT_BASE_SHIFT_RIGHT,
+    DOG_GAIT_FOOT_BASE_SPEED_BUMP,
 } DogGaitFootBase_t;
 
 typedef struct
@@ -44,6 +45,7 @@ void DogGait_SetTrajectoryMode(DogGaitTrajectoryMode_t mode);
 void DogGait_ResetPhase(void);
 void DogGait_Init(void);
 void DogGait_SetLoadMode(DogGaitLoadMode_t mode);
+void DogGait_SetFootBase(DogGaitFootBase_t base);
 void DogGait_SetTrotParams(float step_height_mm, float step_length_mm, float speed_freq);
 void DogGait_SetTrackParams(float step_height_mm,
                             float left_forward_step_mm,

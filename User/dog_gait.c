@@ -47,6 +47,7 @@
 #define DOG_GAIT_TURN_FOOT_BASE_ENABLE     1U
 #define DOG_GAIT_SHIFT_FOOT_BASE_LEFT_ENABLE    1U //左右平移步态
 #define DOG_GAIT_SHIFT_FOOT_BASE_RIGHT_ENABLE    1U //左右平移步态
+#define DOG_GAIT_SPEED_BUMP_FOOT_BASE_ENABLE         1U //过减速带阶段
 
 /* stand 基准坐标，x 偏移用于调整有负荷/无负荷时的重心。 */
 #define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -35.0f
@@ -61,8 +62,8 @@
 #endif
 
 #if (DOG_GAIT_TURN_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -35.0f
-#define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     -35.0f
+#define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -30.0f
+#define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     20.0f
 #define DOG_GAIT_TURN_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #else
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
@@ -88,6 +89,16 @@
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
+#endif
+
+#if (DOG_GAIT_SPEED_BUMP_FOOT_BASE_ENABLE != 0U)
+#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_NO_LOAD_MM  -50.0f
+#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_LOAD_MM     0.0f
+#define DOG_GAIT_SPEED_BUMP_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 180.0f)
+#else
+#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
+#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
+#define DOG_GAIT_SPEED_BUMP_FOOT_Y_MM                 DOG_GAIT_STAND_FOOT_Y_MM
 #endif
 
 #define DOG_GAIT_SHIFT_LOW_MM                    0.0f //平移步态下左右两边的高度差。
@@ -275,6 +286,12 @@ static DogGaitFootBaseCoord_t DogGait_GetFootBaseCoord(DogGaitFootBase_t base)
                   DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM :
                   DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM;
         coord.y = DOG_GAIT_SHIFTR_FOOT_Y_MM;
+        break;
+    case DOG_GAIT_FOOT_BASE_SPEED_BUMP:
+        coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
+                  DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_LOAD_MM :
+                  DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_NO_LOAD_MM;
+        coord.y = DOG_GAIT_SPEED_BUMP_FOOT_Y_MM;
         break;
     case DOG_GAIT_FOOT_BASE_STAND:
     default:
@@ -1204,6 +1221,17 @@ void DogGait_SetLoadMode(DogGaitLoadMode_t mode)
     {
         s_load_mode = DOG_GAIT_LOAD_NONE;
     }
+}
+
+/*
+ * 名称：DogGait_SetFootBase
+ * 作用：设置当前足端基准模式，供过减速带等阶段选择对应的基准坐标。
+ * 输入：base 足端基准模式。
+ * 输出：无返回值，更新 s_foot_base。
+ */
+void DogGait_SetFootBase(DogGaitFootBase_t base)
+{
+    s_foot_base = base;
 }
 
 /*
