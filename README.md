@@ -427,6 +427,52 @@ DEBUG_LAB = True
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 45.0f
 ```
 
+### 前后脚对独立足端基准（B1a）
+
+过减速带阶段通过"前后脚对分开基准坐标"来更细地调整足间距：
+
+- 前后跨距：前脚对（LF/RF）与后脚对（LB/RB）的 X 基准差。
+- 前后支撑高度差：前脚对与后脚对的 Y 基准差，用于俯仰微调。
+
+实现为 B1a 方案，全部在 `User/dog_gait.c`：
+
+```c
+/* 基准坐标从整机单点扩展为前后双点 */
+typedef struct
+{
+    float front_x; /* 前脚对 (LF/RF) 足端基准 X */
+    float front_y; /* 前脚对 (LF/RF) 足端基准 Y */
+    float rear_x;  /* 后脚对 (LB/RB) 足端基准 X */
+    float rear_y;  /* 后脚对 (LB/RB) 足端基准 Y */
+} DogGaitFootBaseCoord_t;
+```
+
+- `DogGait_GetLegBasePoint()`：按腿选取前后基准，`LF/RF` 取 front、`LB/RB` 取 rear，是所有落点路径的统一入口。
+- `DogGait_GetFootBaseCoord()`：合成整机基准后叠加前后增量宏。
+- 消费路径：三角形 `DogGait_SetLegTrianglePos`、摆线 `DogGait_SetLegCycloidPos`（trot/shift 共用）、站立 `DogGait_SetStandFootPos`、walk `DogGait_UpdateWalk`。
+
+调参入口（`User/dog_gait.c` 顶部宏，默认全 0，行为与改动前一致）：
+
+```c
+#define DOG_GAIT_SPEED_BUMP_FRONT_X_DELTA_MM  0.0f  /* 前脚 X 增量，正为前进方向 */
+#define DOG_GAIT_SPEED_BUMP_REAR_X_DELTA_MM   0.0f
+#define DOG_GAIT_SPEED_BUMP_FRONT_Y_DELTA_MM  0.0f
+#define DOG_GAIT_SPEED_BUMP_REAR_Y_DELTA_MM   0.0f
+
+#define DOG_GAIT_WALK_FRONT_X_DELTA_MM        0.0f  /* walk 如需使用，同样调这里 */
+#define DOG_GAIT_WALK_REAR_X_DELTA_MM         0.0f
+#define DOG_GAIT_WALK_FRONT_Y_DELTA_MM        0.0f
+#define DOG_GAIT_WALK_REAR_Y_DELTA_MM         0.0f
+```
+
+示例：`SPEED_BUMP_FRONT_X_DELTA_MM = +10.0f`、`REAR_X_DELTA_MM = -10.0f` 可把前后跨距拉长 20 mm。
+
+边界情况：
+
+- 循迹差速锁定逻辑无需改动；前后拆分由 `s_foot_base == DOG_GAIT_FOOT_BASE_SPEED_BUMP` 选择器驱动，无持久状态，测试与正式流程一致。
+- 退出减速带（`DogTask_BeginTrackToBlue` 切摆线）到下一循迹帧之间会短暂沿用 `SPEED_BUMP` 拆分；当前增量默认 0 无影响，若设置非零增量可在退出处显式 `DogGait_SetFootBase(DOG_GAIT_FOOT_BASE_TURN)`。
+- 停止/站立路径走 `STAND` 基准，前后值相同，不受拆分影响。
+
 ## 事件行为
 
 事件状态机在 `User/dog_task.c`：

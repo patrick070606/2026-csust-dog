@@ -49,6 +49,19 @@
 #define DOG_GAIT_SHIFT_FOOT_BASE_RIGHT_ENABLE    1U //左右平移步态
 #define DOG_GAIT_SPEED_BUMP_FOOT_BASE_ENABLE         1U //过减速带阶段
 
+/* 前后脚对基准微调增量（mm）：x 正方向为前进方向。
+ * 前脚正增量/后脚负增量可拉长前后跨距；front/rear 的 y 增量可调整前后支撑高度差。
+ * 默认 0 表示与整机单点基准一致；需要时按阶段调整。 */
+#define DOG_GAIT_WALK_FRONT_X_DELTA_MM        0.0f
+#define DOG_GAIT_WALK_FRONT_Y_DELTA_MM        0.0f
+#define DOG_GAIT_WALK_REAR_X_DELTA_MM         0.0f
+#define DOG_GAIT_WALK_REAR_Y_DELTA_MM         0.0f
+
+#define DOG_GAIT_SPEED_BUMP_FRONT_X_DELTA_MM  0.0f
+#define DOG_GAIT_SPEED_BUMP_FRONT_Y_DELTA_MM  0.0f
+#define DOG_GAIT_SPEED_BUMP_REAR_X_DELTA_MM   0.0f
+#define DOG_GAIT_SPEED_BUMP_REAR_Y_DELTA_MM   0.0f
+
 /* stand 基准坐标，x 偏移用于调整有负荷/无负荷时的重心。 */
 #define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -35.0f
 #define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -35.0f
@@ -159,9 +172,37 @@ typedef enum
 
 typedef struct
 {
+    float front_x; /* 前脚对 (LF/RF) 足端基准 X */
+    float front_y; /* 前脚对 (LF/RF) 足端基准 Y */
+    float rear_x;  /* 后脚对 (LB/RB) 足端基准 X */
+    float rear_y;  /* 后脚对 (LB/RB) 足端基准 Y */
+} DogGaitFootBaseCoord_t;
+
+typedef struct
+{
     float x;
     float y;
-} DogGaitFootBaseCoord_t;
+} DogGaitFootBasePoint_t;
+
+/* 按腿选取前后基准：前脚对 (LF/RF) 用 front，后脚对 (LB/RB) 用 rear。 */
+static DogGaitFootBasePoint_t DogGait_GetLegBasePoint(DogGaitLeg_t leg,
+                                                      const DogGaitFootBaseCoord_t *base)
+{
+    DogGaitFootBasePoint_t point;
+
+    if ((leg == DOG_GAIT_LEG_LF) || (leg == DOG_GAIT_LEG_RF))
+    {
+        point.x = base->front_x;
+        point.y = base->front_y;
+    }
+    else
+    {
+        point.x = base->rear_x;
+        point.y = base->rear_y;
+    }
+
+    return point;
+}
 
 static DogGaitInfo_t s_gait[DOG_GAIT_LEG_COUNT];
 static float s_foot_y_offset[DOG_GAIT_LEG_COUNT];
@@ -259,48 +300,68 @@ static void DogGait_InitLeg(DogGaitInfo_t *gait, float h, float r, float l1, flo
 static DogGaitFootBaseCoord_t DogGait_GetFootBaseCoord(DogGaitFootBase_t base)
 {
     DogGaitFootBaseCoord_t coord;
+    float base_x = 0.0f;
+    float base_y = 0.0f;
+    float front_dx = 0.0f;
+    float front_dy = 0.0f;
+    float rear_dx = 0.0f;
+    float rear_dy = 0.0f;
 
     switch (base)
     {
     case DOG_GAIT_FOOT_BASE_WALK:
-        coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
-                  DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM :
-                  DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM;
-        coord.y = DOG_GAIT_WALK_FOOT_Y_MM;
+        base_x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
+                 DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM :
+                 DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM;
+        base_y = DOG_GAIT_WALK_FOOT_Y_MM;
+        front_dx = DOG_GAIT_WALK_FRONT_X_DELTA_MM;
+        front_dy = DOG_GAIT_WALK_FRONT_Y_DELTA_MM;
+        rear_dx = DOG_GAIT_WALK_REAR_X_DELTA_MM;
+        rear_dy = DOG_GAIT_WALK_REAR_Y_DELTA_MM;
         break;
 
     case DOG_GAIT_FOOT_BASE_TURN:
-        coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
-                  DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM :
-                  DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM;
-        coord.y = DOG_GAIT_TURN_FOOT_Y_MM;
+        base_x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
+                 DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM :
+                 DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM;
+        base_y = DOG_GAIT_TURN_FOOT_Y_MM;
         break;
     case DOG_GAIT_FOOT_BASE_SHIFT_LEFT:
-        coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
-                  DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM :
-                  DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM;
-        coord.y = DOG_GAIT_SHIFTL_FOOT_Y_MM;
+        base_x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
+                 DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM :
+                 DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM;
+        base_y = DOG_GAIT_SHIFTL_FOOT_Y_MM;
         break;
     case DOG_GAIT_FOOT_BASE_SHIFT_RIGHT:
-        coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
-                  DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM :
-                  DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM;
-        coord.y = DOG_GAIT_SHIFTR_FOOT_Y_MM;
+        base_x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
+                 DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM :
+                 DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM;
+        base_y = DOG_GAIT_SHIFTR_FOOT_Y_MM;
         break;
     case DOG_GAIT_FOOT_BASE_SPEED_BUMP:
-        coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
-                  DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_LOAD_MM :
-                  DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_NO_LOAD_MM;
-        coord.y = DOG_GAIT_SPEED_BUMP_FOOT_Y_MM;
+        base_x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
+                 DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_LOAD_MM :
+                 DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_NO_LOAD_MM;
+        base_y = DOG_GAIT_SPEED_BUMP_FOOT_Y_MM;
+        front_dx = DOG_GAIT_SPEED_BUMP_FRONT_X_DELTA_MM;
+        front_dy = DOG_GAIT_SPEED_BUMP_FRONT_Y_DELTA_MM;
+        rear_dx = DOG_GAIT_SPEED_BUMP_REAR_X_DELTA_MM;
+        rear_dy = DOG_GAIT_SPEED_BUMP_REAR_Y_DELTA_MM;
         break;
     case DOG_GAIT_FOOT_BASE_STAND:
     default:
-        coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
-                  DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM :
-                  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM;
-        coord.y = DOG_GAIT_STAND_FOOT_Y_MM;
+        base_x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
+                 DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM :
+                 DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM;
+        base_y = DOG_GAIT_STAND_FOOT_Y_MM;
         break;
     }
+
+    /* 合成前后脚对基准：整机基准(base_x/base_y) + 各脚对增量宏(front_dx/front_dy/rear_dx/rear_dy)。 */
+    coord.front_x = base_x + front_dx;
+    coord.front_y = base_y + front_dy;
+    coord.rear_x = base_x + rear_dx;
+    coord.rear_y = base_y + rear_dy;
 
     return coord;
 }
@@ -405,17 +466,41 @@ static void DogGait_GetPosByTriangleEquation(float bias_angle_deg,
 }
 
 /*
+ * 名称：DogGait_SetLegCycloidPos
+ * 作用：按摆线轨迹计算单腿足端坐标，叠加该腿对应的前后基准与 y 偏移。
+ * 输入：leg 腿序号；phase 相位；h 步高；r 步长；base_coord 前后足端基准坐标。
+ * 输出：无返回值，更新 s_gait[leg].x/y。
+ */
+static void DogGait_SetLegCycloidPos(DogGaitLeg_t leg,
+                                     float phase,
+                                     float h,
+                                     float r,
+                                     const DogGaitFootBaseCoord_t *base_coord)
+{
+    float dx;   /* 轨迹方程输出的水平位移（x 方向，前后），叠加到基准 x 得到迈步落点。 */
+    float lift; /* 轨迹方程输出的垂直抬脚量（y 方向），叠加到基准 y 完成抬脚。 */
+    DogGaitFootBasePoint_t leg_base;
+
+    DogGait_GetPosByCycloidalEquation(s_gait[leg].bias_angle, phase, h, r, &dx, &lift);
+    leg_base = DogGait_GetLegBasePoint(leg, base_coord);
+    /* 最终足端坐标 = 该腿前后基准 + 轨迹位移(dx/lift) + 每腿 y 偏移。 */
+    s_gait[leg].x = leg_base.x + dx;
+    s_gait[leg].y = leg_base.y + lift + s_foot_y_offset[leg];
+}
+
+/*
  * 名称：DogGait_SetLegTrianglePos
- * 作用：按直角三角形轨迹计算单腿足端坐标，叠加足端基准与 y 偏移。
- * 输入：leg 腿序号；phase 该腿整周期相位 [0,1)；base_coord 足端基准坐标。
+ * 作用：按直角三角形轨迹计算单腿足端坐标，叠加该腿对应的前后基准与 y 偏移。
+ * 输入：leg 腿序号；phase 该腿整周期相位 [0,1)；base_coord 前后足端基准坐标。
  * 输出：无返回值，更新 s_gait[leg].x/y。
  */
 static void DogGait_SetLegTrianglePos(DogGaitLeg_t leg,
                                       float phase,
                                       const DogGaitFootBaseCoord_t *base_coord)
 {
-    float dx;
-    float lift;
+    float dx;   /* 轨迹方程输出的水平位移（x 方向，前后），叠加到基准 x 得到迈步落点。 */
+    float lift; /* 轨迹方程输出的垂直抬脚量（y 方向），叠加到基准 y 完成抬脚。 */
+    DogGaitFootBasePoint_t leg_base;
 
     DogGait_GetPosByTriangleEquation(s_gait[leg].bias_angle,
                                      phase,
@@ -423,8 +508,10 @@ static void DogGait_SetLegTrianglePos(DogGaitLeg_t leg,
                                      s_gait[leg].r,
                                      &dx,
                                      &lift);
-    s_gait[leg].x = base_coord->x + dx;
-    s_gait[leg].y = base_coord->y + lift + s_foot_y_offset[leg];
+    leg_base = DogGait_GetLegBasePoint(leg, base_coord);
+    /* 最终足端坐标 = 该腿前后基准 + 轨迹位移(dx/lift) + 每腿 y 偏移。 */
+    s_gait[leg].x = leg_base.x + dx;
+    s_gait[leg].y = leg_base.y + lift + s_foot_y_offset[leg];
 }
 /*
  * 名称：DogGait_CalcAbsoluteAngleByPos
@@ -504,8 +591,10 @@ static void DogGait_SetStandFootPos(void)
 
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
-        s_gait[i].x = base_coord.x;
-        s_gait[i].y = base_coord.y;
+        DogGaitFootBasePoint_t leg_base = DogGait_GetLegBasePoint((DogGaitLeg_t)i, &base_coord);
+
+        s_gait[i].x = leg_base.x;
+        s_gait[i].y = leg_base.y;
     }
 }
 
@@ -1633,9 +1722,11 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
             }
         }
 
-        s_gait[i].x = base_coord.x + s_walk_body_x_state_mm +
+        DogGaitFootBasePoint_t leg_base = DogGait_GetLegBasePoint((DogGaitLeg_t)i, &base_coord);
+
+        s_gait[i].x = leg_base.x + s_walk_body_x_state_mm +
                       attitude_x_mm + s_walk_foot_x[i]; // 足端 X = 基础 X + 重心 + 姿态变换 + 摆腿偏移
-        s_gait[i].y = base_coord.y + side_adjust + s_walk_foot_y[i]; // 足端 Y = 基础 Y + 姿态变换 + 摆腿偏移
+        s_gait[i].y = leg_base.y + side_adjust + s_walk_foot_y[i]; // 足端 Y = 基础 Y + 姿态变换 + 摆腿偏移
     }
 
     /* Apply and release preload with dedicated timings; normal walk targets
@@ -1791,8 +1882,6 @@ void DogGait_UpdateTrot(uint16_t time_ms)
 {
     float angles[DOG_SERVO_COUNT] = {0.0f};
     DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(s_foot_base);
-    float dx;
-    float lift;
 
     if (s_is_initialized == 0U)
     {
@@ -1822,41 +1911,19 @@ void DogGait_UpdateTrot(uint16_t time_ms)
     }
     else if (s_trot_phase <= 0.5f)
     {
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LF];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_RB].h, s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RB];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RF];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LB];
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_LF, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_RB, s_trot_phase, s_gait[DOG_GAIT_LEG_RB].h, s_gait[DOG_GAIT_LEG_RB].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_RF, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_RF].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_LB, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_LB].r, &base_coord);
     }
     else
     {
         float phase = s_trot_phase - 0.5f;
 
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LF];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RB];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, phase, s_gait[DOG_GAIT_LEG_RF].h, s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RF];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, phase, s_gait[DOG_GAIT_LEG_LB].h, s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LB];
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_LF, phase, 0.0f, -s_gait[DOG_GAIT_LEG_LF].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_RB, phase, 0.0f, -s_gait[DOG_GAIT_LEG_RB].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_RF, phase, s_gait[DOG_GAIT_LEG_RF].h, s_gait[DOG_GAIT_LEG_RF].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_LB, phase, s_gait[DOG_GAIT_LEG_LB].h, s_gait[DOG_GAIT_LEG_LB].r, &base_coord);
     }
 
     DogGait_UpdateLegAngles();
@@ -1887,8 +1954,6 @@ void DogGait_UpdateShift(uint16_t time_ms,DogGaitFootBase_t base)
 {
     float angles[DOG_SERVO_COUNT] = {0.0f};
     DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(base);
-    float dx;
-    float lift;
 
     if (s_is_initialized == 0U)
     {
@@ -1900,41 +1965,19 @@ void DogGait_UpdateShift(uint16_t time_ms,DogGaitFootBase_t base)
 
     if (s_trot_phase <= 0.5f)
     {
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LF];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, s_trot_phase, s_gait[DOG_GAIT_LEG_RB].h, s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RB];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RF];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LB];
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_LF, s_trot_phase, s_gait[DOG_GAIT_LEG_LF].h, s_gait[DOG_GAIT_LEG_LF].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_RB, s_trot_phase, s_gait[DOG_GAIT_LEG_RB].h, s_gait[DOG_GAIT_LEG_RB].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_RF, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_RF].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_LB, s_trot_phase, 0.0f, -s_gait[DOG_GAIT_LEG_LB].r, &base_coord);
     }
     else
     {
         float phase = s_trot_phase - 0.5f;
 
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LF].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_LF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LF].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_LF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LF];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RB].bias_angle, phase, 0.0f, -s_gait[DOG_GAIT_LEG_RB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RB].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_RB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RB];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_RF].bias_angle, phase, s_gait[DOG_GAIT_LEG_RF].h, s_gait[DOG_GAIT_LEG_RF].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_RF].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_RF].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_RF];
-
-        DogGait_GetPosByCycloidalEquation(s_gait[DOG_GAIT_LEG_LB].bias_angle, phase, s_gait[DOG_GAIT_LEG_LB].h, s_gait[DOG_GAIT_LEG_LB].r, &dx, &lift);
-        s_gait[DOG_GAIT_LEG_LB].x = base_coord.x + dx;
-        s_gait[DOG_GAIT_LEG_LB].y = base_coord.y + lift + s_foot_y_offset[DOG_GAIT_LEG_LB];
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_LF, phase, 0.0f, -s_gait[DOG_GAIT_LEG_LF].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_RB, phase, 0.0f, -s_gait[DOG_GAIT_LEG_RB].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_RF, phase, s_gait[DOG_GAIT_LEG_RF].h, s_gait[DOG_GAIT_LEG_RF].r, &base_coord);
+        DogGait_SetLegCycloidPos(DOG_GAIT_LEG_LB, phase, s_gait[DOG_GAIT_LEG_LB].h, s_gait[DOG_GAIT_LEG_LB].r, &base_coord);
     }
 
     DogGait_UpdateLegAngles();
