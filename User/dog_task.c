@@ -12,8 +12,8 @@
 #include <math.h>
 #include <stdio.h>
 
-#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      140U // 正常运行时的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_NORMAL_MOVE_MS        140U // 正常运行时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      120U // 正常运行时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_MOVE_MS        120U // 正常运行时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SHIFT_PERIOD_MS       110U // 左/右平移时的步态更新周期，单位毫秒。
 #define DOG_TASK_GAIT_SHIFT_MOVE_MS         110U // 左/右平移时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  150U // 减速带阶段的步态更新周期，单位毫秒。
@@ -48,8 +48,8 @@ float DOG_TASK_SHIFT_R_MMR[4] = {60.0f, 40.0f, 60.0f, 40.0f}; // 表示机器人
 #define DOG_TASK_TRACK_STEP_H_MM       45.0f // 表示循迹时的步高，单位毫米。
 #define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   40.0f // 表示循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  40.0f // 表示循迹时向右前进的半径，单位毫米。
-#define DOG_TASK_TRACK_MAX_STEER_MM    30.0f // 表示循迹时的最大转向量，单位毫米。将 steer 限制在 ±18mm 以内，防止机器人转向过度。
-#define DOG_TASK_TRACK_STEER_GAIN      0.3f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
+#define DOG_TASK_TRACK_MAX_STEER_MM    20.0f // 表示循迹时的最大转向量，单位毫米。将 steer 限制在 ±18mm 以内，防止机器人转向过度。
+#define DOG_TASK_TRACK_STEER_GAIN      0.2f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  50.0f // 表示平台循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 0.0f // 表示平台循迹时向右前进的半径，单位毫米。
