@@ -127,7 +127,7 @@
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
 #define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -25.0f // 奇数周期：RB 抬起前施加到 LF 的左侧预加载量。
-#define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -15.0f // 奇数周期：RB 抬起前施加到 LB 的左侧预加载量。
+#define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -5.0f // 奇数周期：RB 抬起前施加到 LB 的左侧预加载量。
 #define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -30.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
 #define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        150U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_MOVE_MS 200U // 预加载结束、对侧前腿恢复时的专用舵机动作时间；仅作用一次，不影响普通 walk 轨迹。

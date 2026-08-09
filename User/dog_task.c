@@ -65,6 +65,8 @@ float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人
 #define DOG_TASK_SHIFT_RIGHT_MS            6000U // 右平移时间，单位毫秒。
 #define DOG_TASK_LAP_PAUSE_MS              8000U // 完成一圈后的暂停时间，单位毫秒。
 
+#define DOG_TASK_BLACK_TRACK_DELAY_MS      3000U // 识别黑框后，按视觉偏差循迹的保持时间。
+
 /* Left/right turn test entry is kept only for reference. */
 #define DOG_TASK_TURN_TEST_DURATION_MS 3000U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。
 #define DOG_TASK_GREEN_TURN_DURATION_MS 3000U // 表示绿色岔路转弯的持续时间，单位毫秒。第二圈左转专用。
@@ -117,6 +119,7 @@ typedef enum
     DOG_TASK_EVENT_ORANGE_TRACK_DELAY, // 表示机器人在橙色循迹阶段的延迟状态。
     DOG_TASK_EVENT_SHIFT_RIGHT, // 表示机器人向右平移的状态。
     DOG_TASK_EVENT_LAP_PAUSE, // 表示机器人完成一圈后的暂停状态。
+    DOG_TASK_EVENT_BLACK_TRACK_DELAY,
 } DogTaskEventState_t; // 机器人事件处理状态的枚举类型。
 
 
@@ -386,6 +389,7 @@ static const char *DogTask_EventName(DogTaskEventState_t state)
         "ORANGE_TRACK_DELAY",
         "SHIFT_RIGHT",
         "LAP_PAUSE",
+        "BLACK_TRACK_DELAY",
     };
 
     if ((uint8_t)state < (uint8_t)(sizeof(names) / sizeof(names[0])))
@@ -506,6 +510,20 @@ static void DogTask_BeginDownhillTrack(uint32_t now_ms)
 }
 
 /* 进入到判断机身是否平的状态。*/
+/* Hold normal visual tracking for a fixed interval after black is detected.
+ * The platform tracking parameters remain active until downhill begins. */
+static void DogTask_BeginBlackTrackDelay(uint32_t now_ms)
+{
+    s_event_state = DOG_TASK_EVENT_BLACK_TRACK_DELAY;
+    s_event_start_ms = now_ms;
+    s_pending_event_command = IMAGE_COMMAND_NONE;
+    s_has_seen_track = 0U;
+    s_is_track_correcting = 0U;
+    s_last_track_ms = now_ms;
+    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+}
+
 static uint8_t DogTask_IsBodyLevelStable(uint32_t now_ms)
 {
     Jy61PImuStatus_t imu;
@@ -731,9 +749,9 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
         (s_task_stage == DOG_TASK_STAGE_WAIT_BLACK))
     {
         DogTask_SendVisionAck();
-        /* Black frame confirms the downhill entry.  Go straight into the
-         * normal forward/track trot; do not pause for lateral centering. */
-        DogTask_BeginDownhillTrack(now_ms);
+        /* Follow the detected black-frame track for a short interval before
+         * switching to the normal downhill forward/track trot. */
+        DogTask_BeginBlackTrackDelay(now_ms);
     }
     else if ((command == IMAGE_COMMAND_GREEN) &&
              (s_task_stage == DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL))
@@ -887,6 +905,24 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
                  ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
         {
             s_is_track_correcting = 0U;
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+        }
+    }
+    else if (s_event_state == DOG_TASK_EVENT_BLACK_TRACK_DELAY)
+    {
+        if (elapsed_ms >= DOG_TASK_BLACK_TRACK_DELAY_MS)
+        {
+            DogTask_BeginDownhillTrack(now_ms);
+        }
+        else if (track.valid != 0U)
+        {
+            s_has_seen_track = 1U;
+            s_last_track_ms = now_ms;
+            DogTask_ApplyTrackError(track.error);
+        }
+        else if ((s_has_seen_track != 0U) &&
+                 ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
+        {
             DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
         }
     }
