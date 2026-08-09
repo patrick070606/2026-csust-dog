@@ -48,12 +48,12 @@
 #define DOG_GAIT_SHIFT_FOOT_BASE_RIGHT_ENABLE    1U //左右平移步态
 
 /* stand 基准坐标，x 偏移用于调整有负荷/无负荷时的重心。 */
-#define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -20.0f
-#define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -20.0f
+#define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -35.0f
+#define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -35.0f
 #define DOG_GAIT_STAND_FOOT_Y_LF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_STAND_FOOT_Y_RF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 173.5f)
+#define DOG_GAIT_STAND_FOOT_Y_RF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
 #define DOG_GAIT_STAND_FOOT_Y_LB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 173.5f)
+#define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -30.0f
@@ -62,12 +62,12 @@
 #endif
 
 #if (DOG_GAIT_TURN_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
-#define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     -20.0f
-#define DOG_GAIT_TURN_FOOT_Y_LF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_TURN_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 173.5f)
+#define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -35.0f
+#define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     -35.0f
+#define DOG_GAIT_TURN_FOOT_Y_LF_MM            (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
+#define DOG_GAIT_TURN_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
 #define DOG_GAIT_TURN_FOOT_Y_LB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_TURN_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 173.5f)
+#define DOG_GAIT_TURN_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
 #else
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -81,9 +81,9 @@
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     -20.0f
 #define DOG_GAIT_SHIFTR_FOOT_Y_LF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_SHIFTR_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 173.5f)
+#define DOG_GAIT_SHIFTR_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
 #define DOG_GAIT_SHIFTR_FOOT_Y_LB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_SHIFTR_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 173.5f)
+#define DOG_GAIT_SHIFTR_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
 #else
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -97,9 +97,9 @@
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     -20.0f
 #define DOG_GAIT_SHIFTL_FOOT_Y_LF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_SHIFTL_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
+#define DOG_GAIT_SHIFTL_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
 #define DOG_GAIT_SHIFTL_FOOT_Y_LB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_SHIFTL_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
+#define DOG_GAIT_SHIFTL_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
 #else
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -261,6 +261,8 @@ static float s_walk_order_transition_start_x[DOG_GAIT_LEG_COUNT];
 static float s_walk_order_transition_start_y[DOG_GAIT_LEG_COUNT];
 static float s_walk_support_start_x[DOG_GAIT_LEG_COUNT];
 static float s_walk_support_start_y[DOG_GAIT_LEG_COUNT];
+static float s_walk_last_pitch_deg;
+static float s_walk_last_roll_deg;
 static DogGaitLoadMode_t s_load_mode = DOG_GAIT_LOAD_WITH_PAYLOAD;
 static DogGaitFootBase_t s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
 static uint8_t s_is_initialized;
@@ -1011,6 +1013,60 @@ static void DogGait_GetWalkAttitudeOffset(DogGaitLeg_t leg,
     *y_offset_mm = pitch_y + roll_y;
 }
 
+static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
+{
+    if (((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ||
+         (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING)) &&
+        (leg == s_walk_preload_support_leg))
+    {
+        return (s_walk_preload_support_leg == DOG_GAIT_LEG_LF) ?
+               -DOG_GAIT_WALK_RB_LEFT_PRELOAD_MM :
+               -DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
+    }
+
+    return 0.0f;
+}
+
+static void DogGait_ComposeWalkPose(float pitch_deg, float roll_deg)
+{
+    DogGaitFootBaseCoord_t base_coord =
+        DogGait_GetFootBaseCoord(DOG_GAIT_FOOT_BASE_WALK);
+
+    for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
+    {
+        float attitude_x_mm;
+        float side_adjust;
+
+        DogGait_GetWalkAttitudeOffset((DogGaitLeg_t)i,
+                                      pitch_deg,
+                                      roll_deg,
+                                      &attitude_x_mm,
+                                      &side_adjust);
+        side_adjust += DogGait_GetWalkPreloadSideAdjust((DogGaitLeg_t)i);
+        s_gait[i].x = base_coord.x + s_walk_body_x_state_mm +
+                      attitude_x_mm + s_walk_foot_x[i];
+        s_gait[i].y = base_coord.y + side_adjust + s_walk_foot_y[i];
+    }
+}
+
+static void DogGait_ComposeWalkSupportPose(float pitch_deg, float roll_deg)
+{
+    for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
+    {
+        float attitude_x_mm;
+        float side_adjust;
+
+        DogGait_GetWalkAttitudeOffset((DogGaitLeg_t)i,
+                                      pitch_deg,
+                                      roll_deg,
+                                      &attitude_x_mm,
+                                      &side_adjust);
+        side_adjust += DogGait_GetWalkPreloadSideAdjust((DogGaitLeg_t)i);
+        s_gait[i].x = s_walk_support_start_x[i] + attitude_x_mm;
+        s_gait[i].y = s_walk_support_start_y[i] + side_adjust;
+    }
+}
+
 /*
  * 名称：DogGait_OutputCurrentPose
  * 作用：输出当前步态姿态。
@@ -1361,6 +1417,8 @@ void DogGait_Init(void)
     s_walk_phase = 0.0f;
     s_walk_body_x_goal_mm = 0.0f;
     s_walk_body_x_state_mm = 0.0f;
+    s_walk_last_pitch_deg = 0.0f;
+    s_walk_last_roll_deg = 0.0f;
     s_walk_cycle_done = 0U;
     s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
     s_trot_speed_freq = DOG_GAIT_DEFAULT_SPEED_FREQ;
@@ -1382,6 +1440,8 @@ void DogGait_ResetWalk(void)
     s_walk_body_x_goal_mm = s_walk_cg_base_x_mm;
     s_walk_body_x_state_mm = s_walk_cg_base_x_mm;
     s_walk_cycle_done = 0U;
+    s_walk_last_pitch_deg = 0.0f;
+    s_walk_last_roll_deg = 0.0f;
     DogGait_ResetWalkFootStates();
 }
 
@@ -1394,8 +1454,17 @@ void DogGait_StartWalkSupportPhase(void)
 
     for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
     {
-        s_walk_support_start_x[i] = s_gait[i].x;
-        s_walk_support_start_y[i] = s_gait[i].y;
+        float attitude_x_mm;
+        float side_adjust;
+
+        DogGait_GetWalkAttitudeOffset((DogGaitLeg_t)i,
+                                      s_walk_last_pitch_deg,
+                                      s_walk_last_roll_deg,
+                                      &attitude_x_mm,
+                                      &side_adjust);
+        side_adjust += DogGait_GetWalkPreloadSideAdjust((DogGaitLeg_t)i);
+        s_walk_support_start_x[i] = s_gait[i].x - attitude_x_mm;
+        s_walk_support_start_y[i] = s_gait[i].y - side_adjust;
     }
 
     /* Hold the exact pose at the end of WALK; do not force all legs to a common x/y. */
@@ -1411,15 +1480,36 @@ void DogGait_ResumeWalkFromSupportPhase(void)
 
 void DogGait_UpdateWalkSupport(uint16_t time_ms)
 {
-    if ((s_is_initialized == 0U) || (s_walk_support_phase == 0U))
+    DogGait_UpdateWalkAttitude(time_ms,
+                               s_walk_last_pitch_deg,
+                               s_walk_last_roll_deg);
+}
+
+void DogGait_UpdateWalkAttitude(uint16_t time_ms,
+                                float pitch_deg,
+                                float roll_deg)
+{
+    if (s_is_initialized == 0U)
     {
         return;
     }
 
-    for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
+    s_walk_last_pitch_deg = pitch_deg;
+    s_walk_last_roll_deg = roll_deg;
+
+    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ||
+        (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_RELEASE))
     {
-        s_gait[i].x = s_walk_support_start_x[i];
-        s_gait[i].y = s_walk_support_start_y[i];
+        return;
+    }
+
+    if (s_walk_support_phase != 0U)
+    {
+        DogGait_ComposeWalkSupportPose(pitch_deg, roll_deg);
+    }
+    else
+    {
+        DogGait_ComposeWalkPose(pitch_deg, roll_deg);
     }
 
     DogGait_OutputCurrentPose(time_ms);
@@ -1493,7 +1583,6 @@ void DogGait_SetWalkParams(float step_height_mm,
  */
 void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
 {
-    DogGaitFootBaseCoord_t base_coord = DogGait_GetFootBaseCoord(DOG_GAIT_FOOT_BASE_WALK); // 获取当前足端基准坐标。
     uint8_t leg_phase = (uint8_t)(s_walk_phase / DOG_GAIT_WALK_PHASE_PER_LEG); // 根据总相位选择活动腿。
     DogGaitLeg_t active_leg;
     float local_phase;
@@ -1505,6 +1594,9 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     {
         DogGait_Init();
     }
+
+    s_walk_last_pitch_deg = pitch_deg;
+    s_walk_last_roll_deg = roll_deg;
 
     DogGait_UpdateRearPreloadState();
 
@@ -1561,37 +1653,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         DogGait_ApplyWalkOrderTransition();
     }
 
-    for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
-    {
-        float attitude_x_mm;
-        float side_adjust;
-
-        DogGait_GetWalkAttitudeOffset((DogGaitLeg_t)i,
-                                      pitch_deg,
-                                      roll_deg,
-                                      &attitude_x_mm,
-                                      &side_adjust);
-
-        if (((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ||
-             (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING)) &&
-            (i == s_walk_preload_support_leg))
-        {
-            if (DogGait_GetWalkRearPreloadSwingLeg() == DOG_GAIT_LEG_RB)
-            {
-                /* Odd cycle: preload LF before RB swings. */
-                side_adjust -= DOG_GAIT_WALK_RB_LEFT_PRELOAD_MM;
-            }
-            else
-            {
-                /* Even cycle: empirical RF preload direction before LB swings. */
-                side_adjust -= DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
-            }
-        }
-
-        s_gait[i].x = base_coord.x + s_walk_body_x_state_mm +
-                      attitude_x_mm + s_walk_foot_x[i]; // 足端 X = 基础 X + 重心 + 姿态变换 + 摆腿偏移
-        s_gait[i].y = base_coord.y + side_adjust + s_walk_foot_y[i]; // 足端 Y = 基础 Y + 姿态变换 + 摆腿偏移
-    }
+    DogGait_ComposeWalkPose(pitch_deg, roll_deg);
 
     /* Apply and release preload with dedicated timings; normal walk targets
      * continue using the caller's gait time. */

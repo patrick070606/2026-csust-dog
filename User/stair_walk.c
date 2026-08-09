@@ -8,6 +8,8 @@
 
 #define STAIR_WALK_TEST_GAIT_PERIOD_MS        100U  // 爬楼梯步态的更新周期：每隔 100 ms 计算并下发一次新的足端目标。
 #define STAIR_WALK_TEST_GAIT_MOVE_MS          80U   // 舵机完成每次步态目标的期望时间；小于更新周期，预留 20 ms 的稳定余量。
+#define STAIR_WALK_TEST_ROLL_PERIOD_MS        100U
+#define STAIR_WALK_TEST_ROLL_MOVE_MS          40U
 
 #define STAIR_WALK_TEST_STEP_H_MM             60.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
 #define STAIR_WALK_TEST_STEP_LEN_MM           60.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
@@ -20,6 +22,7 @@
 // #define STAIR_WALK_TEST_CG_BASE_X_MM          0.0f // 行走时机身重心在 X（前后）方向的基础偏移，单位 mm，用于提高爬台阶稳定性。
 // #define STAIR_WALK_TEST_IMU_GAIN_MM           0.0f // IMU 姿态补偿增益：把俯仰/横滚角换算为足端或重心修正量，数值越大姿态修正越强。
 #define STAIR_WALK_TEST_PITCH_FILTER_ALPHA    0.15f // IMU 一阶低通滤波中新测量值的权重；越小越平滑，但姿态响应越慢（俯仰和横滚共用）。
+#define STAIR_WALK_TEST_ROLL_FILTER_ALPHA     0.08f
 #define STAIR_WALK_PITCH_DIFF_0_MIN_DEG       (-1.0f)
 #define STAIR_WALK_PITCH_DIFF_0_MAX_DEG        1.5f
 #define STAIR_WALK_PITCH_DIFF_30_MIN_DEG      (-3.3f)
@@ -31,6 +34,7 @@
 #define STAIR_WALK_LEVEL_STABLE_MS            2000U // pitch 和 roll 同时满足水平阈值后，必须连续稳定 2 s 才判定上高台完成。
 
 static uint32_t s_last_gait_ms;       // 上一次更新爬楼梯步态的系统时间，单位 ms，用于控制步态按设定周期更新。
+static uint32_t s_last_roll_ms;
 static uint32_t s_level_start_ms;     // 检测到机身进入水平范围时的起始时间，单位 ms，用于判断是否已连续稳定 800 ms。
 static float s_filtered_pitch_deg;    // 一阶低通滤波后的俯仰角 pitch，单位 °，用于姿态补偿和爬楼梯完成判定。
 static float s_filtered_roll_deg;     // 一阶低通滤波后的横滚角 roll，单位 °，用于姿态补偿和爬楼梯完成判定。
@@ -235,8 +239,8 @@ static float StairWalkTest_GetRollDeg(void)
     else
     {
         s_filtered_roll_deg =
-            (s_filtered_roll_deg * (1.0f - STAIR_WALK_TEST_PITCH_FILTER_ALPHA)) +
-            (imu.roll_deg * STAIR_WALK_TEST_PITCH_FILTER_ALPHA);
+            (s_filtered_roll_deg * (1.0f - STAIR_WALK_TEST_ROLL_FILTER_ALPHA)) +
+            (imu.roll_deg * STAIR_WALK_TEST_ROLL_FILTER_ALPHA);
     }
 
     return s_filtered_roll_deg;
@@ -245,6 +249,7 @@ static float StairWalkTest_GetRollDeg(void)
 void StairWalk_Init(void)
 {
     s_last_gait_ms = HAL_GetTick();
+    s_last_roll_ms = s_last_gait_ms;
     s_level_start_ms = 0U;
     s_filtered_pitch_deg = 0.0f;
     s_filtered_roll_deg = 0.0f;
@@ -269,6 +274,7 @@ void StairWalk_Start(void)
     StairWalk_ApplyStageSupportHeights();
 
     s_last_gait_ms = HAL_GetTick();
+    s_last_roll_ms = s_last_gait_ms;
     s_filtered_pitch_deg = 0.0f;
     s_filtered_roll_deg = 0.0f;
     s_has_pitch_filter = 0U;
@@ -284,16 +290,29 @@ void StairWalk_Start(void)
 void StairWalk_Update(void)
 {
     uint32_t now_ms = HAL_GetTick();
+    uint8_t gait_due;
+    uint8_t roll_due;
+    float roll_deg = s_filtered_roll_deg;
 
     if (s_is_running == 0U)
     {
         return;
     }
 
-    if ((uint32_t)(now_ms - s_last_gait_ms) >= STAIR_WALK_TEST_GAIT_PERIOD_MS)
+    gait_due = ((uint32_t)(now_ms - s_last_gait_ms) >=
+                STAIR_WALK_TEST_GAIT_PERIOD_MS) ? 1U : 0U;
+    roll_due = ((uint32_t)(now_ms - s_last_roll_ms) >=
+                STAIR_WALK_TEST_ROLL_PERIOD_MS) ? 1U : 0U;
+
+    if (roll_due != 0U)
+    {
+        roll_deg = StairWalkTest_GetRollDeg();
+        s_last_roll_ms = now_ms;
+    }
+
+    if (gait_due != 0U)
     {
         float pitch_deg = StairWalkTest_GetPitchDeg();
-        float roll_deg = StairWalkTest_GetRollDeg();
         Jy61PImuStatus_t imu;
         uint8_t pitch_valid =
             ((s_has_pitch_filter != 0U) &&
@@ -303,7 +322,9 @@ void StairWalk_Update(void)
 
         if (s_support_phase != 0U)
         {
-            DogGait_UpdateWalkSupport(STAIR_WALK_TEST_GAIT_MOVE_MS);
+            DogGait_UpdateWalkAttitude(STAIR_WALK_TEST_GAIT_MOVE_MS,
+                                       pitch_deg,
+                                       roll_deg);
             return;
         }
 
@@ -329,6 +350,12 @@ void StairWalk_Update(void)
                 s_level_start_ms = 0U;
             }
         }
+    }
+    else if ((roll_due != 0U) && (s_has_pitch_filter != 0U))
+    {
+        DogGait_UpdateWalkAttitude(STAIR_WALK_TEST_ROLL_MOVE_MS,
+                                   s_filtered_pitch_deg,
+                                   roll_deg);
     }
 }
 
