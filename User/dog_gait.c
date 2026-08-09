@@ -126,12 +126,13 @@
 #define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN        -1.0f  // IMU 坐标已统一到机身坐标；实机左右足端纠偏方向需反转。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_RB_LEFT_PRELOAD_MM         -30.0f // 奇数周期：RB 抬起前施加到 LF 的左侧预加载量。
+#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -25.0f // 奇数周期：RB 抬起前施加到 LF 的左侧预加载量。
+#define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -15.0f // 奇数周期：RB 抬起前施加到 LB 的左侧预加载量。
 #define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -30.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
 #define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        150U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_MOVE_MS 200U // 预加载结束、对侧前腿恢复时的专用舵机动作时间；仅作用一次，不影响普通 walk 轨迹。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES 1U // 释放指令后额外冻结一个 100 ms 更新周期，确保 150 ms 指令不会被普通轨迹提前覆盖。
-#define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     3U // 当前 100 ms 更新周期下约 300 ms。
+#define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     5U // 当前 100 ms 更新周期下约 500 ms。
 #define DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES      6U // 奇偶腿序切换时的平滑过渡时间，当前约 300 ms。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          60.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
 #define DOG_GAIT_WALK_REAR_LIFT_END_PHASE        0.25f // 后腿摆动前段结束相位：先以抬高为主，X 基本保持。
@@ -1015,13 +1016,25 @@ static void DogGait_GetWalkAttitudeOffset(DogGaitLeg_t leg,
 
 static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
 {
-    if (((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ||
-         (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING)) &&
-        (leg == s_walk_preload_support_leg))
+    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ||
+        (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING))
     {
-        return (s_walk_preload_support_leg == DOG_GAIT_LEG_LF) ?
-               -DOG_GAIT_WALK_RB_LEFT_PRELOAD_MM :
-               -DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
+        if (s_walk_preload_support_leg == DOG_GAIT_LEG_LF)
+        {
+            /* Odd cycle: before RB swings, preload the complete left-side
+             * support pair (LF and the newly landed LB). */
+            if ((leg == DOG_GAIT_LEG_LF) || (leg == DOG_GAIT_LEG_LB))
+            {
+                return (leg == DOG_GAIT_LEG_LF) ?
+                       -DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM :
+                       -DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM;
+            }
+        }
+        else if (leg == DOG_GAIT_LEG_RF)
+        {
+            /* Even cycle remains unchanged: preload RF before LB swings. */
+            return -DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
+        }
     }
 
     return 0.0f;
