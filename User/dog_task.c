@@ -40,7 +40,7 @@
 
 //0 LF 1 RF 2 LB 3 RB
 float DOG_TASK_SHIFT_R_MML[4] = {20.0f, 80.0f, 20.0f, 80.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
-float DOG_TASK_SHIFT_R_MMR[4] = {70.0f, 20.0f, 70.0f, 20.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
 #define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
@@ -70,11 +70,14 @@ float DOG_TASK_SHIFT_R_MMR[4] = {70.0f, 20.0f, 70.0f, 20.0f}; // 表示机器人
 #define DOG_TASK_LAP_PAUSE_MS              8000U // 完成一圈后的暂停时间，单位毫秒。
 
 #define DOG_TASK_BLACK_TRACK_DELAY_MS      3000U // 识别黑框后，按视觉偏差循迹的保持时间。
+#define DOG_TASK_STAIR_WALK_ENABLE         1U // 置 0 跳过上楼梯，直接进入绿色分岔测试阶段。
+#define DOG_TASK_FORK_TEST_ENABLE           0U // 置 1 上电后跳过分岔前全部任务阶段。
+#define DOG_TASK_FORK_TEST_LAP_COUNT        0U // 分岔测试圈数：1 表示直接测试第二圈绿色后的左转流程。
 
 /* Left/right turn test entry is kept only for reference. */
 #define DOG_TASK_TURN_TEST_DURATION_MS 3000U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。
-#define DOG_TASK_GREEN_TURN_DURATION_MS 3000U // 表示绿色岔路第一圈右转的持续时间，单位毫秒。
-#define DOG_TASK_GREEN_TRACK_DELAY_MS 3000U // 第二圈识别绿色后，保持视觉循迹的时间，单位毫秒。
+#define DOG_TASK_GREEN_TURN_DURATION_MS 5000U // 表示绿色岔路第一圈右转的持续时间，单位毫秒。
+#define DOG_TASK_GREEN_TRACK_DELAY_MS 5000U // 第二圈识别绿色后，保持视觉循迹的时间，单位毫秒。
 #define DOG_TASK_GREEN_SECOND_LAP_LEFT_TURN_DURATION_MS 2000U // 第二圈绿色岔路左转的持续时间，单位毫秒。
 #define DOG_TASK_GREEN_LEFT_STEER_MM     25.0f // 表示绿色岔路差速转向量，单位毫米；正/负号分别对应右/左转。
 
@@ -532,6 +535,14 @@ static void DogTask_BeginDownhillTrack(uint32_t now_ms)
     DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
 }
 
+/* 跳过楼梯测试时，直接进入绿色分岔前的普通循迹阶段。 */
+static void DogTask_BeginTrackAfterDownhill(uint32_t now_ms)
+{
+    s_task_stage = DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL;
+    s_level_start_ms = 0U;
+    DogTask_ResumeTracking(now_ms);
+}
+
 /* 进入到判断机身是否平的状态。*/
 /* Hold normal visual tracking for a fixed interval after black is detected.
  * The platform tracking parameters remain active until downhill begins. */
@@ -860,7 +871,11 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
         if (s_task_stage == DOG_TASK_STAGE_TRACK_TO_BLUE)
         {
             DogTask_SendVisionAck();
+#if (DOG_TASK_STAIR_WALK_ENABLE != 0U)
             DogTask_BeginStairWalk(now_ms);
+#else
+            DogTask_BeginTrackAfterDownhill(now_ms);
+#endif
         }
     }
 }
@@ -1362,7 +1377,12 @@ void DogTask_Init(void)
     s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT;
     s_event_start_ms = s_last_gait_ms;
     s_pending_event_command = IMAGE_COMMAND_NONE;
+#if (DOG_TASK_FORK_TEST_ENABLE != 0U)
+    s_lap_count = DOG_TASK_FORK_TEST_LAP_COUNT;
+    DogTask_BeginTrackAfterDownhill(s_last_gait_ms);
+#else
     DogTask_BeginStartShiftLeft(s_last_gait_ms);
+#endif
 #if 0
     s_turn_test_active = 0U;
     s_turn_test_start_ms = s_last_gait_ms;
