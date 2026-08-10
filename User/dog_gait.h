@@ -8,6 +8,7 @@ typedef enum
     DOG_GAIT_FOOT_BASE_STAND = 0,
     DOG_GAIT_FOOT_BASE_WALK,
     DOG_GAIT_FOOT_BASE_TURN,
+    DOG_GAIT_FOOT_BASE_SPEED_BUMP,
     DOG_GAIT_FOOT_BASE_SHIFT_LEFT,
     DOG_GAIT_FOOT_BASE_SHIFT_RIGHT,
 } DogGaitFootBase_t;
@@ -37,11 +38,21 @@ typedef enum
 void DogGait_Init(void);
 void DogGait_SetLoadMode(DogGaitLoadMode_t mode);
 void DogGait_SetTrotParams(float step_height_mm, float step_length_mm, float speed_freq);
+void DogGait_SetTrotParamsWithFootBase(float step_height_mm,
+                                       float step_length_mm,
+                                       float speed_freq,
+                                       DogGaitFootBase_t base);
 void DogGait_SetTrackParams(float step_height_mm,
                             float left_forward_step_mm,
                             float right_forward_step_mm,
                             float steer_step_mm,
                             float speed_freq);
+void DogGait_SetTrackParamsWithFootBase(float step_height_mm,
+                                        float left_forward_step_mm,
+                                        float right_forward_step_mm,
+                                        float steer_step_mm,
+                                        float speed_freq,
+                                        DogGaitFootBase_t base);
 void DogGait_SetStepInPlaceParams(float step_height_mm, float speed_freq);
 void DogGait_SetShiftLeftParams(float step_height_mm, float *step_length_mm, float speed_freq,DogGaitFootBase_t base);
 void DogGait_SetShiftRightParams(float step_height_mm, float *step_length_mm, float speed_freq,DogGaitFootBase_t base);

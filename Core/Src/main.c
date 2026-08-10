@@ -93,7 +93,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  DogTask_Init();
+   DogTask_Init(); 
+  //DogTask_SpeedBumpTest_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -103,7 +104,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-     DogTask_Run();
+     DogTask_Run(); 
+    //DogTask_SpeedBumpTest_Run();
   }
   /* USER CODE END 3 */
 }

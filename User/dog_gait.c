@@ -77,6 +77,14 @@
 #define DOG_GAIT_TURN_FOOT_Y_RB_MM              DOG_GAIT_STAND_FOOT_Y_RB_MM
 #endif
 
+/* 过减速带专用足端基准；与普通转向基准分离，便于单独标定。 */
+#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_NO_LOAD_MM  -25.0f
+#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_LOAD_MM     -25.0f
+#define DOG_GAIT_SPEED_BUMP_FOOT_Y_LF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
+#define DOG_GAIT_SPEED_BUMP_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 178.0f)
+#define DOG_GAIT_SPEED_BUMP_FOOT_Y_LB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
+#define DOG_GAIT_SPEED_BUMP_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
+
 #if (DOG_GAIT_SHIFT_FOOT_BASE_RIGHT_ENABLE != 0U)
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     -20.0f
@@ -189,6 +197,16 @@ static float DogGait_GetFootBaseY(DogGaitFootBase_t base, DogGaitLeg_t leg)
         case DOG_GAIT_LEG_LB: return DOG_GAIT_TURN_FOOT_Y_LB_MM;
         case DOG_GAIT_LEG_RB: return DOG_GAIT_TURN_FOOT_Y_RB_MM;
         default: return DOG_GAIT_TURN_FOOT_Y_LF_MM;
+        }
+
+    case DOG_GAIT_FOOT_BASE_SPEED_BUMP:
+        switch (leg)
+        {
+        case DOG_GAIT_LEG_LF: return DOG_GAIT_SPEED_BUMP_FOOT_Y_LF_MM;
+        case DOG_GAIT_LEG_RF: return DOG_GAIT_SPEED_BUMP_FOOT_Y_RF_MM;
+        case DOG_GAIT_LEG_LB: return DOG_GAIT_SPEED_BUMP_FOOT_Y_LB_MM;
+        case DOG_GAIT_LEG_RB: return DOG_GAIT_SPEED_BUMP_FOOT_Y_RB_MM;
+        default: return DOG_GAIT_SPEED_BUMP_FOOT_Y_LF_MM;
         }
 
     case DOG_GAIT_FOOT_BASE_SHIFT_LEFT:
@@ -335,6 +353,12 @@ static DogGaitFootBaseCoord_t DogGait_GetFootBaseCoord(DogGaitFootBase_t base)
         coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
                   DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM :
                   DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM;
+        coord.y = DogGait_GetFootBaseY(base, DOG_GAIT_LEG_LF);
+        break;
+    case DOG_GAIT_FOOT_BASE_SPEED_BUMP:
+        coord.x = (s_load_mode == DOG_GAIT_LOAD_WITH_PAYLOAD) ?
+                  DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_LOAD_MM :
+                  DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_NO_LOAD_MM;
         coord.y = DogGait_GetFootBaseY(base, DOG_GAIT_LEG_LF);
         break;
     case DOG_GAIT_FOOT_BASE_SHIFT_LEFT:
@@ -1229,6 +1253,17 @@ static void DogGait_FillServoAngles(float angles[DOG_SERVO_COUNT])
  */
 void DogGait_SetTrotParams(float step_height_mm, float step_length_mm, float speed_freq)
 {
+    DogGait_SetTrotParamsWithFootBase(step_height_mm,
+                                      step_length_mm,
+                                      speed_freq,
+                                      DOG_GAIT_FOOT_BASE_TURN);
+}
+
+void DogGait_SetTrotParamsWithFootBase(float step_height_mm,
+                                       float step_length_mm,
+                                       float speed_freq,
+                                       DogGaitFootBase_t base)
+{
     float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 100.0f);
     float clamped_step_length_mm = DogGait_ClampFloat(step_length_mm, -60.0f, 100.0f);
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.4f);
@@ -1237,7 +1272,7 @@ void DogGait_SetTrotParams(float step_height_mm, float step_length_mm, float spe
                             clamped_step_length_mm,
                             clamped_step_length_mm,
                            clamped_speed_freq,
-                           DOG_GAIT_FOOT_BASE_TURN);
+                           base);
 }
 
 /*
@@ -1271,6 +1306,21 @@ void DogGait_SetTrackParams(float step_height_mm,
                             float steer_step_mm,
                             float speed_freq)
 {
+    DogGait_SetTrackParamsWithFootBase(step_height_mm,
+                                       left_forward_step_mm,
+                                       right_forward_step_mm,
+                                       steer_step_mm,
+                                       speed_freq,
+                                       DOG_GAIT_FOOT_BASE_TURN);
+}
+
+void DogGait_SetTrackParamsWithFootBase(float step_height_mm,
+                                        float left_forward_step_mm,
+                                        float right_forward_step_mm,
+                                        float steer_step_mm,
+                                        float speed_freq,
+                                        DogGaitFootBase_t base)
+{
     float clamped_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 100.0f);
     float clamped_left_forward_step_mm = DogGait_ClampFloat(left_forward_step_mm, -100.0f, 100.0f);
     float clamped_right_forward_step_mm = DogGait_ClampFloat(right_forward_step_mm, -100.0f, 100.0f);
@@ -1279,7 +1329,7 @@ void DogGait_SetTrackParams(float step_height_mm,
     float right_r = DogGait_ClampFloat(clamped_right_forward_step_mm - clamped_steer_step_mm, -80.0f, 100.0f);
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.5f);
 
-    DogGait_ApplySideSteps(clamped_step_height_mm, right_r, left_r, clamped_speed_freq, DOG_GAIT_FOOT_BASE_TURN);
+    DogGait_ApplySideSteps(clamped_step_height_mm, right_r, left_r, clamped_speed_freq, base);
 }
 
 /*
