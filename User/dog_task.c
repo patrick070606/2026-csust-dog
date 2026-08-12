@@ -12,8 +12,8 @@
 #include <math.h>
 #include <stdio.h>
 
-#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      120U // 正常运行时的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_NORMAL_MOVE_MS        120U // 正常运行时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      110U // 正常运行时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_MOVE_MS        110U // 正常运行时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SHIFT_PERIOD_MS       110U // 左/右平移时的步态更新周期，单位毫秒。
 #define DOG_TASK_GAIT_SHIFT_MOVE_MS         110U // 左/右平移时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  150U // 减速带阶段的步态更新周期，单位毫秒。
@@ -47,7 +47,7 @@ float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人
 
 #define DOG_TASK_TRACK_DEADBAND        35U // 表示循迹误差的死区范围，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离在 ±35mm 以内，就认为机器人不需要调整方向，继续前进即可。 
 #define DOG_TASK_TRACK_RECOVER_MS      500U // 表示循迹丢失后，机器人保持上一次循迹动作的时间，单位毫秒。
-#define DOG_TASK_TRACK_STEP_H_MM       45.0f // 表示循迹时的步高，单位毫米。
+#define DOG_TASK_TRACK_STEP_H_MM       40.0f // 表示循迹时的步高，单位毫米。
 #define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   55.0f // 表示循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  55.0f // 表示循迹时向右前进的半径，单位毫米。
 #define DOG_TASK_SPEED_BUMP_TRACK_STEP_H_MM       45.0f // 过减速带循迹步高，单位毫米。
