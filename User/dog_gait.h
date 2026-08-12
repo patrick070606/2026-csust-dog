@@ -46,11 +46,13 @@ void DogGait_SetTrackParams(float step_height_mm,
                             float left_forward_step_mm,
                             float right_forward_step_mm,
                             float steer_step_mm,
+                            float roll_mm,
                             float speed_freq);
 void DogGait_SetTrackParamsWithFootBase(float step_height_mm,
                                         float left_forward_step_mm,
                                         float right_forward_step_mm,
                                         float steer_step_mm,
+                                        float roll_mm,
                                         float speed_freq,
                                         DogGaitFootBase_t base);
 void DogGait_SetStepInPlaceParams(float step_height_mm, float speed_freq);

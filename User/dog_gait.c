@@ -48,12 +48,12 @@
 #define DOG_GAIT_SHIFT_FOOT_BASE_RIGHT_ENABLE    1U //左右平移步态
 
 /* stand 基准坐标，x 偏移用于调整有负荷/无负荷时的重心。 */
-#define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -20.0f
-#define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -20.0f
+#define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -30.0f
+#define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -30.0f
 #define DOG_GAIT_STAND_FOOT_Y_LF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_STAND_FOOT_Y_RF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_STAND_FOOT_Y_RF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
 #define DOG_GAIT_STAND_FOOT_Y_LB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 174.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
 #define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -30.0f
@@ -62,12 +62,12 @@
 #endif
 
 #if (DOG_GAIT_TURN_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
-#define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     -20.0f
+#define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -30.0f
+#define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     -30.0f
 #define DOG_GAIT_TURN_FOOT_Y_LF_MM            (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_TURN_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_TURN_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 175.0f)
 #define DOG_GAIT_TURN_FOOT_Y_LB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_TURN_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_TURN_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 175.0f)
 #else
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -89,9 +89,9 @@
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     -20.0f
 #define DOG_GAIT_SHIFTR_FOOT_Y_LF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_SHIFTR_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_SHIFTR_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 175.0f)
 #define DOG_GAIT_SHIFTR_FOOT_Y_LB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_SHIFTR_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_SHIFTR_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 175.0f)
 #else
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_SHIFT_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -1159,10 +1159,11 @@ static void DogGait_ApplySideStepsApart(float step_height_mm,
 /*
  * 名称：DogGait_ApplySideSteps
  * 作用：统一设置左右侧腿的步高、步长、速度和足端基准模式。
- * 输入：step_height_mm 步高；left_r 左侧步长；right_r 右侧步长；speed_freq 相位速度；base 足端基准模式。
+ * 输入：step_height_mm 步高；roll_mm 左右侧足端高度差；left_r 左侧步长；right_r 右侧步长；speed_freq 相位速度；base 足端基准模式。
  * 输出：无返回值，更新全局步态参数和四条腿状态。
  */
 static void DogGait_ApplySideSteps(float step_height_mm,
+                                   float roll_mm,
                                    float Right_r,
                                    float Left_r,
                                    float speed_freq,
@@ -1172,6 +1173,11 @@ static void DogGait_ApplySideSteps(float step_height_mm,
     s_foot_base = base;
     DogGait_ClearLegBiases();
     DogGait_ClearFootYOffsets();
+
+    s_foot_y_offset[DOG_GAIT_LEG_LF] = -roll_mm;
+    s_foot_y_offset[DOG_GAIT_LEG_LB] = -roll_mm;
+    s_foot_y_offset[DOG_GAIT_LEG_RF] = roll_mm;
+    s_foot_y_offset[DOG_GAIT_LEG_RB] = roll_mm;
 
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
@@ -1269,8 +1275,9 @@ void DogGait_SetTrotParamsWithFootBase(float step_height_mm,
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.4f);
 
     DogGait_ApplySideSteps(clamped_step_height_mm,
-                            clamped_step_length_mm,
-                            clamped_step_length_mm,
+                           0.0f,
+                           clamped_step_length_mm,
+                           clamped_step_length_mm,
                            clamped_speed_freq,
                            base);
 }
@@ -1297,19 +1304,21 @@ void DogGait_SetLoadMode(DogGaitLoadMode_t mode)
  * 名称：DogGait_SetTrackParams
  * 作用：设置循迹行走步态参数，使用转向基准；可通过左右步长和转向步长实现偏航调整。
  * 输入：step_height_mm 步高；left_forward_step_mm 左侧前进步长；right_forward_step_mm 右侧前进步长；
- *       steer_step_mm 转向修正步长；speed_freq 每次更新的相位增量。
+ *       steer_step_mm 转向修正步长；roll_mm 左右侧足端高度差；speed_freq 每次更新的相位增量。
  * 输出：无返回值，更新循迹步态参数。
  */
 void DogGait_SetTrackParams(float step_height_mm,
                             float left_forward_step_mm,
                             float right_forward_step_mm,
                             float steer_step_mm,
+                            float roll_mm,
                             float speed_freq)
 {
     DogGait_SetTrackParamsWithFootBase(step_height_mm,
                                        left_forward_step_mm,
                                        right_forward_step_mm,
                                        steer_step_mm,
+                                       roll_mm,
                                        speed_freq,
                                        DOG_GAIT_FOOT_BASE_TURN);
 }
@@ -1318,6 +1327,7 @@ void DogGait_SetTrackParamsWithFootBase(float step_height_mm,
                                         float left_forward_step_mm,
                                         float right_forward_step_mm,
                                         float steer_step_mm,
+                                        float roll_mm,
                                         float speed_freq,
                                         DogGaitFootBase_t base)
 {
@@ -1325,11 +1335,17 @@ void DogGait_SetTrackParamsWithFootBase(float step_height_mm,
     float clamped_left_forward_step_mm = DogGait_ClampFloat(left_forward_step_mm, -100.0f, 100.0f);
     float clamped_right_forward_step_mm = DogGait_ClampFloat(right_forward_step_mm, -100.0f, 100.0f);
     float clamped_steer_step_mm = DogGait_ClampFloat(steer_step_mm, -100.0f, 100.0f);
+    float clamped_roll_mm = DogGait_ClampFloat(roll_mm, -100.0f, 100.0f);
     float left_r = DogGait_ClampFloat(clamped_left_forward_step_mm + clamped_steer_step_mm, -80.0f, 100.0f);
     float right_r = DogGait_ClampFloat(clamped_right_forward_step_mm - clamped_steer_step_mm, -80.0f, 100.0f);
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.5f);
 
-    DogGait_ApplySideSteps(clamped_step_height_mm, right_r, left_r, clamped_speed_freq, base);
+    DogGait_ApplySideSteps(clamped_step_height_mm,
+                           clamped_roll_mm,
+                           right_r,
+                           left_r,
+                           clamped_speed_freq,
+                           base);
 }
 
 /*
@@ -1438,6 +1454,7 @@ void DogGait_SetTurnLeftParams(float step_height_mm, float turn_step_mm, float s
 
 
     DogGait_ApplySideSteps(clamped_step_height_mm,
+                           0.0f,
                            clamped_turn_step_mm,
                            -clamped_turn_step_mm,
                            clamped_speed_freq,
@@ -1457,6 +1474,7 @@ void DogGait_SetTurnRightParams(float step_height_mm, float turn_step_mm, float 
     float clamped_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.5f);
 
     DogGait_ApplySideSteps(clamped_step_height_mm,
+                           0.0f,
                            -clamped_turn_step_mm,
                            clamped_turn_step_mm,
                            clamped_speed_freq,

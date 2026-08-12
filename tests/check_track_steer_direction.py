@@ -11,8 +11,10 @@ def main() -> None:
     required_fragments = [
         "/* Positive camera error means the line is to the right; steer right. */",
         "                               steer,",
+        "DogTask_TrackRollFromSteer(steer)",
         "/* Negative camera error means the line is to the left; steer left. */",
         "                               -steer,",
+        "DogTask_TrackRollFromSteer(-steer)",
     ]
 
     missing = [fragment for fragment in required_fragments if fragment not in source]

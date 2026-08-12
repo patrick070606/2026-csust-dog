@@ -19,7 +19,7 @@
 #define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  150U // 减速带阶段的步态更新周期，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS    150U // 减速带阶段的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 10000U // 站立完成后，过减速带测试的持续时间。
-#define DOG_TASK_SPEED_BUMP_ENTRY_TEST_DURATION_MS 15000U // 减速带前循迹阶段的独立测试持续时间，单位毫秒；到点后回到站立姿态。
+#define DOG_TASK_SPEED_BUMP_ENTRY_TEST_DURATION_MS 150000U // 减速带前循迹阶段的独立测试持续时间，单位毫秒；到点后回到站立姿态。
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
 #define DOG_TASK_LED_OFF_STATE         GPIO_PIN_RESET // 表示 LED 灯灭的状态，GPIO_PIN_RESET 表示将 GPIO 引脚设置为低电平，通常用于熄灭 LED。
 #define DOG_TASK_COLOR_PAUSE_MS        2000U // 表示颜色暂停的时间，单位毫秒。
@@ -53,8 +53,10 @@ float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人
 #define DOG_TASK_SPEED_BUMP_TRACK_STEP_H_MM       45.0f // 过减速带循迹步高，单位毫米。
 #define DOG_TASK_SPEED_BUMP_TRACK_LEFT_FORWARD_R_MM  40.0f // 过减速带循迹左侧步长，单位毫米。
 #define DOG_TASK_SPEED_BUMP_TRACK_RIGHT_FORWARD_R_MM 40.0f // 过减速带循迹右侧步长，单位毫米。
-#define DOG_TASK_TRACK_MAX_STEER_MM    35.0f // 表示循迹时的最大转向量，单位毫米。将 steer 限制在 ±18mm 以内，防止机器人转向过度。
+#define DOG_TASK_TRACK_MAX_STEER_MM    40.0f // 表示循迹时的最大转向量，单位毫米。将 steer 限制在 ±18mm 以内，防止机器人转向过度。
 #define DOG_TASK_TRACK_STEER_GAIN      0.4f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
+#define DOG_TASK_TRACK_ROLL_GAIN       0.15f // 循迹差速时机身横滚补偿增益，roll_mm = steer * ROLL_GAIN。
+#define DOG_TASK_TRACK_MAX_ROLL_MM     99.0f // 循迹差速时机身横滚补偿上限，单位毫米。（横滚补偿与差速值steer呈线性关系，受steer上下限约束，此处事实上不构成限制，仅为预留）
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  50.0f // 表示平台循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 0.0f // 表示平台循迹时向右前进的半径，单位毫米。
@@ -206,6 +208,23 @@ static uint32_t s_auto_test_start_ms;
 /* 提前声明状态回传函数，供 OK 应答函数和周期 ST 回传复用。 */
 static void DogTask_SendVisionStatus(const char *tag);
 static void DogTask_ApplyTrackError(int16_t error);
+
+/* 循迹差速时机身横滚补偿量与 steer 线性相关，并在安全范围内限幅。 */
+static float DogTask_TrackRollFromSteer(float steer_mm)
+{
+    float roll_mm = steer_mm * DOG_TASK_TRACK_ROLL_GAIN;
+
+    if (roll_mm > DOG_TASK_TRACK_MAX_ROLL_MM)
+    {
+        roll_mm = DOG_TASK_TRACK_MAX_ROLL_MM;
+    }
+    else if (roll_mm < -DOG_TASK_TRACK_MAX_ROLL_MM)
+    {
+        roll_mm = -DOG_TASK_TRACK_MAX_ROLL_MM;
+    }
+
+    return roll_mm;
+}
 
 #if !DOG_TASK_PLATFORM_PAUSE_TEST_ENABLE
 static uint8_t DogTask_IsPlatformFinishedByImu(void)
@@ -634,6 +653,7 @@ static void DogTask_BeginGreenLeftTurn(uint32_t now_ms)
                            DOG_TASK_TRACK_LEFT_FORWARD_R_MM,
                            DOG_TASK_TRACK_RIGHT_FORWARD_R_MM,
                            -DOG_TASK_GREEN_LEFT_STEER_MM,
+                           DogTask_TrackRollFromSteer(-DOG_TASK_GREEN_LEFT_STEER_MM),
                            DOG_TASK_SPEED_FREQ);
     s_motion = DOG_TASK_MOTION_TURN_LEFT;
 }
@@ -667,6 +687,7 @@ static void DogTask_BeginGreenRightTurn(uint32_t now_ms)
                            DOG_TASK_TRACK_LEFT_FORWARD_R_MM,
                            DOG_TASK_TRACK_RIGHT_FORWARD_R_MM,
                            DOG_TASK_GREEN_LEFT_STEER_MM,
+                           DogTask_TrackRollFromSteer(DOG_TASK_GREEN_LEFT_STEER_MM),
                            DOG_TASK_SPEED_FREQ);
     s_motion = DOG_TASK_MOTION_TURN_RIGHT;
 }
@@ -1274,6 +1295,7 @@ static void DogTask_ApplyTrackError(int16_t error)
                                            track_left_forward,
                                            track_right_forward,
                                            steer,
+                                           DogTask_TrackRollFromSteer(steer),
                                            DOG_TASK_SPEED_FREQ,
                                            DogTask_GetTrackFootBase());
         s_motion = DOG_TASK_MOTION_TURN_RIGHT;
@@ -1293,6 +1315,7 @@ static void DogTask_ApplyTrackError(int16_t error)
                                            track_left_forward,
                                            track_right_forward,
                                            -steer,
+                                           DogTask_TrackRollFromSteer(-steer),
                                            DOG_TASK_SPEED_FREQ,
                                            DogTask_GetTrackFootBase());
         s_motion = DOG_TASK_MOTION_TURN_LEFT;
@@ -1304,6 +1327,7 @@ static void DogTask_ApplyTrackError(int16_t error)
         DogGait_SetTrackParamsWithFootBase(track_step_h,
                                            track_left_forward,
                                            track_right_forward,
+                                           0.0f,
                                            0.0f,
                                            DOG_TASK_SPEED_FREQ,
                                            DogTask_GetTrackFootBase());
@@ -1432,6 +1456,7 @@ void DogTask_SpeedBumpTest_Init(void)
     DogGait_SetTrackParamsWithFootBase(DOG_TASK_SPEED_BUMP_TRACK_STEP_H_MM,
                                        DOG_TASK_SPEED_BUMP_TRACK_LEFT_FORWARD_R_MM,
                                        DOG_TASK_SPEED_BUMP_TRACK_RIGHT_FORWARD_R_MM,
+                                       0.0f,
                                        0.0f,
                                        DOG_TASK_SPEED_FREQ,
                                        DOG_GAIT_FOOT_BASE_SPEED_BUMP);
