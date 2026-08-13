@@ -13,16 +13,16 @@
 
 #define STAIR_WALK_TEST_STEP_H_MM             60.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
 #define STAIR_WALK_TEST_STEP_LEN_MM           60.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
-#define STAIR_WALK_TEST_SPEED_FREQ            0.04f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
+#define STAIR_WALK_TEST_SPEED_FREQ            0.06f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
 #define STAIR_WALK_TEST_CG_BASE_X_MM          0.0f // 行走时机身重心在 X（前后）方向的基础偏移，单位 mm，用于提高爬台阶稳定性。
-#define STAIR_WALK_TEST_IMU_GAIN_MM           0.0f // 首轮调试关闭 IMU 前后纠偏，先单独观察后腿轨迹与髋关节运动。
+#define STAIR_WALK_TEST_IMU_GAIN_MM           70.0f // 首轮调试关闭 IMU 前后纠偏，先单独观察后腿轨迹与髋关节运动。
 // #define STAIR_WALK_TEST_STEP_H_MM             0.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
 // #define STAIR_WALK_TEST_STEP_LEN_MM           0.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
 // #define STAIR_WALK_TEST_SPEED_FREQ            0.0f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
 // #define STAIR_WALK_TEST_CG_BASE_X_MM          0.0f // 行走时机身重心在 X（前后）方向的基础偏移，单位 mm，用于提高爬台阶稳定性。
 // #define STAIR_WALK_TEST_IMU_GAIN_MM           0.0f // IMU 姿态补偿增益：把俯仰/横滚角换算为足端或重心修正量，数值越大姿态修正越强。
 #define STAIR_WALK_TEST_PITCH_FILTER_ALPHA    0.15f // IMU 一阶低通滤波中新测量值的权重；越小越平滑，但姿态响应越慢（俯仰和横滚共用）。
-#define STAIR_WALK_TEST_ROLL_FILTER_ALPHA     0.08f
+#define STAIR_WALK_TEST_ROLL_FILTER_ALPHA     0.12f
 #define STAIR_WALK_PITCH_DIFF_0_MIN_DEG       (-1.0f)
 #define STAIR_WALK_PITCH_DIFF_0_MAX_DEG        1.5f
 #define STAIR_WALK_PITCH_DIFF_30_MIN_DEG      (-3.3f)
