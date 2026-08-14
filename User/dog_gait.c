@@ -127,7 +127,7 @@
 #define DOG_GAIT_WALK_BODY_MAX_STEP_MM           4.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
 #define DOG_GAIT_WALK_BODY_LENGTH_MM             280.0f // 参考 Py-Apple 经验公式的机身前后支撑长度；应按本机前后髋关节间距实测调整。
 #define DOG_GAIT_WALK_BODY_WIDTH_MM              175.0f // 左右髋关节中心距；初值与原左右补偿的 ±70 mm 对应，应按本机实测调整。
-#define DOG_GAIT_WALK_PHASE_CG_GAIN              0.7f // 前/后腿阶段重心切换增益；首轮调试关闭，避免足端整体产生正负 60 mm 偏移。
+#define DOG_GAIT_WALK_PHASE_CG_GAIN              0.9f // 前/后腿阶段重心切换增益；首轮调试关闭，避免足端整体产生正负 60 mm 偏移。
 #define DOG_GAIT_WALK_PITCH_ANGLE_GAIN           1.5f // 参考公式 tan(pitch * 1.5) 中的倾角经验放大系数。
 #define DOG_GAIT_WALK_BODY_TARGET_MAX_MM         1000.0f // 前后重心目标的安全限幅，首轮调试限制在正负 20 mm。
 #define DOG_GAIT_WALK_CG_AXIS_SIGN              (-1.0f) // Py-Apple 与本工程 X 轴方向相反；负号保持本工程原有的前/后重心移动方向。
@@ -142,6 +142,7 @@
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_MOVE_MS 500U // 预加载结束、对侧前腿恢复时的专用舵机动作时间；仅作用一次，不影响普通 walk 轨迹。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES 1U // 释放指令后额外冻结一个 100 ms 更新周期，确保 150 ms 指令不会被普通轨迹提前覆盖。
 #define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     5U // 当前 100 ms 更新周期下约 500 ms。
+#define DOG_GAIT_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES 5U // 第二前腿落地后，下一后腿起摆前额外保持约 500 ms。
 #define DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES      6U // 奇偶腿序切换时的平滑过渡时间，当前约 300 ms。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          60.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
 #define DOG_GAIT_WALK_REAR_LIFT_END_PHASE        0.25f // 后腿摆动前段结束相位：先以抬高为主，X 基本保持。
@@ -168,6 +169,13 @@ typedef enum
     DOG_GAIT_RB_PRELOAD_RELEASE,
     DOG_GAIT_RB_PRELOAD_SWING,
 } DogGaitRbPreloadState_t;
+
+typedef enum
+{
+    DOG_GAIT_SECOND_FRONT_TO_REAR_NONE = 0U,
+    DOG_GAIT_SECOND_FRONT_TO_REAR_HOLD,
+    DOG_GAIT_SECOND_FRONT_TO_REAR_SWING,
+} DogGaitSecondFrontToRearState_t;
 
 typedef enum
 {
@@ -254,7 +262,7 @@ static float s_walk_step_length_mm = 50.0f;
 /* 0: odd cycle (left first); 1: even cycle (right first). */
 static uint8_t s_walk_cycle_parity;
 static float s_walk_cg_base_x_mm; // 基础重心偏移
-static float s_walk_imu_gain_mm = 60.0f; // 表示 walk 步态中，IMU 前后倾角对重心前后偏移的增益系数。也就是说，如果 IMU 检测到机器人前倾 1 度，那么重心会向前偏移 60.0mm，从而调整机器人的步态，使其保持平衡。
+static float s_walk_imu_gain_mm = 0.0f; // 表示 walk 步态中，IMU 前后倾角对重心前后偏移的增益系数。也就是说，如果 IMU 检测到机器人前倾 1 度，那么重心会向前偏移 60.0mm，从而调整机器人的步态，使其保持平衡。
 static float s_walk_body_x_goal_mm; // 目标重心偏移
 static float s_walk_body_x_state_mm; // 当前重心偏移
 static float s_walk_foot_x[DOG_GAIT_LEG_COUNT]; // walk 步态中各腿的足端 X 坐标
@@ -275,6 +283,11 @@ static uint8_t s_walk_rb_preload_release_hold_updates;
 static DogGaitLeg_t s_walk_preload_support_leg;
 static float s_walk_rb_preload_hold_x_mm;
 static float s_walk_rb_preload_hold_y_mm;
+static DogGaitSecondFrontToRearState_t s_walk_second_front_to_rear_state;
+static uint8_t s_walk_second_front_to_rear_stable_updates;
+static DogGaitLeg_t s_walk_second_front_to_rear_hold_leg;
+static float s_walk_second_front_to_rear_hold_x_mm;
+static float s_walk_second_front_to_rear_hold_y_mm;
 static uint8_t s_walk_order_transition_active;
 static uint8_t s_walk_order_transition_updates;
 static float s_walk_order_transition_start_x[DOG_GAIT_LEG_COUNT];
@@ -718,6 +731,11 @@ static void DogGait_ResetWalkFootStates(void)
     s_walk_preload_support_leg = DOG_GAIT_LEG_LF;
     s_walk_rb_preload_hold_x_mm = 0.0f;
     s_walk_rb_preload_hold_y_mm = 0.0f;
+    s_walk_second_front_to_rear_state = DOG_GAIT_SECOND_FRONT_TO_REAR_NONE;
+    s_walk_second_front_to_rear_stable_updates = 0U;
+    s_walk_second_front_to_rear_hold_leg = DOG_GAIT_LEG_LB;
+    s_walk_second_front_to_rear_hold_x_mm = 0.0f;
+    s_walk_second_front_to_rear_hold_y_mm = 0.0f;
     s_walk_order_transition_active = 0U;
     s_walk_order_transition_updates = 0U;
     for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
@@ -798,6 +816,18 @@ static void DogGait_UpdateWalkFootTrajectories(void)
         float leg_phase = DogGait_WrapWalkLegPhase(
             s_walk_phase - DogGait_GetWalkLegPhaseStart((DogGaitLeg_t)i));// leg_phase 表示每条腿到哪个阶段了。如果在 0~0.5 之间，说明是摆动相，如果在 0.5~2.0 说明是支撑相。
 
+        if ((i == s_walk_second_front_to_rear_hold_leg) &&
+            (s_walk_second_front_to_rear_state ==
+             DOG_GAIT_SECOND_FRONT_TO_REAR_HOLD))
+        {
+            /* The second front leg has landed, but the next rear leg must
+             * remain a support leg until the body transfer is stable. */
+            s_walk_foot_x[i] = s_walk_second_front_to_rear_hold_x_mm;
+            s_walk_foot_y[i] = s_walk_second_front_to_rear_hold_y_mm;
+            s_walk_leg_in_swing[i] = 0U;
+            continue;
+        }
+
         if ((i == DogGait_GetWalkRearPreloadSwingLeg()) &&
             (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD))
         {
@@ -817,7 +847,18 @@ static void DogGait_UpdateWalkFootTrajectories(void)
 
             if (s_walk_leg_in_swing[i] == 0U) // 如果这条腿之前没有进入摆动相，就初始化本次摆腿。
             { 
-                if ((i == DogGait_GetWalkRearPreloadSwingLeg()) &&
+                if ((i == s_walk_second_front_to_rear_hold_leg) &&
+                    (s_walk_second_front_to_rear_state ==
+                     DOG_GAIT_SECOND_FRONT_TO_REAR_SWING))
+                {
+                    /* Begin rear swing exactly from its held pose, avoiding
+                     * an X/Y discontinuity on release. */
+                    s_walk_swing_start_x[i] =
+                        s_walk_second_front_to_rear_hold_x_mm;
+                    s_walk_swing_start_height_mm[i] =
+                        s_walk_second_front_to_rear_hold_y_mm;
+                }
+                else if ((i == DogGait_GetWalkRearPreloadSwingLeg()) &&
                     (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING)) // 如果是后腿摆动相，并且后腿预加载状态是摆动，就继续保持当前的姿势。
                 {
                     /* Continue from the exact pose held during preload. */
@@ -974,6 +1015,47 @@ static float DogGait_GetWalkBodyTarget(uint8_t active_leg, float pitch_deg)
     return DogGait_ClampFloat(target,
                               -DOG_GAIT_WALK_BODY_TARGET_MAX_MM,
                                DOG_GAIT_WALK_BODY_TARGET_MAX_MM);
+}
+
+static void DogGait_UpdateSecondFrontToRearTransferState(void)
+{
+    const float second_front_touchdown_phase =
+        DOG_GAIT_WALK_PHASE_PER_LEG * 2.0f;
+    const float rear_touchdown_phase =
+        DOG_GAIT_WALK_PHASE_PER_LEG * 3.0f;
+    DogGaitLeg_t rear_leg = (s_walk_cycle_parity == 0U) ?
+                            DOG_GAIT_LEG_LB : DOG_GAIT_LEG_RB;
+
+    if ((s_walk_second_front_to_rear_state ==
+         DOG_GAIT_SECOND_FRONT_TO_REAR_SWING) &&
+        (s_walk_phase >=
+         (rear_touchdown_phase - DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON)))
+    {
+        /* The held rear leg has landed; this transfer is complete. */
+        s_walk_second_front_to_rear_state =
+            DOG_GAIT_SECOND_FRONT_TO_REAR_NONE;
+        s_walk_second_front_to_rear_stable_updates = 0U;
+    }
+
+    if ((s_walk_second_front_to_rear_state ==
+         DOG_GAIT_SECOND_FRONT_TO_REAR_NONE) &&
+        (s_walk_phase >=
+         (second_front_touchdown_phase -
+          DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON)) &&
+        (s_walk_phase <=
+         (second_front_touchdown_phase +
+          DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON)))
+    {
+        /* RF/LF has just landed. Hold the next rear leg (LB/RB) at its
+         * stance pose while the body moves to the new support region. */
+        s_walk_phase = second_front_touchdown_phase;
+        s_walk_second_front_to_rear_state =
+            DOG_GAIT_SECOND_FRONT_TO_REAR_HOLD;
+        s_walk_second_front_to_rear_stable_updates = 0U;
+        s_walk_second_front_to_rear_hold_leg = rear_leg;
+        s_walk_second_front_to_rear_hold_x_mm = s_walk_foot_x[rear_leg];
+        s_walk_second_front_to_rear_hold_y_mm = s_walk_foot_y[rear_leg];
+    }
 }
 
 static void DogGait_UpdateRearPreloadState(void)
@@ -1724,6 +1806,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     s_walk_last_pitch_deg = pitch_deg;
     s_walk_last_roll_deg = roll_deg;
 
+    DogGait_UpdateSecondFrontToRearTransferState();
     DogGait_UpdateRearPreloadState(); // 左右侧补偿更新。
 
     /* Do not send an 80 ms trajectory command while the preceding 150 ms
@@ -1846,6 +1929,23 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     /* 重心未到位时不增加 s_walk_phase，因此活动腿保持在当前轨迹点，相当于冻结摆腿。 */
     if (fabsf(s_walk_body_x_goal_mm - s_walk_body_x_state_mm) < DOG_GAIT_WALK_BODY_READY_MM)
     {
+        if (s_walk_second_front_to_rear_state ==
+            DOG_GAIT_SECOND_FRONT_TO_REAR_HOLD)
+        {
+            if (s_walk_second_front_to_rear_stable_updates <
+                DOG_GAIT_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES)
+            {
+                s_walk_second_front_to_rear_stable_updates++;
+                return;
+            }
+
+            /* Keep phase at 1.0 for one more call.  The next call releases
+             * the saved rear leg and starts its rear-leg swing. */
+            s_walk_second_front_to_rear_state =
+                DOG_GAIT_SECOND_FRONT_TO_REAR_SWING;
+            return;
+        }
+
         if (s_walk_order_transition_active != 0U)
         {
             s_walk_order_transition_updates++;
