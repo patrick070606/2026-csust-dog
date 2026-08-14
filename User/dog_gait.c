@@ -121,6 +121,7 @@
 
 #define DOG_GAIT_WALK_PHASE_PER_LEG              0.5f // 表示单条腿完成一次抬起、前摆和落下所占用的相位长度。由于四条腿的步态是交替进行的，所以每条腿的步态相位为 0.5，整个步态周期为 2.0。
 #define DOG_GAIT_WALK_TOTAL_PHASE                (DOG_GAIT_WALK_PHASE_PER_LEG * 4.0f)
+#define DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON     0.0001f // 消除浮点累加导致的摆动/支撑边界延后一帧。
 #define DOG_GAIT_WALK_BODY_READY_MM              3.0f // 重心目标误差小于 3 mm 后，才允许摆腿相位继续推进。
 #define DOG_GAIT_WALK_BODY_KP                    0.20f // 重心一阶平滑系数；每次只修正当前误差的 15%。
 #define DOG_GAIT_WALK_BODY_MAX_STEP_MM           4.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
@@ -293,6 +294,30 @@ volatile float g_dog_gait_lf_hip_angle;
 volatile float g_dog_gait_lf_knee_angle;
 volatile float g_dog_gait_rf_hip_angle;
 volatile float g_dog_gait_rf_knee_angle;
+
+/* Non-blocking snapshot for the instant the second front leg enters stance.
+ * Read these from Cortex Live Watch; capture_count is written last. */
+volatile uint32_t g_dog_gait_second_front_landing_capture_count;
+volatile uint8_t g_dog_gait_second_front_landing_valid;
+volatile uint8_t g_dog_gait_second_front_landing_leg;
+volatile uint8_t g_dog_gait_second_front_landing_cycle_parity;
+volatile float g_dog_gait_second_front_landing_phase;
+volatile float g_dog_gait_second_front_landing_lf_foot_x_mm;
+volatile float g_dog_gait_second_front_landing_lf_foot_y_mm;
+volatile float g_dog_gait_second_front_landing_rf_foot_x_mm;
+volatile float g_dog_gait_second_front_landing_rf_foot_y_mm;
+volatile float g_dog_gait_second_front_landing_lf_touchdown_x_mm;
+volatile float g_dog_gait_second_front_landing_rf_touchdown_x_mm;
+volatile float g_dog_gait_second_front_landing_lf_gait_x_mm;
+volatile float g_dog_gait_second_front_landing_lf_gait_y_mm;
+volatile float g_dog_gait_second_front_landing_rf_gait_x_mm;
+volatile float g_dog_gait_second_front_landing_rf_gait_y_mm;
+volatile float g_dog_gait_second_front_landing_body_x_mm;
+volatile float g_dog_gait_second_front_landing_body_goal_x_mm;
+volatile float g_dog_gait_second_front_landing_pitch_deg;
+volatile float g_dog_gait_second_front_landing_roll_deg;
+static uint8_t s_walk_second_front_landing_capture_pending;
+static DogGaitLeg_t s_walk_second_front_landing_leg;
 
 static void DogGait_UpdateLegAngles(void);
 static void DogGait_FillServoAngles(float angles[DOG_SERVO_COUNT]);
@@ -784,7 +809,8 @@ static void DogGait_UpdateWalkFootTrajectories(void)
             continue;
         } // 如果后腿即将上台阶，上台阶之前先保持当前足端不变，给支撑腿施加预加载、让重心稳定。
 
-        if (leg_phase < DOG_GAIT_WALK_PHASE_PER_LEG) // 摆动相
+        if (leg_phase < (DOG_GAIT_WALK_PHASE_PER_LEG -
+                         DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON)) // 摆动相
         {
             float swing_phase =
                 leg_phase / DOG_GAIT_WALK_PHASE_PER_LEG; //判断当前走到了摆动相的哪个位置。
@@ -877,6 +903,8 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                 (leg_phase - DOG_GAIT_WALK_PHASE_PER_LEG) /
                 (DOG_GAIT_WALK_TOTAL_PHASE - DOG_GAIT_WALK_PHASE_PER_LEG);
 
+            support_phase = DogGait_ClampFloat(support_phase, 0.0f, 1.0f);
+
             if (s_walk_leg_in_swing[i] != 0U)
             {
                 s_walk_touchdown_x[i] =
@@ -884,6 +912,17 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                 s_walk_support_height_mm[i] =
                     s_walk_support_height_goal_mm[i];
                 s_walk_leg_in_swing[i] = 0U;
+
+                /* Capture the second front-leg touchdown after the final
+                 * pose has been composed, without stopping the gait. */
+                if (((s_walk_cycle_parity == 0U) &&
+                     (i == DOG_GAIT_LEG_RF)) ||
+                    ((s_walk_cycle_parity != 0U) &&
+                     (i == DOG_GAIT_LEG_LF)))
+                {
+                    s_walk_second_front_landing_capture_pending = 1U;
+                    s_walk_second_front_landing_leg = (DogGaitLeg_t)i;
+                }
             }
             else
             {
@@ -1501,6 +1540,9 @@ void DogGait_Init(void)
     s_walk_last_pitch_deg = 0.0f;
     s_walk_last_roll_deg = 0.0f;
     s_walk_cycle_done = 0U;
+    s_walk_second_front_landing_capture_pending = 0U;
+    g_dog_gait_second_front_landing_valid = 0U;
+    g_dog_gait_second_front_landing_capture_count = 0U;
     s_foot_base = DOG_GAIT_FOOT_BASE_STAND;
     s_trot_speed_freq = DOG_GAIT_DEFAULT_SPEED_FREQ;
     DogGait_ClearFootYOffsets();
@@ -1523,6 +1565,9 @@ void DogGait_ResetWalk(void)
     s_walk_cycle_done = 0U;
     s_walk_last_pitch_deg = 0.0f;
     s_walk_last_roll_deg = 0.0f;
+    s_walk_second_front_landing_capture_pending = 0U;
+    g_dog_gait_second_front_landing_valid = 0U;
+    g_dog_gait_second_front_landing_capture_count = 0U;
     DogGait_ResetWalkFootStates();
 }
 
@@ -1735,6 +1780,43 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     } // 奇偶周期切换、摆腿顺序改变后，把四条腿的轨迹平滑过渡到新周期起始位置。
 
     DogGait_ComposeWalkPose(pitch_deg, roll_deg);
+
+    if (s_walk_second_front_landing_capture_pending != 0U)
+    {
+        g_dog_gait_second_front_landing_valid = 0U;
+        g_dog_gait_second_front_landing_leg =
+            (uint8_t)s_walk_second_front_landing_leg;
+        g_dog_gait_second_front_landing_cycle_parity = s_walk_cycle_parity;
+        g_dog_gait_second_front_landing_phase = s_walk_phase;
+        g_dog_gait_second_front_landing_lf_foot_x_mm =
+            s_walk_foot_x[DOG_GAIT_LEG_LF];
+        g_dog_gait_second_front_landing_lf_foot_y_mm =
+            s_walk_foot_y[DOG_GAIT_LEG_LF];
+        g_dog_gait_second_front_landing_rf_foot_x_mm =
+            s_walk_foot_x[DOG_GAIT_LEG_RF];
+        g_dog_gait_second_front_landing_rf_foot_y_mm =
+            s_walk_foot_y[DOG_GAIT_LEG_RF];
+        g_dog_gait_second_front_landing_lf_touchdown_x_mm =
+            s_walk_touchdown_x[DOG_GAIT_LEG_LF];
+        g_dog_gait_second_front_landing_rf_touchdown_x_mm =
+            s_walk_touchdown_x[DOG_GAIT_LEG_RF];
+        g_dog_gait_second_front_landing_lf_gait_x_mm =
+            s_gait[DOG_GAIT_LEG_LF].x;
+        g_dog_gait_second_front_landing_lf_gait_y_mm =
+            s_gait[DOG_GAIT_LEG_LF].y;
+        g_dog_gait_second_front_landing_rf_gait_x_mm =
+            s_gait[DOG_GAIT_LEG_RF].x;
+        g_dog_gait_second_front_landing_rf_gait_y_mm =
+            s_gait[DOG_GAIT_LEG_RF].y;
+        g_dog_gait_second_front_landing_body_x_mm = s_walk_body_x_state_mm;
+        g_dog_gait_second_front_landing_body_goal_x_mm =
+            s_walk_body_x_goal_mm;
+        g_dog_gait_second_front_landing_pitch_deg = s_walk_last_pitch_deg;
+        g_dog_gait_second_front_landing_roll_deg = s_walk_last_roll_deg;
+        s_walk_second_front_landing_capture_pending = 0U;
+        g_dog_gait_second_front_landing_valid = 1U;
+        g_dog_gait_second_front_landing_capture_count++;
+    }
 
     /* Apply and release preload with dedicated timings; normal walk targets
      * continue using the caller's gait time. */
