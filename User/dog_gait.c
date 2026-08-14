@@ -138,7 +138,7 @@
 #define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -0.0f // 奇数周期：RB 抬起前施加到 LB 的左侧预加载量。
 #define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -15.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
 #define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        150U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
-#define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_MOVE_MS 200U // 预加载结束、对侧前腿恢复时的专用舵机动作时间；仅作用一次，不影响普通 walk 轨迹。
+#define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_MOVE_MS 500U // 预加载结束、对侧前腿恢复时的专用舵机动作时间；仅作用一次，不影响普通 walk 轨迹。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES 1U // 释放指令后额外冻结一个 100 ms 更新周期，确保 150 ms 指令不会被普通轨迹提前覆盖。
 #define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     5U // 当前 100 ms 更新周期下约 500 ms。
 #define DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES      6U // 奇偶腿序切换时的平滑过渡时间，当前约 300 ms。
@@ -771,7 +771,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
         float support_progress;
         float support_height;
         float leg_phase = DogGait_WrapWalkLegPhase(
-            s_walk_phase - DogGait_GetWalkLegPhaseStart((DogGaitLeg_t)i));
+            s_walk_phase - DogGait_GetWalkLegPhaseStart((DogGaitLeg_t)i));// leg_phase 表示每条腿到哪个阶段了。如果在 0~0.5 之间，说明是摆动相，如果在 0.5~2.0 说明是支撑相。
 
         if ((i == DogGait_GetWalkRearPreloadSwingLeg()) &&
             (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD))
@@ -782,17 +782,17 @@ static void DogGait_UpdateWalkFootTrajectories(void)
             s_walk_foot_y[i] = s_walk_rb_preload_hold_y_mm;
             s_walk_leg_in_swing[i] = 0U;
             continue;
-        }
+        } // 如果后腿即将上台阶，上台阶之前先保持当前足端不变，给支撑腿施加预加载、让重心稳定。
 
         if (leg_phase < DOG_GAIT_WALK_PHASE_PER_LEG) // 摆动相
         {
             float swing_phase =
-                leg_phase / DOG_GAIT_WALK_PHASE_PER_LEG;
+                leg_phase / DOG_GAIT_WALK_PHASE_PER_LEG; //判断当前走到了摆动相的哪个位置。
 
-            if (s_walk_leg_in_swing[i] == 0U)
-            {
+            if (s_walk_leg_in_swing[i] == 0U) // 如果这条腿之前没有进入摆动相，就初始化本次摆腿。
+            { 
                 if ((i == DogGait_GetWalkRearPreloadSwingLeg()) &&
-                    (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING))
+                    (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING)) // 如果是后腿摆动相，并且后腿预加载状态是摆动，就继续保持当前的姿势。
                 {
                     /* Continue from the exact pose held during preload. */
                     s_walk_swing_start_x[i] = s_walk_rb_preload_hold_x_mm;
@@ -816,22 +816,22 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                  s_walk_swing_start_height_mm[i]) * support_progress;
 
             if ((i == DOG_GAIT_LEG_LB) ||
-                (i == DOG_GAIT_LEG_RB))
+                (i == DOG_GAIT_LEG_RB))// 如果是两条后腿，就采用抬起 - > 前移 - > 落下的三阶段方式来计算足端轨迹。
             {
                 if (swing_phase < DOG_GAIT_WALK_REAR_LIFT_END_PHASE)
-                {
+                { //在 0~0.25 阶段，主要是抬腿阶段，足端的 x 坐标会向后收缩，y 坐标会向上抬高。
                     float lift_phase =
                         swing_phase / DOG_GAIT_WALK_REAR_LIFT_END_PHASE;
                     float lift_smooth = DogGait_SmoothStep(lift_phase);
 
                     s_walk_foot_x[i] =
                         s_walk_swing_start_x[i] -
-                        DOG_GAIT_WALK_REAR_TUCK_X_MM * lift_smooth;
+                        DOG_GAIT_WALK_REAR_TUCK_X_MM * lift_smooth; // x 向后收 DOG_GAIT_WALK_REAR_TUCK_X_MM = 15mm
                     s_walk_foot_y[i] =
                         support_height +
-                        s_walk_step_height_mm * lift_smooth;
+                        s_walk_step_height_mm * lift_smooth; // y 在 support_height 的基础上抬高 s_walk_step_height_mm = 55mm
                 }
-                else if (swing_phase < DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE)
+                else if (swing_phase < DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE) 
                 {
                     float transfer_phase =
                         (swing_phase - DOG_GAIT_WALK_REAR_LIFT_END_PHASE) /
@@ -843,26 +843,26 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                         s_walk_swing_start_x[i] -
                         DOG_GAIT_WALK_REAR_TUCK_X_MM +
                         (s_walk_step_length_mm + DOG_GAIT_WALK_REAR_TUCK_X_MM) *
-                        transfer_smooth;
+                        transfer_smooth; // x 坐标平滑移动到目标位置。相当于是 后收起点 + （步长 + 后收量）
                     s_walk_foot_y[i] =
-                        support_height + s_walk_step_height_mm;
+                        support_height + s_walk_step_height_mm; // 高度不变
                 }
-                else
+                else // 第三阶段：落下
                 {
                     float landing_phase =
                         (swing_phase - DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE) /
                         (1.0f - DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE);
 
                     s_walk_foot_x[i] =
-                        s_walk_swing_start_x[i] + s_walk_step_length_mm;
+                        s_walk_swing_start_x[i] + s_walk_step_length_mm; // x 坐标平滑移动到目标位置。相当于是 起点 + 步长
                     s_walk_foot_y[i] =
                         support_height +
                         s_walk_step_height_mm *
-                        (1.0f - DogGait_SmoothStep(landing_phase));
+                        (1.0f - DogGait_SmoothStep(landing_phase)); // y 坐标平滑下降到支撑高度
                 }
             }
             else
-            {
+            { // 如果是两条前腿，就采用平滑的正弦波方式来计算足端轨迹。
                 s_walk_foot_x[i] =
                     s_walk_swing_start_x[i] +
                     s_walk_step_length_mm * DogGait_SmoothStep(swing_phase);
@@ -1679,15 +1679,15 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     s_walk_last_pitch_deg = pitch_deg;
     s_walk_last_roll_deg = roll_deg;
 
-    DogGait_UpdateRearPreloadState();
+    DogGait_UpdateRearPreloadState(); // 左右侧补偿更新。
 
     /* Do not send an 80 ms trajectory command while the preceding 150 ms
      * preload-release command is still executing. */
     if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_RELEASE) &&
-        (s_walk_rb_preload_release_pending == 0U))
+        (s_walk_rb_preload_release_pending == 0U)) // 如果处于释放状态且没有挂起的释放命令，则增加计数器，直到达到预设的更新次数。
     {
         if (s_walk_rb_preload_release_hold_updates >=
-            DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES)
+            DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES) // 超过停顿时间，更新为预加载结束状态。
         {
             s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_NONE;
         }
@@ -1703,7 +1703,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         leg_phase = DOG_GAIT_LEG_COUNT - 1U;
     }
 
-    active_leg = DogGait_GetWalkLegByPhaseIndex(leg_phase);
+    active_leg = DogGait_GetWalkLegByPhaseIndex(leg_phase); // 根据当前是奇数个周期还是偶数个周期更新当前活动腿。
     if (s_walk_rb_preload_state != DOG_GAIT_RB_PRELOAD_RELEASE)
     {
         s_walk_body_x_goal_mm = DogGait_GetWalkBodyTarget((uint8_t)active_leg, pitch_deg); // 使用活动腿、机身长度和 IMU 倾角计算经验重心目标。
@@ -1726,13 +1726,13 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
                                       &lift); // 得到当前活动腿前后方向的位移 dx 和竖直方向上的抬腿量 lift。
     s_walk_foot_x[active_leg] = dx;
     s_walk_foot_y[active_leg] = lift;
-    DogGait_UpdateWalkFootTrajectories();
+    DogGait_UpdateWalkFootTrajectories(); // 根据当前全局步态相位，为四条腿分别计算本帧的足端轨迹偏移。
     if (s_walk_order_transition_active != 0U)
     {
         /* The trajectory code above produces the new-order phase-0 target.
          * Blend from the previous cycle's final foot offsets before using it. */
         DogGait_ApplyWalkOrderTransition();
-    }
+    } // 奇偶周期切换、摆腿顺序改变后，把四条腿的轨迹平滑过渡到新周期起始位置。
 
     DogGait_ComposeWalkPose(pitch_deg, roll_deg);
 
@@ -1752,6 +1752,14 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     }
     DogGait_OutputCurrentPose(output_time_ms);
     s_walk_rb_preload_release_pending = 0U;
+    /*最终的重心移动是两套机制的叠加：
+    共同的 X 偏移
+    = 经验步态重心切换
+    + IMU pitch 的前后重心纠偏
+
+    每条腿不同的 X/Y 偏移
+    = pitch/roll 的几何姿态补偿
+    */
 
     /* 重心未到位时不增加 s_walk_phase，因此活动腿保持在当前轨迹点，相当于冻结摆腿。 */
     if (fabsf(s_walk_body_x_goal_mm - s_walk_body_x_state_mm) < DOG_GAIT_WALK_BODY_READY_MM)

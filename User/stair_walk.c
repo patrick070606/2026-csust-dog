@@ -165,26 +165,26 @@ static void StairWalk_UpdateStageAtFrontPreSwing(float pitch_deg)
     StairWalkPitchBand_t measured_band;
     StairWalkPitchBand_t expected_band;
 
-    if (DogGait_IsWalkLeftFrontPreSwing() == 0U)
+    if (DogGait_IsWalkLeftFrontPreSwing() == 0U) // 如果并非处在第一条腿还未抬起的缓冲阶段，那么不允许更新高度。
     {
         /* Do not combine samples from two different gait instants. */
         g_stair_walk_pitch_stable_samples = 0U;
         return;
     }
 
-    measured_band = StairWalk_GetPitchBand(pitch_deg);
-    expected_band = StairWalk_GetExpectedNextPitchBand();
+    measured_band = StairWalk_GetPitchBand(pitch_deg); // 按照 pitch 角对当前上楼梯的前后腿高度差进行分类。
+    expected_band = StairWalk_GetExpectedNextPitchBand(); // 获取当前阶段的期望 pitch 区间。
     g_stair_walk_pitch_band_mm =
         (measured_band == STAIR_WALK_PITCH_BAND_DIFF_0_MM) ? 0U :
         (measured_band == STAIR_WALK_PITCH_BAND_DIFF_30_MM) ? 30U :
-        (measured_band == STAIR_WALK_PITCH_BAND_DIFF_60_MM) ? 60U : 255U;
+        (measured_band == STAIR_WALK_PITCH_BAND_DIFF_60_MM) ? 60U : 255U; // 记录当前的高度差，作为调试信息输出。
 
     if ((expected_band == STAIR_WALK_PITCH_BAND_UNKNOWN) ||
         (measured_band != expected_band))
     {
         g_stair_walk_pitch_stable_samples = 0U;
         return;
-    }
+    } // 如果当前 pitch 不符合预期，则不推进。
 
     /* A single matching band at the designated pre-swing instant advances
      * the stair state immediately. */
