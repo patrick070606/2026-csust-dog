@@ -1569,6 +1569,22 @@ void DogTask_SpeedBumpEntryTest_Run(void)
     }
 }
 
+/* 上楼梯测试入口：完成正常回中、站立和视觉/IMU 初始化后，直接开始
+ * 循迹等待蓝色平台事件。蓝色事件和上楼完成后的后续处理均复用主状态机。 */
+void DogTask_StairWalkTest_Init(void)
+{
+    DogTask_Init();
+
+    /* 跳过启动平移、减速带等前置任务，直接进入“循迹到蓝色”阶段。 */
+    DogTask_BeginTrackToBlue(HAL_GetTick());
+}
+
+/* 上楼梯测试运行入口：保留原有蓝色触发、上楼完成和后续循迹逻辑。 */
+void DogTask_StairWalkTest_Run(void)
+{
+    DogTask_Run();
+}
+
 /* 机器狗主循环任务：读取视觉数据、处理事件状态机、更新步态、控制 LED 并周期回传状态。 */
 void DogTask_Run(void)
 {

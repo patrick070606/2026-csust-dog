@@ -7,5 +7,7 @@ void DogTask_SpeedBumpTest_Init(void);
 void DogTask_SpeedBumpTest_Run(void);
 void DogTask_SpeedBumpEntryTest_Init(void);
 void DogTask_SpeedBumpEntryTest_Run(void);
+void DogTask_StairWalkTest_Init(void);
+void DogTask_StairWalkTest_Run(void);
 
 #endif
