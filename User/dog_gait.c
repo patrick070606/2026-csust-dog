@@ -56,8 +56,8 @@
 #define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -20.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -25.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -25.0f
 #define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #endif
 
@@ -660,10 +660,10 @@ static void DogGait_ResetWalkFootStates(void)
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
         float leg_phase = DogGait_WrapWalkLegPhase(
-            -((float)i * DOG_GAIT_WALK_PHASE_PER_LEG));
+            -((float)i * DOG_GAIT_WALK_PHASE_PER_LEG)); // leg_phase 表示每条腿到哪个阶段了。
         float stance_phase =
             (leg_phase - DOG_GAIT_WALK_PHASE_PER_LEG) /
-            (DOG_GAIT_WALK_TOTAL_PHASE - DOG_GAIT_WALK_PHASE_PER_LEG);
+            (DOG_GAIT_WALK_TOTAL_PHASE - DOG_GAIT_WALK_PHASE_PER_LEG); // 表示当前腿的支撑相位在整个步态周期中的位置，范围是 [0.0, 1.0]。
 
         if (stance_phase < 0.0f)
         {
