@@ -135,7 +135,7 @@
 #define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN        -1.0f  // IMU 坐标已统一到机身坐标；实机左右足端纠偏方向需反转。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -20.0f // 奇数周期：RB 抬起前施加到 LF 的左侧预加载量。
+#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -0.0f // 奇数周期：RB 抬起前施加到 LF 的左侧预加载量。
 #define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -0.0f // 奇数周期：RB 抬起前施加到 LB 的左侧预加载量。
 #define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -15.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
 #define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        150U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
@@ -259,7 +259,8 @@ static float s_walk_phase; // walk 步态的当前相位，范围是 [0.0, DOG_G
 static float s_walk_speed_freq = 0.03f; // 表示 walk 步态的速度频率。
 static float s_walk_step_height_mm = 55.0f;
 static float s_walk_step_length_mm = 50.0f;
-/* 0: odd cycle (left first); 1: even cycle (right first). */
+/* Keep the stair walk order left-first on every cycle:
+ * LF -> RF -> LB -> RB.  The value stays 0 rather than alternating. */
 static uint8_t s_walk_cycle_parity;
 static float s_walk_cg_base_x_mm; // 基础重心偏移
 static float s_walk_imu_gain_mm = 0.0f; // 表示 walk 步态中，IMU 前后倾角对重心前后偏移的增益系数。也就是说，如果 IMU 检测到机器人前倾 1 度，那么重心会向前偏移 60.0mm，从而调整机器人的步态，使其保持平衡。
@@ -1641,6 +1642,7 @@ void DogGait_Init(void)
 void DogGait_ResetWalk(void)
 {
     s_walk_phase = 0.0f;
+    /* Use the left-first order from the very first stair-walk cycle. */
     s_walk_cycle_parity = 0U;
     s_walk_body_x_goal_mm = s_walk_cg_base_x_mm;
     s_walk_body_x_state_mm = s_walk_cg_base_x_mm;
@@ -1978,7 +1980,9 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         if (s_walk_phase >= DOG_GAIT_WALK_TOTAL_PHASE)
         {
             s_walk_phase -= DOG_GAIT_WALK_TOTAL_PHASE;
-            s_walk_cycle_parity ^= 1U;
+            /* Do not alternate the gait order at the cycle boundary.
+             * Every stair-walk cycle remains LF -> RF -> LB -> RB. */
+            s_walk_cycle_parity = 0U;
             for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
             {
                 s_walk_order_transition_start_x[i] = s_walk_foot_x[i];
