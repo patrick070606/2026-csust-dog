@@ -102,6 +102,7 @@ static void Fault_Capture(uint32_t *stack, uint32_t handler_id)
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
+extern DMA_HandleTypeDef hdma_usart3_tx;
 
 /* USER CODE BEGIN EV */
 
@@ -290,6 +291,14 @@ void USART3_IRQHandler(void)
   /* USER CODE BEGIN USART3_IRQn 1 */
 
   /* USER CODE END USART3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles DMA1 channel2 global interrupt.
+  */
+void DMA1_Channel2_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_usart3_tx);
 }
 
 /* USER CODE BEGIN 1 */

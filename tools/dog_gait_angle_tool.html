@@ -35,7 +35,8 @@
 
     button,
     input,
-    select {
+    select,
+    textarea {
       font: inherit;
     }
 
@@ -113,7 +114,8 @@
     }
 
     input,
-    select {
+    select,
+    textarea {
       width: 100%;
       height: 36px;
       border: 1px solid var(--line);
@@ -125,9 +127,25 @@
     }
 
     input:focus,
-    select:focus {
+    select:focus,
+    textarea:focus {
       border-color: var(--blue);
       box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.14);
+    }
+
+    textarea {
+      height: 148px;
+      min-height: 96px;
+      padding: 9px 10px;
+      resize: vertical;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre;
+    }
+
+    [hidden] {
+      display: none !important;
     }
 
     .row {
@@ -196,7 +214,7 @@
 
     .chart-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 16px;
       min-height: 0;
     }
@@ -281,6 +299,12 @@
       background: currentColor;
     }
 
+    .swatch.point {
+      width: 9px;
+      height: 9px;
+      border-radius: 2px;
+    }
+
     .blue {
       color: var(--blue);
     }
@@ -295,6 +319,65 @@
 
     .orange {
       color: var(--orange);
+    }
+
+    .gray {
+      color: #7b8794;
+    }
+
+    .stats {
+      display: grid;
+      gap: 10px;
+      padding: 12px 14px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .stats-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+    }
+
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .stat strong {
+      color: var(--ink);
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .limit-note {
+      min-height: 22px;
+      padding: 6px 8px;
+      border: 1px solid #d5e6dd;
+      border-radius: 6px;
+      background: #f3faf6;
+      color: var(--green);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .limit-note.warn {
+      border-color: #efc4c4;
+      background: #fff4f4;
+      color: var(--red);
     }
 
     @media (max-width: 980px) {
@@ -318,7 +401,7 @@
       }
 
       main {
-        grid-template-rows: 420px 640px;
+        grid-template-rows: 420px 960px;
       }
 
       .toolbar {
@@ -332,7 +415,7 @@
     <aside>
       <section class="brand">
         <h1>DogGait_CalcAbsoluteAngleByPos</h1>
-        <p class="sub">足端相位轨迹、髋膝绝对角、物理时间角加速度同步计算。</p>
+        <p class="sub">足端相位轨迹、髋膝绝对角、项目点限速插补与角速度/角加速度同步计算。</p>
       </section>
 
       <section class="panel">
@@ -341,6 +424,10 @@
             <label class="label" for="preset">预设</label>
             <select id="preset">
               <option value="projectTrot">项目小跑整周期</option>
+              <option value="projectTrack">项目循迹直行</option>
+              <option value="projectSpeedBump">过减速带循迹</option>
+              <option value="projectPlatform">平台循迹</option>
+              <option value="projectTurn">项目转向</option>
               <option value="cycloid">仅抬脚摆线</option>
               <option value="ellipse">椭圆步态</option>
               <option value="line">水平往复</option>
@@ -349,27 +436,56 @@
           </div>
 
           <div class="field">
+            <label class="label" for="interpMode">轨迹计算</label>
+            <select id="interpMode">
+              <option value="project" selected>项目点 + 限速插补</option>
+              <option value="continuous">连续原轨迹</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="label" for="targetSource">目标点来源</label>
+            <select id="targetSource">
+              <option value="cycloid" selected>摆线相位生成</option>
+              <option value="list">列表目标点</option>
+            </select>
+          </div>
+
+          <div class="field" id="xExprField">
             <label class="label" for="xExpr">x(t)</label>
             <input id="xExpr" spellcheck="false" value="projectTrotX(t, base_x, bias_angle_deg, h, r)">
           </div>
 
-          <div class="field">
+          <div class="field" id="yExprField">
             <label class="label" for="yExpr">y(t)</label>
             <input id="yExpr" spellcheck="false" value="projectTrotY(t, base_y, bias_angle_deg, h, r)">
           </div>
 
-          <div class="row">
+          <div class="field" id="targetListField" hidden>
+            <label class="label" for="targetList">目标点列表 (t, x, y)</label>
+            <textarea id="targetList" rows="9" spellcheck="false">0, -20, 54
+0.125, -13.641, 76.5
+0.25, 15, 99
+0.375, 43.641, 76.5
+0.5, 50, 54
+0.625, 43.641, 54
+0.75, 15, 54
+0.875, -13.641, 54
+1, -20, 54</textarea>
+          </div>
+
+          <div class="row" id="baseRow">
             <div class="field">
               <label class="label" for="baseX">base_x</label>
-              <input id="baseX" type="number" step="0.1" value="-50">
+              <input id="baseX" type="number" step="0.1" value="-20">
             </div>
             <div class="field">
               <label class="label" for="baseY">base_y</label>
-              <input id="baseY" type="number" step="0.1" value="60">
+              <input id="baseY" type="number" step="0.1" value="54">
             </div>
           </div>
 
-          <div class="row">
+          <div class="row" id="biasHeightRow">
             <div class="field">
               <label class="label" for="biasAngle">bias_angle_deg</label>
               <input id="biasAngle" type="number" step="0.1" value="0">
@@ -380,18 +496,18 @@
             </div>
           </div>
 
-          <div class="field">
+          <div class="field" id="stepRangeField">
             <label class="label" for="stepRange">r</label>
-            <input id="stepRange" type="number" step="0.1" value="50">
+            <input id="stepRange" type="number" step="0.1" value="70">
           </div>
 
           <div class="row">
             <div class="field">
-              <label class="label" for="l1">l1</label>
-              <input id="l1" type="number" step="0.1" value="100">
+              <label class="label" for="l1">l1 (代码小腿长)</label>
+              <input id="l1" type="number" step="0.1" value="125">
             </div>
             <div class="field">
-              <label class="label" for="l2">l2</label>
+              <label class="label" for="l2">l2 (代码大腿长)</label>
               <input id="l2" type="number" step="0.1" value="100">
             </div>
           </div>
@@ -410,12 +526,22 @@
           <div class="row">
             <div class="field">
               <label class="label" for="updatePeriodMs">update_period_ms</label>
-              <input id="updatePeriodMs" type="number" min="1" step="1" value="150">
+              <input id="updatePeriodMs" type="number" min="1" step="1" value="60">
             </div>
             <div class="field">
               <label class="label" for="speedFreq">speed_freq</label>
-              <input id="speedFreq" type="number" min="0.001" step="0.01" value="0.20">
+              <input id="speedFreq" type="number" min="0.001" step="0.01" value="0.125">
             </div>
+          </div>
+
+          <div class="field">
+            <label class="label" for="maxAngVel">角速度上限 deg/s</label>
+            <input id="maxAngVel" type="number" min="1" step="10" value="300">
+          </div>
+
+          <div class="field">
+            <label class="label" for="maxAngAccel">角加速度上限 deg/s²</label>
+            <input id="maxAngAccel" type="number" min="1" step="100" value="1000">
           </div>
 
           <div class="row">
@@ -435,6 +561,24 @@
               <span class="value" id="timeLabel">0.000</span>
             </label>
             <input id="timeScrub" type="range" min="0" max="1000" value="0">
+          </div>
+
+          <div class="stats">
+            <div class="stats-head">
+              <span>周期内角速度</span>
+              <span>deg/s</span>
+            </div>
+            <div class="stats-grid">
+              <div class="stat"><span>hip 最大</span><strong id="hipVelMax">--</strong></div>
+              <div class="stat"><span>hip 最小</span><strong id="hipVelMin">--</strong></div>
+              <div class="stat"><span>hip 平均</span><strong id="hipVelAvg">--</strong></div>
+              <div class="stat"><span>hip RMS</span><strong id="hipVelRms">--</strong></div>
+              <div class="stat"><span>knee 最大</span><strong id="kneeVelMax">--</strong></div>
+              <div class="stat"><span>knee 最小</span><strong id="kneeVelMin">--</strong></div>
+              <div class="stat"><span>knee 平均</span><strong id="kneeVelAvg">--</strong></div>
+              <div class="stat"><span>knee RMS</span><strong id="kneeVelRms">--</strong></div>
+            </div>
+            <div class="limit-note" id="velLimitNote">角速度上限 300 deg/s</div>
           </div>
         </div>
 
@@ -457,11 +601,14 @@
           <span class="pill">s <strong id="secNow">0.000</strong></span>
           <span class="pill">hip <strong id="hipNow">0.00°</strong></span>
           <span class="pill">knee <strong id="kneeNow">0.00°</strong></span>
+          <span class="pill">hip ω <strong id="hipVelNow">0.00</strong></span>
+          <span class="pill">knee ω <strong id="kneeVelNow">0.00</strong></span>
         </div>
         <div class="legend">
           <span class="key blue"><span class="swatch"></span>足端轨迹</span>
           <span class="key green"><span class="swatch"></span>连杆</span>
           <span class="key orange"><span class="swatch"></span>当前姿态</span>
+          <span class="key gray"><span class="swatch point"></span>项目坐标点</span>
         </div>
       </section>
 
@@ -474,6 +621,16 @@
           <div class="legend">
             <span class="key blue"><span class="swatch"></span>hip</span>
             <span class="key green"><span class="swatch"></span>knee</span>
+          </div>
+        </div>
+        <div class="canvas-box">
+          <canvas id="velChart"></canvas>
+          <div class="badge">
+            <span class="pill">角速度 deg/s</span>
+          </div>
+          <div class="legend">
+            <span class="key blue"><span class="swatch"></span>hip ω</span>
+            <span class="key green"><span class="swatch"></span>knee ω</span>
           </div>
         </div>
         <div class="canvas-box">
@@ -499,11 +656,21 @@
       playing: false,
       cursor: 0,
       lastFrame: 0,
-      view: null
+      view: null,
+      waypoints: []
     };
 
     const els = {
       preset: document.getElementById("preset"),
+      interpMode: document.getElementById("interpMode"),
+      targetSource: document.getElementById("targetSource"),
+      targetList: document.getElementById("targetList"),
+      xExprField: document.getElementById("xExprField"),
+      yExprField: document.getElementById("yExprField"),
+      targetListField: document.getElementById("targetListField"),
+      baseRow: document.getElementById("baseRow"),
+      biasHeightRow: document.getElementById("biasHeightRow"),
+      stepRangeField: document.getElementById("stepRangeField"),
       xExpr: document.getElementById("xExpr"),
       yExpr: document.getElementById("yExpr"),
       baseX: document.getElementById("baseX"),
@@ -517,6 +684,8 @@
       t1: document.getElementById("t1"),
       updatePeriodMs: document.getElementById("updatePeriodMs"),
       speedFreq: document.getElementById("speedFreq"),
+      maxAngVel: document.getElementById("maxAngVel"),
+      maxAngAccel: document.getElementById("maxAngAccel"),
       samples: document.getElementById("samples"),
       speed: document.getElementById("speed"),
       scrub: document.getElementById("timeScrub"),
@@ -531,8 +700,20 @@
       secNow: document.getElementById("secNow"),
       hipNow: document.getElementById("hipNow"),
       kneeNow: document.getElementById("kneeNow"),
+      hipVelNow: document.getElementById("hipVelNow"),
+      kneeVelNow: document.getElementById("kneeVelNow"),
+      hipVelMax: document.getElementById("hipVelMax"),
+      hipVelMin: document.getElementById("hipVelMin"),
+      hipVelAvg: document.getElementById("hipVelAvg"),
+      hipVelRms: document.getElementById("hipVelRms"),
+      kneeVelMax: document.getElementById("kneeVelMax"),
+      kneeVelMin: document.getElementById("kneeVelMin"),
+      kneeVelAvg: document.getElementById("kneeVelAvg"),
+      kneeVelRms: document.getElementById("kneeVelRms"),
+      velLimitNote: document.getElementById("velLimitNote"),
       trajectory: document.getElementById("trajectory"),
       angleChart: document.getElementById("angleChart"),
+      velChart: document.getElementById("velChart"),
       accelChart: document.getElementById("accelChart")
     };
 
@@ -540,26 +721,90 @@
       projectTrot: {
         x: "projectTrotX(t, base_x, bias_angle_deg, h, r)",
         y: "projectTrotY(t, base_y, bias_angle_deg, h, r)",
-        baseX: -50,
-        baseY: 60,
+        baseX: -20,
+        baseY: 54,
+        l1: 125,
+        l2: 100,
+        biasAngle: 0,
+        stepHeight: 45,
+        stepRange: 70,
+        updatePeriodMs: 60,
+        speedFreq: 0.125,
+        t0: 0,
+        t1: 1
+      },
+      projectTrack: {
+        x: "projectTrotX(t, base_x, bias_angle_deg, h, r)",
+        y: "projectTrotY(t, base_y, bias_angle_deg, h, r)",
+        baseX: -20,
+        baseY: 54,
+        l1: 125,
+        l2: 100,
+        biasAngle: 0,
+        stepHeight: 40,
+        stepRange: 55,
+        updatePeriodMs: 60,
+        speedFreq: 0.125,
+        t0: 0,
+        t1: 1
+      },
+      projectSpeedBump: {
+        x: "projectTrotX(t, base_x, bias_angle_deg, h, r)",
+        y: "projectTrotY(t, base_y, bias_angle_deg, h, r)",
+        baseX: -22,
+        baseY: 54,
+        l1: 125,
+        l2: 100,
+        biasAngle: 0,
+        stepHeight: 45,
+        stepRange: 40,
+        updatePeriodMs: 65,
+        speedFreq: 0.125,
+        t0: 0,
+        t1: 1
+      },
+      projectPlatform: {
+        x: "projectTrotX(t, base_x, bias_angle_deg, h, r)",
+        y: "projectTrotY(t, base_y, bias_angle_deg, h, r)",
+        baseX: -20,
+        baseY: 54,
+        l1: 125,
+        l2: 100,
         biasAngle: 0,
         stepHeight: 45,
         stepRange: 50,
-        updatePeriodMs: 150,
-        speedFreq: 0.20,
+        updatePeriodMs: 60,
+        speedFreq: 0.125,
+        t0: 0,
+        t1: 1
+      },
+      projectTurn: {
+        x: "projectTrotX(t, base_x, bias_angle_deg, h, r)",
+        y: "projectTrotY(t, base_y, bias_angle_deg, h, r)",
+        baseX: -20,
+        baseY: 54,
+        l1: 125,
+        l2: 100,
+        biasAngle: 0,
+        stepHeight: 45,
+        stepRange: 15,
+        updatePeriodMs: 60,
+        speedFreq: 0.125,
         t0: 0,
         t1: 1
       },
       cycloid: {
         x: "base_x + cycloidX(t, bias_angle_deg, h, r)",
         y: "base_y + cycloidY(t, bias_angle_deg, h, r)",
-        baseX: -50,
-        baseY: 60,
+        baseX: -20,
+        baseY: 54,
+        l1: 125,
+        l2: 100,
         biasAngle: 0,
         stepHeight: 45,
-        stepRange: 50,
-        updatePeriodMs: 150,
-        speedFreq: 0.20,
+        stepRange: 70,
+        updatePeriodMs: 60,
+        speedFreq: 0.125,
         t0: 0,
         t1: 0.5
       },
@@ -568,11 +813,13 @@
         y: "base_y + 18 + 12 * cos(2*pi*t)",
         baseX: 0,
         baseY: 0,
+        l1: 125,
+        l2: 100,
         biasAngle: 0,
         stepHeight: 35,
         stepRange: 80,
-        updatePeriodMs: 150,
-        speedFreq: 0.20,
+        updatePeriodMs: 60,
+        speedFreq: 0.125,
         t0: 0,
         t1: 1
       },
@@ -581,11 +828,13 @@
         y: "base_y + 18",
         baseX: 0,
         baseY: 0,
+        l1: 125,
+        l2: 100,
         biasAngle: 0,
         stepHeight: 35,
         stepRange: 80,
-        updatePeriodMs: 150,
-        speedFreq: 0.20,
+        updatePeriodMs: 60,
+        speedFreq: 0.125,
         t0: 0,
         t1: 1
       }
@@ -712,7 +961,98 @@
       }
     }
 
-    function recalc(keepCursor = true) {
+    function seriesStats(values) {
+      let min = Infinity;
+      let max = -Infinity;
+      let sum = 0;
+      let sumSq = 0;
+      let count = 0;
+      for (const value of values) {
+        if (!Number.isFinite(value)) continue;
+        min = Math.min(min, value);
+        max = Math.max(max, value);
+        sum += value;
+        sumSq += value * value;
+        count++;
+      }
+      if (!count) return { min: 0, max: 0, avg: 0, rms: 0 };
+      return {
+        min,
+        max,
+        avg: sum / count,
+        rms: Math.sqrt(sumSq / count)
+      };
+    }
+
+    function forwardKinematics(hipDeg, kneeDeg, l1, l2) {
+      const hip = hipDeg / DEG;
+      const knee = (hipDeg + kneeDeg) / DEG;
+      return {
+        x: l1 * Math.sin(hip) + l2 * Math.sin(knee),
+        y: l1 + l2 - (l1 * Math.cos(hip) + l2 * Math.cos(knee))
+      };
+    }
+
+    function parseTargetWaypoints(text, l1, l2) {
+      const waypoints = [];
+      const lines = String(text || "").split(/\r?\n/);
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith("#")) continue;
+        const parts = line.split(/[\s,;]+/).map((part) => Number(part));
+        if (parts.length < 3 || parts.some((value) => !Number.isFinite(value))) {
+          throw new Error(`列表目标点格式错误：${line}`);
+        }
+        const t = parts[0];
+        const x = parts[1];
+        const y = parts[2];
+        const angles = calcAbsoluteAngleByPos(x, y, l1, l2);
+        waypoints.push({ t, x, y, hip: angles.hip, knee: angles.knee });
+      }
+      if (waypoints.length < 2) {
+        throw new Error("列表目标点至少需要 2 行有效数据");
+      }
+      return waypoints;
+    }
+
+    function buildPhaseWaypoints(xFunc, yFunc, params, l1, l2, t0, t1, speedFreq) {
+      const phases = [];
+      let phase = t0;
+      let wrapped = false;
+      phases.push(phase);
+      for (let guard = 0; guard < 100000; guard++) {
+        let next = phase + speedFreq;
+        if (next >= 1) {
+          next -= 1;
+          wrapped = true;
+        }
+        phase = next;
+        if (!wrapped && phase > t1 - 1e-9) {
+          phases.push(phase);
+          break;
+        }
+        phases.push(phase);
+        if (wrapped) break;
+      }
+
+      return phases.map((t) => {
+        const x = Number(xFunc(t, params));
+        const y = Number(yFunc(t, params));
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          throw new Error(`方程在 t=${t.toFixed(5)} 处不是有效数值`);
+        }
+        const angles = calcAbsoluteAngleByPos(x, y, l1, l2);
+        return { t, x, y, hip: angles.hip, knee: angles.knee };
+      });
+    }
+
+    function formatListNumber(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "0";
+      return String(Math.round(number * 1e6) / 1e6);
+    }
+
+    function syncTargetListFromCycloid() {
       try {
         const xFunc = compileExpression(els.xExpr.value.trim());
         const yFunc = compileExpression(els.yExpr.value.trim());
@@ -723,49 +1063,279 @@
           h: Number(els.stepHeight.value),
           r: Number(els.stepRange.value)
         };
+        const waypoints = buildPhaseWaypoints(
+          xFunc, yFunc, params,
+          Number(els.l1.value), Number(els.l2.value),
+          Number(els.t0.value), Number(els.t1.value),
+          Number(els.speedFreq.value)
+        );
+        els.targetList.value = waypoints
+          .map((wp) => `${formatListNumber(wp.t)}, ${formatListNumber(wp.x)}, ${formatListNumber(wp.y)}`)
+          .join("\n");
+      } catch (err) {
+        setStatus(err.message || String(err), true);
+      }
+    }
+
+    function buildProjectInterpData(waypoints, l1, l2, maxAngVel, maxAngAccel, samples) {
+      const markers = [];
+      for (const wp of waypoints) {
+        const exists = markers.some(
+          (m) => Math.abs(m.x - wp.x) <= 1e-6 && Math.abs(m.y - wp.y) <= 1e-6
+        );
+        if (!exists) {
+          markers.push(wp);
+        }
+      }
+
+      normalizeAngleSeries(waypoints, "hip");
+      normalizeAngleSeries(waypoints, "knee");
+
+      const intervals = [];
+      // 舵机动作时间等于两次更新间隔；速度/加速度均受自定义上限约束。
+      for (let i = 1; i < waypoints.length; i++) {
+        const prev = waypoints[i - 1];
+        const next = waypoints[i];
+        const dt = next.timeSec - prev.timeSec;
+        if (!(dt > 0)) continue;
+
+        intervals.push({
+          startTime: prev.timeSec,
+          endTime: next.timeSec,
+          dt,
+          startPhase: prev.t,
+          endPhase: next.t,
+          targetX: next.x,
+          targetY: next.y,
+          targetHip: next.hipContinuous,
+          targetKnee: next.kneeContinuous,
+          cappedHip: Math.abs((next.hipContinuous - prev.hipContinuous) / dt) > maxAngVel + 1e-9,
+          cappedKnee: Math.abs((next.kneeContinuous - prev.kneeContinuous) / dt) > maxAngVel + 1e-9
+        });
+      }
+
+      const tMin = waypoints[0].timeSec;
+      const tMax = waypoints[waypoints.length - 1].timeSec;
+      const rawStep = (tMax - tMin) / Math.max(100, samples * 8);
+      const raw = [];
+      let simTime = tMin;
+      let intervalIndex = 0;
+      let hip = waypoints[0].hipContinuous;
+      let knee = waypoints[0].kneeContinuous;
+      let hipVel = 0;
+      let kneeVel = 0;
+      let hipAccel = 0;
+      let kneeAccel = 0;
+
+      while (simTime < tMax - 1e-12) {
+        while (intervalIndex < intervals.length - 1 && simTime >= intervals[intervalIndex + 1].startTime - 1e-9) {
+          intervalIndex++;
+        }
+        const iv = intervals[intervalIndex];
+        const dt = Math.min(rawStep, iv.endTime - simTime);
+        const timeLeft = Math.max(iv.endTime - simTime, dt);
+        const desiredHip = clamp((iv.targetHip - hip) / timeLeft, -maxAngVel, maxAngVel);
+        const desiredKnee = clamp((iv.targetKnee - knee) / timeLeft, -maxAngVel, maxAngVel);
+        hipAccel = clamp((desiredHip - hipVel) / dt, -maxAngAccel, maxAngAccel);
+        kneeAccel = clamp((desiredKnee - kneeVel) / dt, -maxAngAccel, maxAngAccel);
+        const phase = iv.startPhase + ((simTime - iv.startTime) / iv.dt) * (iv.endPhase - iv.startPhase);
+
+        raw.push({
+          timeSec: simTime,
+          phase,
+          targetX: iv.targetX,
+          targetY: iv.targetY,
+          targetHip: iv.targetHip,
+          targetKnee: iv.targetKnee,
+          hip,
+          knee,
+          hipVel,
+          kneeVel,
+          hipAccel,
+          kneeAccel
+        });
+
+        const newHipVel = hipVel + hipAccel * dt;
+        const newKneeVel = kneeVel + kneeAccel * dt;
+        hip += hipVel * dt + 0.5 * hipAccel * dt * dt;
+        knee += kneeVel * dt + 0.5 * kneeAccel * dt * dt;
+        hipVel = newHipVel;
+        kneeVel = newKneeVel;
+        simTime += dt;
+      }
+
+      const lastInterval = intervals[intervals.length - 1];
+      raw.push({
+        timeSec: tMax,
+        phase: lastInterval.endPhase,
+        targetX: lastInterval.targetX,
+        targetY: lastInterval.targetY,
+        targetHip: lastInterval.targetHip,
+        targetKnee: lastInterval.targetKnee,
+        hip,
+        knee,
+        hipVel,
+        kneeVel,
+        hipAccel,
+        kneeAccel
+      });
+
+      const data = [];
+      for (let i = 0; i < samples; i++) {
+        const s = tMin + (tMax - tMin) * (i / (samples - 1 || 1));
+        const rawIndex = clamp(
+          Math.round(((s - tMin) / (tMax - tMin || 1)) * (raw.length - 1)),
+          0,
+          raw.length - 1
+        );
+        const p = raw[rawIndex];
+        const foot = forwardKinematics(p.hip, p.knee, l1, l2);
+
+        data.push({
+          t: p.phase,
+          timeSec: s,
+          x: foot.x,
+          y: foot.y,
+          targetX: p.targetX,
+          targetY: p.targetY,
+          hip: p.hip,
+          knee: p.knee,
+          hipTarget: p.targetHip,
+          kneeTarget: p.targetKnee,
+          hipVel: p.hipVel,
+          kneeVel: p.kneeVel,
+          hipAccel: p.hipAccel,
+          kneeAccel: p.kneeAccel
+        });
+      }
+
+      const capped = {
+        hip: intervals.filter((iv) => iv.cappedHip).length,
+        knee: intervals.filter((iv) => iv.cappedKnee).length
+      };
+
+      return { data, waypoints, markers, capped };
+    }
+
+    function recalc(keepCursor = true) {
+      try {
         const l1 = Number(els.l1.value);
         const l2 = Number(els.l2.value);
         const t0 = Number(els.t0.value);
         const t1 = Number(els.t1.value);
         const updatePeriodMs = Number(els.updatePeriodMs.value);
         const speedFreq = Number(els.speedFreq.value);
+        const maxAngVel = Number(els.maxAngVel.value);
+        const maxAngAccel = Number(els.maxAngAccel.value);
         const samples = clamp(Math.round(Number(els.samples.value)), 80, 3000);
+        const interpMode = els.interpMode.value;
+        const targetSource = els.targetSource.value;
 
-        if (!Number.isFinite(params.base_x)) throw new Error("base_x 必须是有效数值");
-        if (!Number.isFinite(params.base_y)) throw new Error("base_y 必须是有效数值");
-        if (!Number.isFinite(params.bias_angle_deg)) throw new Error("bias_angle_deg 必须是有效数值");
-        if (!Number.isFinite(params.h)) throw new Error("h 必须是有效数值");
-        if (!Number.isFinite(params.r)) throw new Error("r 必须是有效数值");
+        if (targetSource === "list" && interpMode !== "project") {
+          throw new Error("列表目标点需要选择项目点 + 限速插补");
+        }
+        const xFunc = targetSource === "list" ? null : compileExpression(els.xExpr.value.trim());
+        const yFunc = targetSource === "list" ? null : compileExpression(els.yExpr.value.trim());
+        const params = {
+          base_x: Number(els.baseX.value),
+          base_y: Number(els.baseY.value),
+          bias_angle_deg: Number(els.biasAngle.value),
+          h: Number(els.stepHeight.value),
+          r: Number(els.stepRange.value)
+        };
+
+        if (targetSource !== "list") {
+          if (!Number.isFinite(params.base_x)) throw new Error("base_x 必须是有效数值");
+          if (!Number.isFinite(params.base_y)) throw new Error("base_y 必须是有效数值");
+          if (!Number.isFinite(params.bias_angle_deg)) throw new Error("bias_angle_deg 必须是有效数值");
+          if (!Number.isFinite(params.h)) throw new Error("h 必须是有效数值");
+          if (!Number.isFinite(params.r)) throw new Error("r 必须是有效数值");
+        }
         if (!(l1 > 0 && l2 > 0)) throw new Error("l1/l2 必须大于 0");
         if (!(t1 > t0)) throw new Error("t 终点必须大于起点");
         if (!(updatePeriodMs > 0)) throw new Error("update_period_ms 必须大于 0");
         if (!(speedFreq > 0)) throw new Error("speed_freq 必须大于 0");
+        if (!(maxAngVel > 0)) throw new Error("角速度上限必须大于 0");
+        if (!(maxAngAccel > 0)) throw new Error("角加速度上限必须大于 0");
 
         const phaseToSec = (updatePeriodMs / 1000) / speedFreq;
-        const data = [];
-        for (let i = 0; i < samples; i++) {
-          const ratio = i / (samples - 1);
-          const t = t0 + (t1 - t0) * ratio;
-          const timeSec = t * phaseToSec;
-          const x = Number(xFunc(t, params));
-          const y = Number(yFunc(t, params));
-          if (!Number.isFinite(x) || !Number.isFinite(y)) {
-            throw new Error(`方程在 t=${t.toFixed(5)} 处不是有效数值`);
+        let data;
+        let waypoints = [];
+        let capped = { hip: 0, knee: 0 };
+
+        if (interpMode === "project") {
+          const updateSec = updatePeriodMs / 1000;
+          const projectWaypoints = targetSource === "list"
+            ? parseTargetWaypoints(els.targetList.value, l1, l2)
+            : buildPhaseWaypoints(xFunc, yFunc, params, l1, l2, t0, t1, speedFreq);
+          projectWaypoints.forEach((wp, index) => {
+            wp.timeSec = index * updateSec;
+          });
+          const projectResult = buildProjectInterpData(projectWaypoints, l1, l2, maxAngVel, maxAngAccel, samples);
+          data = projectResult.data;
+          waypoints = projectResult.markers;
+          capped = projectResult.capped;
+        } else {
+          data = [];
+          for (let i = 0; i < samples; i++) {
+            const ratio = i / (samples - 1);
+            const t = t0 + (t1 - t0) * ratio;
+            const timeSec = t * phaseToSec;
+            const x = Number(xFunc(t, params));
+            const y = Number(yFunc(t, params));
+            if (!Number.isFinite(x) || !Number.isFinite(y)) {
+              throw new Error(`方程在 t=${t.toFixed(5)} 处不是有效数值`);
+            }
+            const angles = calcAbsoluteAngleByPos(x, y, l1, l2);
+            data.push({ t, timeSec, x, y, hip: angles.hip, knee: angles.knee });
           }
-          const angles = calcAbsoluteAngleByPos(x, y, l1, l2);
-          data.push({ t, timeSec, x, y, hip: angles.hip, knee: angles.knee });
+
+          normalizeAngleSeries(data, "hip");
+          normalizeAngleSeries(data, "knee");
+          computeDerivatives(data, "hipContinuous", "hipVel", "hipAccel");
+          computeDerivatives(data, "kneeContinuous", "kneeVel", "kneeAccel");
         }
 
-        normalizeAngleSeries(data, "hip");
-        normalizeAngleSeries(data, "knee");
-        computeDerivatives(data, "hipContinuous", "hipVel", "hipAccel");
-        computeDerivatives(data, "kneeContinuous", "kneeVel", "kneeAccel");
+        const hipStats = seriesStats(data.map((p) => p.hipVel));
+        const kneeStats = seriesStats(data.map((p) => p.kneeVel));
+        const overLimit = data.filter(
+          (p) => Math.abs(finite(p.hipVel, 0)) > maxAngVel || Math.abs(finite(p.kneeVel, 0)) > maxAngVel
+        ).length;
 
+        els.hipVelMax.textContent = hipStats.max.toFixed(1);
+        els.hipVelMin.textContent = hipStats.min.toFixed(1);
+        els.hipVelAvg.textContent = hipStats.avg.toFixed(1);
+        els.hipVelRms.textContent = hipStats.rms.toFixed(1);
+        els.kneeVelMax.textContent = kneeStats.max.toFixed(1);
+        els.kneeVelMin.textContent = kneeStats.min.toFixed(1);
+        els.kneeVelAvg.textContent = kneeStats.avg.toFixed(1);
+        els.kneeVelRms.textContent = kneeStats.rms.toFixed(1);
+        if (interpMode === "project") {
+          els.velLimitNote.textContent =
+            `项目点 ${waypoints.length} 个；hip 限速段 ${capped.hip}，knee 限速段 ${capped.knee}；角加速度上限 ${maxAngAccel.toFixed(0)} deg/s²`;
+          els.velLimitNote.classList.toggle("warn", capped.hip + capped.knee > 0);
+        } else {
+          els.velLimitNote.textContent = overLimit
+            ? `角速度超过上限 ${maxAngVel.toFixed(1)} deg/s 的点：${overLimit} 个`
+            : `角速度均在 ${maxAngVel.toFixed(1)} deg/s 上限内`;
+          els.velLimitNote.classList.toggle("warn", overLimit > 0);
+        }
+
+        state.velLimit = maxAngVel;
+        state.accelLimit = maxAngAccel;
         state.data = data;
+        state.waypoints = waypoints;
         state.cursor = keepCursor ? clamp(state.cursor, 0, data.length - 1) : 0;
         state.view = makeTrajectoryView(data, l1, l2);
         els.scrub.value = Math.round((state.cursor / (data.length - 1)) * 1000);
-        setStatus(`已计算 ${data.length} 点；完整相位周期 ${(phaseToSec).toFixed(3)} s；当前范围 ${(data[data.length - 1].timeSec - data[0].timeSec).toFixed(3)} s`);
+        const modeLabel = interpMode === "project"
+          ? `项目点 ${waypoints.length} 个，限速插补`
+          : "连续轨迹";
+        const rangeSec = data[data.length - 1].timeSec - data[0].timeSec;
+        const periodLabel = interpMode === "project"
+          ? `当前范围 ${rangeSec.toFixed(3)} s`
+          : `完整相位周期 ${phaseToSec.toFixed(3)} s；当前范围 ${rangeSec.toFixed(3)} s`;
+        setStatus(`已计算 ${data.length} 点；${modeLabel}；${periodLabel}`);
         drawAll();
       } catch (err) {
         setStatus(err.message || String(err), true);
@@ -778,6 +1348,12 @@
       let minY = -8;
       let maxY = l1 + l2 + 12;
       for (const p of data) {
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+      }
+      for (const p of state.waypoints) {
         minX = Math.min(minX, p.x);
         maxX = Math.max(maxX, p.x);
         minY = Math.min(minY, p.y);
@@ -878,6 +1454,39 @@
       ctx.lineTo(px(0), py(view.maxY));
       ctx.stroke();
 
+      const xTicks = niceTicks(view.minX, view.maxX, 6);
+      const xStep = tickStep(xTicks);
+      const yTicks = niceTicks(view.minY, view.maxY, 5);
+      const yStep = tickStep(yTicks);
+      ctx.strokeStyle = "#d7dde6";
+      ctx.lineWidth = 1;
+      for (const tick of xTicks) {
+        const x = px(tick);
+        ctx.beginPath();
+        ctx.moveTo(x, py(0) - 4);
+        ctx.lineTo(x, py(0) + 4);
+        ctx.stroke();
+      }
+      for (const tick of yTicks) {
+        const y = py(tick);
+        ctx.beginPath();
+        ctx.moveTo(px(0) - 4, y);
+        ctx.lineTo(px(0) + 4, y);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#8793a4";
+      ctx.font = "10px Segoe UI, Microsoft YaHei, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      for (const tick of xTicks) {
+        ctx.fillText(formatTick(tick, xStep), px(tick), py(0) + 7);
+      }
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (const tick of yTicks) {
+        ctx.fillText(formatTick(tick, yStep), px(0) - 6, py(tick));
+      }
+
       ctx.strokeStyle = "#1f6feb";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
@@ -888,6 +1497,20 @@
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
+
+      if (state.waypoints.length) {
+        ctx.fillStyle = "#7b8794";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.5;
+        for (const wp of state.waypoints) {
+          const x = px(wp.x);
+          const y = py(wp.y);
+          ctx.beginPath();
+          ctx.rect(x - 3.5, y - 3.5, 7, 7);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
 
       ctx.strokeStyle = "#d04444";
       ctx.lineWidth = 2;
@@ -943,22 +1566,59 @@
       return { min: min - pad, max: max + pad };
     }
 
-    function drawChart(canvas, keys, colors, unitLabel) {
+    function niceTicks(min, max, count = 5) {
+      if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return [min, max];
+      const span = max - min;
+      const rawStep = span / count;
+      const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+      const norm = rawStep / mag;
+      let step;
+      if (norm <= 1) step = 1 * mag;
+      else if (norm <= 2) step = 2 * mag;
+      else if (norm <= 5) step = 5 * mag;
+      else step = 10 * mag;
+
+      const ticks = [];
+      const start = Math.ceil(min / step - 1e-9) * step;
+      for (let v = start; v <= max + step * 1e-6; v += step) {
+        ticks.push(Math.abs(v) < step * 1e-6 ? 0 : v);
+      }
+      return ticks;
+    }
+
+    function formatTick(value, step) {
+      const decimals = step > 0 ? Math.max(0, -Math.floor(Math.log10(step) + 1e-9)) : 1;
+      const text = value.toFixed(decimals);
+      return decimals ? text.replace(/0+$/, "").replace(/\.$/, "") : text;
+    }
+
+    function tickStep(ticks) {
+      return ticks.length > 1 ? ticks[1] - ticks[0] : 1;
+    }
+
+    function drawChart(canvas, keys, colors, unitLabel, options = {}) {
       const data = state.data;
       if (!data.length) return;
       const { ctx, w, h } = setupCanvas(canvas);
       clear(ctx, w, h);
       drawGrid(ctx, w, h, "s", unitLabel);
 
-      const left = 46;
-      const right = 14;
-      const top = 42;
-      const bottom = 28;
+      const left = 58;
+      const right = 16;
+      const top = 38;
+      const bottom = 34;
       const plotW = Math.max(1, w - left - right);
       const plotH = Math.max(1, h - top - bottom);
       const tMin = data[0].timeSec;
       const tMax = data[data.length - 1].timeSec;
-      const range = valueRange(data, keys);
+      const limit = Number.isFinite(options.limit) ? Math.abs(options.limit) : null;
+      let range = valueRange(data, keys);
+      if (limit !== null) {
+        range = {
+          min: Math.min(range.min, -limit),
+          max: Math.max(range.max, limit)
+        };
+      }
       const tx = (timeSec) => left + ((timeSec - tMin) / (tMax - tMin || 1)) * plotW;
       const ty = (v) => top + (1 - (v - range.min) / (range.max - range.min || 1)) * plotH;
 
@@ -969,22 +1629,77 @@
       ctx.rect(left, top, plotW, plotH);
       ctx.stroke();
 
+      const xTicks = niceTicks(tMin, tMax, 6);
+      const xStep = tickStep(xTicks);
+      ctx.strokeStyle = "#eef1f5";
+      ctx.lineWidth = 1;
+      for (const tick of xTicks) {
+        const x = tx(tick);
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, top + plotH);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#8793a4";
+      ctx.font = "10px Segoe UI, Microsoft YaHei, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      for (const tick of xTicks) {
+        ctx.fillText(formatTick(tick, xStep), tx(tick), top + plotH + 7);
+      }
+
+      const yTicks = niceTicks(range.min, range.max, 5);
+      const yStep = tickStep(yTicks);
+      ctx.strokeStyle = "#eef1f5";
+      for (const tick of yTicks) {
+        const y = ty(tick);
+        ctx.beginPath();
+        ctx.moveTo(left, y);
+        ctx.lineTo(left + plotW, y);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#8793a4";
+      ctx.font = "10px Segoe UI, Microsoft YaHei, sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (const tick of yTicks) {
+        ctx.fillText(formatTick(tick, yStep), left - 6, ty(tick));
+      }
+
       if (range.min < 0 && range.max > 0) {
         ctx.strokeStyle = "#aeb8c6";
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(left, ty(0));
         ctx.lineTo(left + plotW, ty(0));
         ctx.stroke();
       }
 
-      ctx.fillStyle = "#8793a4";
-      ctx.font = "11px Segoe UI, Microsoft YaHei, sans-serif";
-      ctx.fillText(range.max.toFixed(1), 8, top + 4);
-      ctx.fillText(range.min.toFixed(1), 8, top + plotH);
+      if (limit !== null) {
+        ctx.save();
+        ctx.setLineDash([7, 5]);
+        ctx.strokeStyle = "#d04444";
+        ctx.lineWidth = 1.2;
+        for (const value of [limit, -limit]) {
+          ctx.beginPath();
+          ctx.moveTo(left, ty(value));
+          ctx.lineTo(left + plotW, ty(value));
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#d04444";
+        ctx.font = "10px Segoe UI, Microsoft YaHei, sans-serif";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(`+${formatTick(limit, 1)}`, left + plotW - 5, ty(limit) - 3);
+        ctx.textBaseline = "top";
+        ctx.fillText(`-${formatTick(limit, 1)}`, left + plotW - 5, ty(-limit) + 3);
+        ctx.restore();
+      }
 
       keys.forEach((key, idx) => {
         ctx.strokeStyle = colors[idx];
-          ctx.lineWidth = 2;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         data.forEach((p, i) => {
           const x = tx(p.timeSec);
@@ -1022,9 +1737,24 @@
       els.secNow.textContent = now.timeSec.toFixed(3);
       els.hipNow.textContent = `${now.hip.toFixed(2)}°`;
       els.kneeNow.textContent = `${now.knee.toFixed(2)}°`;
+      els.hipVelNow.textContent = finite(now.hipVel, 0).toFixed(2);
+      els.kneeVelNow.textContent = finite(now.kneeVel, 0).toFixed(2);
       drawTrajectory();
       drawChart(els.angleChart, ["hip", "knee"], ["#1f6feb", "#17885b"], "deg");
-      drawChart(els.accelChart, ["hipAccel", "kneeAccel"], ["#d04444", "#c26b15"], "deg/s²");
+      drawChart(
+        els.velChart,
+        ["hipVel", "kneeVel"],
+        ["#1f6feb", "#17885b"],
+        "deg/s",
+        { limit: state.velLimit || Number(els.maxAngVel.value) }
+      );
+      drawChart(
+        els.accelChart,
+        ["hipAccel", "kneeAccel"],
+        ["#d04444", "#c26b15"],
+        "deg/s²",
+        { limit: state.accelLimit || Number(els.maxAngAccel.value) }
+      );
     }
 
     function animate(time) {
@@ -1033,10 +1763,10 @@
       state.lastFrame = time;
       if (state.playing && state.data.length) {
         const speed = finite(Number(els.speed.value), 1);
-        const t0 = state.data[0].t;
-        const t1 = state.data[state.data.length - 1].t;
+        const t0 = state.data[0].timeSec;
+        const t1 = state.data[state.data.length - 1].timeSec;
         const span = t1 - t0 || 1;
-        const currentT = state.data[state.cursor].t;
+        const currentT = state.data[state.cursor].timeSec;
         let nextT = currentT + dt * speed * span;
         while (nextT > t1) nextT -= span;
         const ratio = (nextT - t0) / span;
@@ -1057,14 +1787,19 @@
     function downloadCsv() {
       if (!state.data.length) return;
       const headers = [
-        "phase_t", "time_s", "x", "y", "hip_angle_deg", "knee_angle_deg",
+        "phase_t", "time_s", "x", "y", "target_x", "target_y",
+        "hip_angle_deg", "knee_angle_deg",
+        "hip_target_angle_deg", "knee_target_angle_deg",
         "hip_velocity_deg_per_s", "knee_velocity_deg_per_s",
         "hip_accel_deg_per_s2", "knee_accel_deg_per_s2"
       ];
       const lines = [headers.join(",")];
       for (const p of state.data) {
         lines.push([
-          p.t, p.timeSec, p.x, p.y, p.hip, p.knee,
+          p.t, p.timeSec, p.x, p.y,
+          finite(p.targetX, p.x), finite(p.targetY, p.y),
+          p.hip, p.knee,
+          finite(p.hipTarget, p.hip), finite(p.kneeTarget, p.knee),
           finite(p.hipVel, 0), finite(p.kneeVel, 0),
           finite(p.hipAccel, 0), finite(p.kneeAccel, 0)
         ].map((v) => Number(v).toPrecision(10)).join(","));
@@ -1080,13 +1815,30 @@
       URL.revokeObjectURL(url);
     }
 
+    function updateTargetSourceUI() {
+      const listMode = els.targetSource.value === "list";
+      els.xExprField.hidden = listMode;
+      els.yExprField.hidden = listMode;
+      els.baseRow.hidden = listMode;
+      els.biasHeightRow.hidden = listMode;
+      els.stepRangeField.hidden = listMode;
+      els.targetListField.hidden = !listMode;
+      if (listMode) {
+        els.interpMode.value = "project";
+      }
+    }
+
     function applyPreset(name) {
       const preset = presets[name];
       if (!preset) return;
+      els.targetSource.value = "cycloid";
+      updateTargetSourceUI();
       els.xExpr.value = preset.x;
       els.yExpr.value = preset.y;
       els.baseX.value = preset.baseX;
       els.baseY.value = preset.baseY;
+      els.l1.value = preset.l1;
+      els.l2.value = preset.l2;
       els.biasAngle.value = preset.biasAngle;
       els.stepHeight.value = preset.stepHeight;
       els.stepRange.value = preset.stepRange;
@@ -1100,6 +1852,7 @@
     for (const el of [
       els.xExpr,
       els.yExpr,
+      els.interpMode,
       els.baseX,
       els.baseY,
       els.biasAngle,
@@ -1111,15 +1864,35 @@
       els.t1,
       els.updatePeriodMs,
       els.speedFreq,
+      els.maxAngVel,
+      els.maxAngAccel,
       els.samples
     ]) {
       el.addEventListener("input", () => {
         els.preset.value = "custom";
+        if (el === els.interpMode &&
+            els.interpMode.value === "continuous" &&
+            els.targetSource.value === "list") {
+          els.targetSource.value = "cycloid";
+          updateTargetSourceUI();
+        }
         recalc(true);
       });
     }
 
     els.preset.addEventListener("change", () => applyPreset(els.preset.value));
+    els.targetSource.addEventListener("change", () => {
+      els.preset.value = "custom";
+      if (els.targetSource.value === "list") {
+        syncTargetListFromCycloid();
+      }
+      updateTargetSourceUI();
+      recalc(false);
+    });
+    els.targetList.addEventListener("input", () => {
+      els.preset.value = "custom";
+      recalc(true);
+    });
     els.scrub.addEventListener("input", setCursorFromScrub);
     els.playBtn.addEventListener("click", () => {
       state.playing = !state.playing;
@@ -1135,6 +1908,7 @@
     els.csvBtn.addEventListener("click", downloadCsv);
     window.addEventListener("resize", drawAll);
 
+    updateTargetSourceUI();
     recalc(false);
     requestAnimationFrame(animate);
   </script>

@@ -27,6 +27,10 @@
       "overrideRestartCommands": [
         "monitor reset halt"
       ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 4
+      },
       "showDevDebugOutput": "raw"
     },
     {
@@ -37,15 +41,19 @@
       "program": "${workspaceFolder}/build/Debug/DogRobot.elf",
       "runEntry": "main",
       "preBuild": "",
-      "gdb": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+      "gdb": "${env:CUBE_BUNDLE_PATH}/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
       "deviceName": "STM32F103C8T6",
       "deviceCore": "Cortex-M3",
       "deviceTrustzone": "TZ-disabled",
       "serverExe": "ST-LINK_gdbserver.exe",
-      "serverCwd": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin",
+      "serverCwd": "${env:CUBE_BUNDLE_PATH}/stlink-gdbserver/7.13.0+st.3/bin",
       "serverInterface": "SWD",
       "serverInterfaceFrequency": "Auto",
       "serverVerify": false,
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": "4"
+      },
       "imagesAndSymbols": [
         {
           "imageFileName": "${workspaceFolder}/build/Debug/DogRobot.elf",
@@ -63,11 +71,11 @@
       "device": "STM32F103C8",
       "interface": "swd",
       "runToEntryPoint": "main",
-      "svdFile": "C:/Users/zhou/AppData/Local/stm32cube/packs/STMicroelectronics/stm32f1xx_dfp/1.2.0/SVD/STM32F103.svd",
-      "armToolchainPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin",
-      "gdbPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
-      "stlinkPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
-      "serverpath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
+      "svdFile": "${env:CMSIS_PACK_ROOT}/STMicroelectronics/stm32f1xx_dfp/1.2.0/SVD/STM32F103.svd",
+      "armToolchainPath": "${env:CUBE_BUNDLE_PATH}/gnu-tools-for-stm32/14.3.1+st.2/bin",
+      "gdbPath": "${env:CUBE_BUNDLE_PATH}/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+      "stlinkPath": "${env:CUBE_BUNDLE_PATH}/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
+      "serverpath": "${env:CUBE_BUNDLE_PATH}/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
       "liveWatch": {
         "enabled": true,
         "samplesPerSecond": 4
@@ -83,9 +91,9 @@
       "executable": "${workspaceFolder}/build/Debug/DogRobot.elf",
       "device": "STM32F103C8",
       "runToEntryPoint": "main",
-      "svdFile": "C:/Users/zhou/AppData/Local/stm32cube/packs/STMicroelectronics/stm32f1xx_dfp/1.2.0/SVD/STM32F103.svd",
-      "armToolchainPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin",
-      "gdbPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+      "svdFile": "${env:CMSIS_PACK_ROOT}/STMicroelectronics/stm32f1xx_dfp/1.2.0/SVD/STM32F103.svd",
+      "armToolchainPath": "${env:CUBE_BUNDLE_PATH}/gnu-tools-for-stm32/14.3.1+st.2/bin",
+      "gdbPath": "${env:CUBE_BUNDLE_PATH}/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
       "serverpath": "openocd",
       "configFiles": [
         "${workspaceFolder}/.vscode/cmsis-dap.cfg",

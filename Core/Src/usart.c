@@ -27,6 +27,7 @@
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
+DMA_HandleTypeDef hdma_usart3_tx;
 
 /* USART1 init function */
 
@@ -187,6 +188,25 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE BEGIN USART3_MspInit 0 */
 
   /* USER CODE END USART3_MspInit 0 */
+    /* USART3_TX DMA enable */
+    __HAL_RCC_DMA1_CLK_ENABLE();
+
+    hdma_usart3_tx.Instance = DMA1_Channel2;
+    hdma_usart3_tx.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    hdma_usart3_tx.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_usart3_tx.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_usart3_tx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+    hdma_usart3_tx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
+    hdma_usart3_tx.Init.Mode = DMA_NORMAL;
+    hdma_usart3_tx.Init.Priority = DMA_PRIORITY_LOW;
+    HAL_DMA_Init(&hdma_usart3_tx);
+
+    __HAL_LINKDMA(uartHandle, hdmatx, hdma_usart3_tx);
+
+    /* DMA1 Channel2 global interrupt for USART3_TX */
+    HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
+
     /* USART3 clock enable */
     __HAL_RCC_USART3_CLK_ENABLE();
 
@@ -262,6 +282,9 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE BEGIN USART3_MspDeInit 0 */
 
   /* USER CODE END USART3_MspDeInit 0 */
+    HAL_DMA_DeInit(uartHandle->hdmatx);
+    HAL_NVIC_DisableIRQ(DMA1_Channel2_IRQn);
+
     /* Peripheral clock disable */
     __HAL_RCC_USART3_CLK_DISABLE();
 

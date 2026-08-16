@@ -12,12 +12,12 @@
 #include <math.h>
 #include <stdio.h>
 
-#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      120U // 正常运行时的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_NORMAL_MOVE_MS        120U // 正常运行时的舵机目标过渡时间，单位毫秒。
-#define DOG_TASK_GAIT_SHIFT_PERIOD_MS       120U // 左/右平移时的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_SHIFT_MOVE_MS         120U // 左/右平移时的舵机目标过渡时间，单位毫秒。
-#define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  130U // 减速带阶段的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS    130U // 减速带阶段的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      60U // 正常运行时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_MOVE_MS        60U // 正常运行时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_SHIFT_PERIOD_MS       60U // 左/右平移时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_SHIFT_MOVE_MS         60U // 左/右平移时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  65U // 减速带阶段的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS    65U // 减速带阶段的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 10000U // 站立完成后，过减速带测试的持续时间。
 #define DOG_TASK_SPEED_BUMP_ENTRY_TEST_DURATION_MS 150000U // 减速带前循迹阶段的独立测试持续时间，单位毫秒；到点后回到站立姿态。
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
@@ -43,7 +43,7 @@
 float DOG_TASK_SHIFT_R_MML[4] = {20.0f, 80.0f, 20.0f, 80.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
 float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
-#define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
+#define DOG_TASK_SPEED_FREQ            0.125f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
 #define DOG_TASK_TRACK_DEADBAND        35U // 表示循迹误差的死区范围，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离在 ±35mm 以内，就认为机器人不需要调整方向，继续前进即可。 
 #define DOG_TASK_TRACK_RECOVER_MS      500U // 表示循迹丢失后，机器人保持上一次循迹动作的时间，单位毫秒。
