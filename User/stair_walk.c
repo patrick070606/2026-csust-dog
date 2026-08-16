@@ -23,6 +23,7 @@
 // #define STAIR_WALK_TEST_IMU_GAIN_MM           0.0f // IMU 姿态补偿增益：把俯仰/横滚角换算为足端或重心修正量，数值越大姿态修正越强。
 #define STAIR_WALK_TEST_PITCH_FILTER_ALPHA    0.15f // IMU 一阶低通滤波中新测量值的权重；越小越平滑，但姿态响应越慢（俯仰和横滚共用）。
 #define STAIR_WALK_TEST_ROLL_FILTER_ALPHA     0.12f
+#define STAIR_WALK_TEST_ROLL_DEADBAND_DEG      2.0f  // 小于该横滚角的补偿视为零，抑制静态零偏和细小振动。
 #define STAIR_WALK_PITCH_DIFF_0_MIN_DEG       (-1.0f)
 #define STAIR_WALK_PITCH_DIFF_0_MAX_DEG        1.5f
 #define STAIR_WALK_PITCH_DIFF_30_MIN_DEG      (-3.3f)
@@ -246,6 +247,21 @@ static float StairWalkTest_GetRollDeg(void)
     return s_filtered_roll_deg;
 }
 
+/* Keep the compensation continuous at the deadband edge: a 1.2 degree
+ * measurement with a 1.0 degree deadband produces 0.2 degree compensation. */
+static float StairWalkTest_ApplyRollDeadband(float roll_deg)
+{
+    float magnitude = fabsf(roll_deg);
+
+    if (magnitude <= STAIR_WALK_TEST_ROLL_DEADBAND_DEG)
+    {
+        return 0.0f;
+    }
+
+    magnitude -= STAIR_WALK_TEST_ROLL_DEADBAND_DEG;
+    return (roll_deg > 0.0f) ? magnitude : -magnitude;
+}
+
 void StairWalk_Init(void)
 {
     s_last_gait_ms = HAL_GetTick();
@@ -309,6 +325,8 @@ void StairWalk_Update(void)
         roll_deg = StairWalkTest_GetRollDeg();
         s_last_roll_ms = now_ms;
     }
+
+    roll_deg = StairWalkTest_ApplyRollDeadband(roll_deg);
 
     if (gait_due != 0U)
     {
