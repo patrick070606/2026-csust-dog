@@ -56,8 +56,8 @@
 #define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -20.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -25.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -25.0f
 #define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #endif
 
@@ -127,7 +127,7 @@
 #define DOG_GAIT_WALK_BODY_MAX_STEP_MM           10.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
 #define DOG_GAIT_WALK_BODY_LENGTH_MM             280.0f // 参考 Py-Apple 经验公式的机身前后支撑长度；应按本机前后髋关节间距实测调整。
 #define DOG_GAIT_WALK_BODY_WIDTH_MM              175.0f // 左右髋关节中心距；初值与原左右补偿的 ±70 mm 对应，应按本机实测调整。
-#define DOG_GAIT_WALK_PHASE_CG_GAIN              0.9f // 前/后腿阶段重心切换增益；首轮调试关闭，避免足端整体产生正负 60 mm 偏移。
+#define DOG_GAIT_WALK_PHASE_CG_GAIN              1.0f // 前/后腿阶段重心切换增益；首轮调试关闭，避免足端整体产生正负 60 mm 偏移。
 #define DOG_GAIT_WALK_PITCH_ANGLE_GAIN           1.5f // 参考公式 tan(pitch * 1.5) 中的倾角经验放大系数。
 #define DOG_GAIT_WALK_BODY_TARGET_MAX_MM         1000.0f // 前后重心目标的安全限幅，首轮调试限制在正负 20 mm。
 #define DOG_GAIT_WALK_CG_AXIS_SIGN              (-1.0f) // Py-Apple 与本工程 X 轴方向相反；负号保持本工程原有的前/后重心移动方向。
@@ -136,10 +136,10 @@
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
 #define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -1.0f // 在 LB 起摆前施加到 LF 的左侧预加载量，并保持至 RB 落脚。
-#define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -0.0f // 保留为零；本轮仅提前 LF/RF 两项预加载的时序。
+#define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -10.0f // 保留为零；本轮仅提前 LF/RF 两项预加载的时序。
 #define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   1.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
-#define DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM  -5.0f // RB 起摆前额外叠加到 LF 的预加载量。
-#define DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM  5.0f // RB 起摆前额外叠加到 RF 的反向预加载量。
+#define DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM  -6.0f // RB 起摆前额外叠加到 LF 的预加载量。
+#define DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM  6.0f // RB 起摆前额外叠加到 RF 的反向预加载量。
 #define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -15.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
 #define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        150U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_MOVE_MS 500U // 预加载结束、对侧前腿恢复时的专用舵机动作时间；仅作用一次，不影响普通 walk 轨迹。
@@ -1214,8 +1214,13 @@ static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
         }
     }
 
-    if (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_FINAL_HOLD)
+    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_FINAL_HOLD) ||
+        ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING) &&
+         (s_walk_rb_preload_rb_swing_started != 0U)))
     {
+        /* Enable the RB-only extra preload after LB has landed while RB is
+         * still held, then retain it through RB's actual swing.  Do not add
+         * it during the earlier LB swing, which also uses the SWING state. */
         if (leg == DOG_GAIT_LEG_LF)
         {
             adjustment += -DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM;
