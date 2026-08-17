@@ -262,6 +262,13 @@ static float StairWalkTest_ApplyRollDeadband(float roll_deg)
     return (roll_deg > 0.0f) ? magnitude : -magnitude;
 }
 
+/* Shared by stair walking and the speed-bump walk mode.  This keeps their
+ * roll compensation filtering and deadband behavior identical. */
+float StairWalk_GetFilteredRollDeg(void)
+{
+    return StairWalkTest_ApplyRollDeadband(StairWalkTest_GetRollDeg());
+}
+
 void StairWalk_Init(void)
 {
     s_last_gait_ms = HAL_GetTick();
