@@ -136,7 +136,7 @@
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
 #define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -1.0f // 在 LB 起摆前施加到 LF 的左侧预加载量，并保持至 RB 落脚。
-#define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -10.0f // 保留为零；本轮仅提前 LF/RF 两项预加载的时序。
+#define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -10.0f // LB 起摆前开始施加到 LB，并连续保持至 RB 落脚后的预加载量。
 #define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   1.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
 #define DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM  -6.0f // RB 起摆前额外叠加到 LF 的预加载量。
 #define DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM  6.0f // RB 起摆前额外叠加到 RF 的反向预加载量。
@@ -285,6 +285,7 @@ static uint8_t s_walk_support_ready;
 static DogGaitRbPreloadState_t s_walk_rb_preload_state;
 static uint8_t s_walk_rb_preload_stable_updates;
 static uint8_t s_walk_rb_preload_rb_swing_started;
+static uint8_t s_walk_rb_preload_rb_touchdown_output_done;
 static uint8_t s_walk_rb_preload_release_pending;
 static uint8_t s_walk_rb_preload_release_hold_updates;
 static DogGaitLeg_t s_walk_preload_support_leg;
@@ -734,6 +735,7 @@ static void DogGait_ResetWalkFootStates(void)
     s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_NONE;
     s_walk_rb_preload_stable_updates = 0U;
     s_walk_rb_preload_rb_swing_started = 0U;
+    s_walk_rb_preload_rb_touchdown_output_done = 0U;
     s_walk_rb_preload_release_pending = 0U;
     s_walk_rb_preload_release_hold_updates = 0U;
     s_walk_preload_support_leg = DOG_GAIT_LEG_LF;
@@ -1087,8 +1089,15 @@ static void DogGait_UpdateRearPreloadState(void)
         (s_walk_rb_preload_rb_swing_started != 0U) &&
         (s_walk_phase < (DOG_GAIT_WALK_PHASE_PER_LEG * 3.0f)))
     {
-        /* The selected rear leg has landed. Release the front-leg preload
-         * only now, rather than before the rear leg begins its swing. */
+        /* The first wrapped-phase output is RB's touchdown pose.  Keep the
+         * shared LB/RB preload for that output, then release it on the next
+         * update so the whole RB landing is covered. */
+        if (s_walk_rb_preload_rb_touchdown_output_done == 0U)
+        {
+            s_walk_rb_preload_rb_touchdown_output_done = 1U;
+            return;
+        }
+
         s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_RELEASE;
         s_walk_rb_preload_stable_updates = 0U;
         s_walk_rb_preload_release_pending = 1U;
@@ -1109,6 +1118,7 @@ static void DogGait_UpdateRearPreloadState(void)
         s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_HOLD;
         s_walk_rb_preload_stable_updates = 0U;
         s_walk_rb_preload_rb_swing_started = 0U;
+        s_walk_rb_preload_rb_touchdown_output_done = 0U;
         s_walk_preload_support_leg =
             DogGait_GetWalkRearPreloadSupportLeg();
         s_walk_rb_preload_hold_x_mm = s_walk_foot_x[swing_leg];
