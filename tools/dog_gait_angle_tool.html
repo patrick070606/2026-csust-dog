@@ -199,7 +199,7 @@
 
     main {
       display: grid;
-      grid-template-rows: minmax(360px, 54vh) minmax(260px, 1fr);
+      grid-template-rows: minmax(360px, 46vh) auto minmax(420px, 1fr);
       gap: 16px;
     }
 
@@ -214,7 +214,7 @@
 
     .chart-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
       min-height: 0;
     }
@@ -222,7 +222,7 @@
     .canvas-box {
       position: relative;
       min-width: 0;
-      min-height: 0;
+      min-height: 220px;
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -234,6 +234,10 @@
       display: block;
       width: 100%;
       height: 100%;
+    }
+
+    #trajectory {
+      touch-action: none;
     }
 
     .badge {
@@ -380,13 +384,141 @@
       color: var(--red);
     }
 
+    .metric-params summary {
+      cursor: pointer;
+      padding: 14px;
+      font-weight: 650;
+      color: var(--ink);
+      list-style: none;
+    }
+
+    .metric-params summary::before {
+      content: "▾";
+      margin-right: 8px;
+      color: var(--muted);
+    }
+
+    .metric-params[open] summary::before {
+      content: "▴";
+    }
+
+    .metric-param-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0 14px 14px;
+    }
+
+    .metric-param {
+      display: grid;
+      gap: 5px;
+    }
+
+    .metric-param label {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.3;
+    }
+
+    .metric-param input {
+      height: 34px;
+    }
+
+    .metrics-panel {
+      padding: 14px;
+    }
+
+    .metrics-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metrics-summary {
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .metric-card {
+      position: relative;
+      display: grid;
+      gap: 4px;
+      min-height: 108px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfcfe;
+    }
+
+    .metric-card.pass {
+      border-color: #bcddd0;
+      background: #f4fbf7;
+    }
+
+    .metric-card.warn {
+      border-color: #efc4c4;
+      background: #fff5f5;
+    }
+
+    .metric-name {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.3;
+    }
+
+    .metric-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.15;
+    }
+
+    .metric-sub {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .metric-state {
+      position: absolute;
+      top: 9px;
+      right: 9px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #c7ced8;
+    }
+
+    .metric-card.pass .metric-state {
+      background: var(--green);
+    }
+
+    .metric-card.warn .metric-state {
+      background: var(--red);
+    }
+
     @media (max-width: 980px) {
       .app {
         grid-template-columns: 1fr;
       }
 
       main {
-        grid-template-rows: 460px 320px;
+        grid-template-rows: 460px auto 560px;
+      }
+
+      .metrics-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
@@ -401,11 +533,16 @@
       }
 
       main {
-        grid-template-rows: 420px 960px;
+        grid-template-rows: 420px auto 1240px;
       }
 
       .toolbar {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .metric-param-grid,
+      .metrics-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -448,6 +585,7 @@
             <select id="targetSource">
               <option value="cycloid" selected>摆线相位生成</option>
               <option value="list">列表目标点</option>
+              <option value="manual">手动控制点</option>
             </select>
           </div>
 
@@ -462,7 +600,7 @@
           </div>
 
           <div class="field" id="targetListField" hidden>
-            <label class="label" for="targetList">目标点列表 (t, x, y)</label>
+            <label class="label" id="targetListLabel" for="targetList">目标点列表 (t, x, y)</label>
             <textarea id="targetList" rows="9" spellcheck="false">0, -20, 54
 0.125, -13.641, 76.5
 0.25, 15, 99
@@ -541,7 +679,7 @@
 
           <div class="field">
             <label class="label" for="maxAngAccel">角加速度上限 deg/s²</label>
-            <input id="maxAngAccel" type="number" min="1" step="100" value="1000">
+            <input id="maxAngAccel" type="number" min="1" step="100" value="6000">
           </div>
 
           <div class="row">
@@ -587,8 +725,61 @@
           <button class="btn" id="resetBtn" type="button" title="回到起点">↺</button>
           <button class="btn" id="fitBtn" type="button" title="重算视图">⛶</button>
           <button class="btn" id="csvBtn" type="button" title="导出 CSV">CSV</button>
+          <button class="btn" id="optimizedBtn" type="button" title="导入优化控制点">优化</button>
         </div>
         <div class="status" id="status">ready</div>
+      </section>
+
+      <section class="panel">
+        <details class="metric-params" open>
+          <summary>评价指标参数</summary>
+          <div class="metric-param-grid">
+            <div class="metric-param">
+              <label for="rDes">r_des 目标步长 mm</label>
+              <input id="rDes" type="number" min="0" step="0.5" value="55">
+            </div>
+            <div class="metric-param">
+              <label for="hDes">h_des 离地高度 mm</label>
+              <input id="hDes" type="number" min="0" step="0.5" value="30">
+            </div>
+            <div class="metric-param">
+              <label for="hHigh">h_high 高位阈值 mm</label>
+              <input id="hHigh" type="number" min="0" step="0.5" value="25">
+            </div>
+            <div class="metric-param">
+              <label for="ratioHigh">ratio_high_target</label>
+              <input id="ratioHigh" type="number" min="0" max="1" step="0.01" value="0.6">
+            </div>
+            <div class="metric-param">
+              <label for="epsDown">eps_down 触地阈值 mm</label>
+              <input id="epsDown" type="number" min="0" step="0.5" value="3">
+            </div>
+            <div class="metric-param">
+              <label for="epsUp">eps_up 离地阈值 mm</label>
+              <input id="epsUp" type="number" min="0" step="0.5" value="3">
+            </div>
+            <div class="metric-param">
+              <label for="lambdaE">lambda_E</label>
+              <input id="lambdaE" type="number" min="0" step="0.1" value="2">
+            </div>
+            <div class="metric-param">
+              <label for="lambdaI">lambda_I</label>
+              <input id="lambdaI" type="number" min="0" step="0.1" value="3">
+            </div>
+            <div class="metric-param">
+              <label for="lambdaF">lambda_F</label>
+              <input id="lambdaF" type="number" min="0" step="0.1" value="2">
+            </div>
+            <div class="metric-param">
+              <label for="lambdaC">lambda_C</label>
+              <input id="lambdaC" type="number" min="0" step="0.1" value="1">
+            </div>
+            <div class="metric-param">
+              <label for="lambdaH">lambda_H</label>
+              <input id="lambdaH" type="number" min="0" step="0.1" value="2">
+            </div>
+          </div>
+        </details>
       </section>
     </aside>
 
@@ -608,7 +799,64 @@
           <span class="key blue"><span class="swatch"></span>足端轨迹</span>
           <span class="key green"><span class="swatch"></span>连杆</span>
           <span class="key orange"><span class="swatch"></span>当前姿态</span>
-          <span class="key gray"><span class="swatch point"></span>项目坐标点</span>
+          <span class="key gray" id="markerLegend"><span class="swatch point"></span>项目坐标点</span>
+        </div>
+      </section>
+
+      <section class="panel metrics-panel">
+        <div class="metrics-head">
+          <span>评价指标</span>
+          <span class="metrics-summary" id="metricsSummary">--</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-card" id="metricECard">
+            <span class="metric-state"></span>
+            <span class="metric-name">E 关节平滑 / 出力</span>
+            <strong class="metric-value" id="metricE">--</strong>
+            <span class="metric-sub" id="metricESub">--</span>
+          </div>
+          <div class="metric-card" id="metricICard">
+            <span class="metric-state"></span>
+            <span class="metric-name">I 落地 / 离地冲击</span>
+            <strong class="metric-value" id="metricI">--</strong>
+            <span class="metric-sub" id="metricISub">--</span>
+          </div>
+          <div class="metric-card" id="metricFCard">
+            <span class="metric-state"></span>
+            <span class="metric-name">F 任务保真 r_actual</span>
+            <strong class="metric-value" id="metricF">--</strong>
+            <span class="metric-sub" id="metricFSub">--</span>
+          </div>
+          <div class="metric-card" id="metricCCard">
+            <span class="metric-state"></span>
+            <span class="metric-name">C 离地高度</span>
+            <strong class="metric-value" id="metricC">--</strong>
+            <span class="metric-sub" id="metricCSub">--</span>
+          </div>
+          <div class="metric-card" id="metricHCard">
+            <span class="metric-state"></span>
+            <span class="metric-name">H 高位位移占比</span>
+            <strong class="metric-value" id="metricH">--</strong>
+            <span class="metric-sub" id="metricHSub">--</span>
+          </div>
+          <div class="metric-card" id="metricJCard">
+            <span class="metric-state"></span>
+            <span class="metric-name">J 加权总目标</span>
+            <strong class="metric-value" id="metricJ">--</strong>
+            <span class="metric-sub" id="metricJSub">--</span>
+          </div>
+          <div class="metric-card" id="metricSupportCard">
+            <span class="metric-state"></span>
+            <span class="metric-name">支撑 / 摆动 50:50</span>
+            <strong class="metric-value" id="metricSupport">--</strong>
+            <span class="metric-sub" id="metricSupportSub">--</span>
+          </div>
+          <div class="metric-card" id="metricBlocksCard">
+            <span class="metric-state"></span>
+            <span class="metric-name">支撑区间连续性</span>
+            <strong class="metric-value" id="metricBlocks">--</strong>
+            <span class="metric-sub" id="metricBlocksSub">--</span>
+          </div>
         </div>
       </section>
 
@@ -643,6 +891,18 @@
             <span class="key orange"><span class="swatch"></span>knee α</span>
           </div>
         </div>
+        <div class="canvas-box">
+          <canvas id="footChart"></canvas>
+          <div class="badge">
+            <span class="pill">足端高度 lift 与支撑区间 mm</span>
+          </div>
+          <div class="legend">
+            <span class="key blue"><span class="swatch"></span>lift</span>
+            <span class="key green"><span class="swatch"></span>支撑</span>
+            <span class="key red"><span class="swatch point"></span>TD</span>
+            <span class="key orange"><span class="swatch point"></span>LO</span>
+          </div>
+        </div>
       </section>
     </main>
   </div>
@@ -657,7 +917,12 @@
       cursor: 0,
       lastFrame: 0,
       view: null,
-      waypoints: []
+      waypoints: [],
+      metrics: null,
+      controlPoints: [],
+      dragging: null,
+      dragPointerId: null,
+      dragQueued: false
     };
 
     const els = {
@@ -665,6 +930,8 @@
       interpMode: document.getElementById("interpMode"),
       targetSource: document.getElementById("targetSource"),
       targetList: document.getElementById("targetList"),
+      targetListLabel: document.getElementById("targetListLabel"),
+      markerLegend: document.getElementById("markerLegend"),
       xExprField: document.getElementById("xExprField"),
       yExprField: document.getElementById("yExprField"),
       targetListField: document.getElementById("targetListField"),
@@ -686,6 +953,17 @@
       speedFreq: document.getElementById("speedFreq"),
       maxAngVel: document.getElementById("maxAngVel"),
       maxAngAccel: document.getElementById("maxAngAccel"),
+      rDes: document.getElementById("rDes"),
+      hDes: document.getElementById("hDes"),
+      hHigh: document.getElementById("hHigh"),
+      ratioHigh: document.getElementById("ratioHigh"),
+      epsDown: document.getElementById("epsDown"),
+      epsUp: document.getElementById("epsUp"),
+      lambdaE: document.getElementById("lambdaE"),
+      lambdaI: document.getElementById("lambdaI"),
+      lambdaF: document.getElementById("lambdaF"),
+      lambdaC: document.getElementById("lambdaC"),
+      lambdaH: document.getElementById("lambdaH"),
       samples: document.getElementById("samples"),
       speed: document.getElementById("speed"),
       scrub: document.getElementById("timeScrub"),
@@ -695,6 +973,7 @@
       resetBtn: document.getElementById("resetBtn"),
       fitBtn: document.getElementById("fitBtn"),
       csvBtn: document.getElementById("csvBtn"),
+      optimizedBtn: document.getElementById("optimizedBtn"),
       xNow: document.getElementById("xNow"),
       yNow: document.getElementById("yNow"),
       secNow: document.getElementById("secNow"),
@@ -714,7 +993,28 @@
       trajectory: document.getElementById("trajectory"),
       angleChart: document.getElementById("angleChart"),
       velChart: document.getElementById("velChart"),
-      accelChart: document.getElementById("accelChart")
+      accelChart: document.getElementById("accelChart"),
+      footChart: document.getElementById("footChart"),
+      metricsSummary: document.getElementById("metricsSummary"),
+      metricE: document.getElementById("metricE"),
+      metricESub: document.getElementById("metricESub"),
+      metricI: document.getElementById("metricI"),
+      metricISub: document.getElementById("metricISub"),
+      metricF: document.getElementById("metricF"),
+      metricFSub: document.getElementById("metricFSub"),
+      metricC: document.getElementById("metricC"),
+      metricCSub: document.getElementById("metricCSub"),
+      metricH: document.getElementById("metricH"),
+      metricHSub: document.getElementById("metricHSub"),
+      metricHCard: document.getElementById("metricHCard"),
+      metricJ: document.getElementById("metricJ"),
+      metricJSub: document.getElementById("metricJSub"),
+      metricSupport: document.getElementById("metricSupport"),
+      metricSupportSub: document.getElementById("metricSupportSub"),
+      metricSupportCard: document.getElementById("metricSupportCard"),
+      metricBlocks: document.getElementById("metricBlocks"),
+      metricBlocksSub: document.getElementById("metricBlocksSub"),
+      metricBlocksCard: document.getElementById("metricBlocksCard")
     };
 
     const presets = {
@@ -984,6 +1284,281 @@
       };
     }
 
+    function readMetricParams() {
+      const get = (id) => Number(els[id].value);
+      const params = {
+        base_y: get("baseY"),
+        r_des: get("rDes"),
+        h_des: get("hDes"),
+        h_high: get("hHigh"),
+        ratio_high_target: get("ratioHigh"),
+        eps_down: get("epsDown"),
+        eps_up: get("epsUp"),
+        lambda_e: get("lambdaE"),
+        lambda_i: get("lambdaI"),
+        lambda_f: get("lambdaF"),
+        lambda_c: get("lambdaC"),
+        lambda_h: get("lambdaH")
+      };
+      for (const [key, value] of Object.entries(params)) {
+        if (!Number.isFinite(value)) throw new Error(`${key} 必须是有效数值`);
+      }
+      if (!(params.r_des >= 0)) throw new Error("r_des 必须不小于 0");
+      if (!(params.h_des >= 0)) throw new Error("h_des 必须不小于 0");
+      if (!(params.h_high >= 0)) throw new Error("h_high 必须不小于 0");
+      if (!(params.ratio_high_target >= 0 && params.ratio_high_target <= 1)) {
+        throw new Error("ratio_high_target 必须在 0 到 1 之间");
+      }
+      if (!(params.eps_down >= 0)) throw new Error("eps_down 必须不小于 0");
+      if (!(params.eps_up >= 0)) throw new Error("eps_up 必须不小于 0");
+      return params;
+    }
+
+    function centralDerivative(values, times) {
+      const out = new Array(values.length).fill(0);
+      for (let i = 0; i < values.length; i++) {
+        const a = Math.max(0, i - 1);
+        const b = Math.min(values.length - 1, i + 1);
+        const dt = times[b] - times[a];
+        if (dt > 0) out[i] = (values[b] - values[a]) / dt;
+      }
+      return out;
+    }
+
+    function detectSupportIntervals(lift, times, epsDown, epsUp) {
+      const intervals = [];
+      let start = null;
+      for (let i = 0; i < lift.length; i++) {
+        if (start === null && lift[i] <= epsDown) {
+          start = i;
+        } else if (start !== null && lift[i] > epsUp) {
+          intervals.push({ start, end: i });
+          start = null;
+        }
+      }
+      if (start !== null) intervals.push({ start, end: lift.length - 1 });
+      const wrapsAround =
+        intervals.length >= 2 &&
+        intervals[0].start === 0 &&
+        intervals[intervals.length - 1].end === lift.length - 1;
+      return {
+        intervals,
+        blocks: intervals.length - (wrapsAround ? 1 : 0),
+        wrapsAround
+      };
+    }
+
+    function computeCycleMetrics(data, metricParams) {
+      const n = data.length;
+      const times = data.map((p) => p.timeSec);
+      const xs = data.map((p) => p.x);
+      const ys = data.map((p) => p.y);
+      const lift = ys.map((y) => y - metricParams.base_y);
+      const vy = centralDerivative(ys, times);
+      const ay = centralDerivative(vy, times);
+      const detected = detectSupportIntervals(
+        lift,
+        times,
+        metricParams.eps_down,
+        metricParams.eps_up
+      );
+      const { intervals, blocks, wrapsAround } = detected;
+
+      const supportMask = new Array(n).fill(false);
+      const supportBlock = new Array(n).fill(-1);
+      intervals.forEach((iv, idx) => {
+        for (let i = iv.start; i <= iv.end; i++) {
+          supportMask[i] = true;
+          supportBlock[i] = idx;
+        }
+      });
+      if (wrapsAround && intervals.length >= 2) {
+        const last = intervals[intervals.length - 1];
+        for (let i = last.start; i <= last.end; i++) supportBlock[i] = 0;
+      }
+
+      let tSup = 0;
+      let rActual = 0;
+      let dSup = 0;
+      let iCost = 0;
+      const tdEvents = [];
+      const loEvents = [];
+      for (const iv of intervals) {
+        const start = iv.start;
+        const end = iv.end;
+        tSup += times[end] - times[start];
+        const stride = Math.abs(xs[end] - xs[start]);
+        rActual += stride;
+        dSup += stride;
+        iCost += vy[start] ** 2 + vy[end] ** 2 + ay[start] ** 2;
+        tdEvents.push({
+          timeSec: times[start],
+          value: lift[start],
+          vy: Math.abs(vy[start]),
+          ay: Math.abs(ay[start]),
+          color: "#d04444",
+          label: "TD"
+        });
+        loEvents.push({
+          timeSec: times[end],
+          value: lift[end],
+          vy: Math.abs(vy[end]),
+          color: "#c26b15",
+          label: "LO"
+        });
+      }
+
+      let dLeg = 0;
+      let dHigh = 0;
+      for (let i = 0; i < n - 1; i++) {
+        const dx = Math.abs(xs[i + 1] - xs[i]);
+        dLeg += dx;
+        if (lift[i] >= metricParams.h_high || lift[i + 1] >= metricParams.h_high) {
+          dHigh += dx;
+        }
+      }
+      dHigh += dSup;
+      const dTotal = dLeg + dSup;
+
+      let eCost = 0;
+      let cCost = 0;
+      let minSwingLift = Infinity;
+      let swingSamples = 0;
+      let maxVel = 0;
+      let maxAccel = 0;
+      for (let i = 0; i < n; i++) {
+        const p = data[i];
+        const hipVel = finite(p.hipVel, 0);
+        const kneeVel = finite(p.kneeVel, 0);
+        const hipAccel = finite(p.hipAccel, 0);
+        const kneeAccel = finite(p.kneeAccel, 0);
+        eCost += hipVel ** 2 + kneeVel ** 2 + hipAccel ** 2 + kneeAccel ** 2;
+        maxVel = Math.max(maxVel, Math.abs(hipVel), Math.abs(kneeVel));
+        maxAccel = Math.max(maxAccel, Math.abs(hipAccel), Math.abs(kneeAccel));
+        if (!supportMask[i]) {
+          cCost += Math.max(0, metricParams.h_des - lift[i]) ** 2;
+          minSwingLift = Math.min(minSwingLift, lift[i]);
+          swingSamples++;
+        }
+      }
+
+      const tCycle = times[n - 1] - times[0] || 0;
+      const supportRatio = tCycle > 0 ? tSup / tCycle : 0;
+      const supportErrMs = (tSup - 0.5 * tCycle) * 1000;
+      const fCost = (rActual - metricParams.r_des) ** 2;
+      const hShort = Math.max(
+        0,
+        metricParams.ratio_high_target * dTotal - dHigh
+      );
+      const highRatio = dTotal > 1e-9 ? dHigh / dTotal : 0;
+      const totalCost =
+        metricParams.lambda_e * eCost +
+        metricParams.lambda_i * iCost +
+        metricParams.lambda_f * fCost +
+        metricParams.lambda_c * cCost +
+        metricParams.lambda_h * hShort;
+      const avg = (values) =>
+        values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+
+      for (let i = 0; i < n; i++) {
+        data[i].lift = lift[i];
+        data[i].vy = vy[i];
+        data[i].ay = ay[i];
+        data[i].support = supportMask[i] ? 1 : 0;
+        data[i].supportBlock = supportBlock[i];
+      }
+
+      return {
+        eCost,
+        iCost,
+        fCost,
+        cCost,
+        hShort,
+        totalCost,
+        rActual,
+        rDes: metricParams.r_des,
+        highRatio,
+        hDes: metricParams.h_des,
+        hHigh: metricParams.h_high,
+        ratioHighTarget: metricParams.ratio_high_target,
+        dLeg,
+        dSup,
+        dHigh,
+        dTotal,
+        tSup,
+        tCycle,
+        supportRatio,
+        supportErrMs,
+        supportPass: Math.abs(supportErrMs) <= 2.0,
+        blocks,
+        continuityPass: blocks === 1,
+        maxVel,
+        maxAccel,
+        minSwingLift: Number.isFinite(minSwingLift) ? minSwingLift : 0,
+        swingSamples,
+        avgTdVy: avg(tdEvents.map((e) => e.vy)),
+        avgLoVy: avg(loEvents.map((e) => e.vy)),
+        avgTdAy: avg(tdEvents.map((e) => e.ay)),
+        tdCount: tdEvents.length,
+        loCount: loEvents.length,
+        bands: intervals.map((iv) => ({
+          startTime: times[iv.start],
+          endTime: times[Math.min(iv.end, n - 1)]
+        })),
+        events: [...tdEvents, ...loEvents].sort((a, b) => a.timeSec - b.timeSec)
+      };
+    }
+
+    function setMetricCard(card, ok) {
+      card.className = `metric-card${ok ? " pass" : " warn"}`;
+    }
+
+    function formatMetricNumber(value) {
+      if (!Number.isFinite(value)) return "--";
+      if (Math.abs(value) >= 1e9) return value.toExponential(2);
+      if (Math.abs(value) >= 1e4) return value.toFixed(0);
+      return value.toFixed(1);
+    }
+
+    function renderMetrics(metrics) {
+      if (!metrics) return;
+      els.metricE.textContent = formatMetricNumber(metrics.eCost);
+      els.metricESub.textContent =
+        `ω_max ${metrics.maxVel.toFixed(0)} deg/s · α_max ${metrics.maxAccel.toFixed(0)} deg/s²`;
+      els.metricI.textContent = formatMetricNumber(metrics.iCost);
+      els.metricISub.textContent =
+        `TD ${metrics.tdCount} · LO ${metrics.loCount} · ` +
+        `v_TD ${metrics.avgTdVy.toFixed(0)} / v_LO ${metrics.avgLoVy.toFixed(0)} mm/s`;
+      els.metricF.textContent = `${metrics.rActual.toFixed(1)} mm`;
+      els.metricFSub.textContent =
+        `目标 ${metrics.rDes.toFixed(1)} mm · 偏差 ${(metrics.rActual - metrics.rDes).toFixed(1)} mm`;
+      els.metricC.textContent = formatMetricNumber(metrics.cCost);
+      els.metricCSub.textContent =
+        `最低摆动 ${metrics.minSwingLift.toFixed(1)} / ${metrics.hDes.toFixed(1)} mm`;
+      els.metricH.textContent = `${(metrics.highRatio * 100).toFixed(1)}%`;
+      els.metricHSub.textContent =
+        `D_high/D_total ${metrics.dHigh.toFixed(1)}/${metrics.dTotal.toFixed(1)} mm · ` +
+        `缺口 ${metrics.hShort.toFixed(1)} mm`;
+      els.metricJ.textContent = formatMetricNumber(metrics.totalCost);
+      els.metricJSub.textContent =
+        `E ${formatMetricNumber(metrics.eCost)} + I ${formatMetricNumber(metrics.iCost)} + ` +
+        `F ${metrics.fCost.toFixed(1)} + C ${formatMetricNumber(metrics.cCost)} + H ${metrics.hShort.toFixed(1)}`;
+      els.metricSupport.textContent = `${(metrics.supportRatio * 100).toFixed(1)}%`;
+      const sign = metrics.supportErrMs >= 0 ? "+" : "";
+      els.metricSupportSub.textContent =
+        `目标 50% · 误差 ${sign}${metrics.supportErrMs.toFixed(2)} ms`;
+      setMetricCard(els.metricSupportCard, metrics.supportPass);
+      els.metricBlocks.textContent = `${metrics.blocks} 块`;
+      els.metricBlocksSub.textContent = metrics.continuityPass
+        ? "单一连续支撑块"
+        : "支撑区间碎片化";
+      setMetricCard(els.metricBlocksCard, metrics.continuityPass);
+      setMetricCard(els.metricHCard, metrics.hShort <= 1e-9);
+      els.metricsSummary.textContent =
+        `J ${formatMetricNumber(metrics.totalCost)} · 支撑 ${(metrics.supportRatio * 100).toFixed(1)}% · ` +
+        `${metrics.blocks} 块`;
+    }
+
     function forwardKinematics(hipDeg, kneeDeg, l1, l2) {
       const hip = hipDeg / DEG;
       const knee = (hipDeg + kneeDeg) / DEG;
@@ -1231,11 +1806,15 @@
         const interpMode = els.interpMode.value;
         const targetSource = els.targetSource.value;
 
-        if (targetSource === "list" && interpMode !== "project") {
-          throw new Error("列表目标点需要选择项目点 + 限速插补");
+        if ((targetSource === "list" || targetSource === "manual") && interpMode !== "project") {
+          throw new Error("列表/手动控制点需要选择项目点 + 限速插补");
         }
-        const xFunc = targetSource === "list" ? null : compileExpression(els.xExpr.value.trim());
-        const yFunc = targetSource === "list" ? null : compileExpression(els.yExpr.value.trim());
+        const xFunc = targetSource === "list" || targetSource === "manual"
+          ? null
+          : compileExpression(els.xExpr.value.trim());
+        const yFunc = targetSource === "list" || targetSource === "manual"
+          ? null
+          : compileExpression(els.yExpr.value.trim());
         const params = {
           base_x: Number(els.baseX.value),
           base_y: Number(els.baseY.value),
@@ -1244,7 +1823,7 @@
           r: Number(els.stepRange.value)
         };
 
-        if (targetSource !== "list") {
+        if (targetSource !== "list" && targetSource !== "manual") {
           if (!Number.isFinite(params.base_x)) throw new Error("base_x 必须是有效数值");
           if (!Number.isFinite(params.base_y)) throw new Error("base_y 必须是有效数值");
           if (!Number.isFinite(params.bias_angle_deg)) throw new Error("bias_angle_deg 必须是有效数值");
@@ -1257,15 +1836,17 @@
         if (!(speedFreq > 0)) throw new Error("speed_freq 必须大于 0");
         if (!(maxAngVel > 0)) throw new Error("角速度上限必须大于 0");
         if (!(maxAngAccel > 0)) throw new Error("角加速度上限必须大于 0");
+        const metricParams = readMetricParams();
 
         const phaseToSec = (updatePeriodMs / 1000) / speedFreq;
         let data;
         let waypoints = [];
+        let projectWaypoints = [];
         let capped = { hip: 0, knee: 0 };
 
         if (interpMode === "project") {
           const updateSec = updatePeriodMs / 1000;
-          const projectWaypoints = targetSource === "list"
+          projectWaypoints = targetSource === "list" || targetSource === "manual"
             ? parseTargetWaypoints(els.targetList.value, l1, l2)
             : buildPhaseWaypoints(xFunc, yFunc, params, l1, l2, t0, t1, speedFreq);
           projectWaypoints.forEach((wp, index) => {
@@ -1311,8 +1892,10 @@
         els.kneeVelAvg.textContent = kneeStats.avg.toFixed(1);
         els.kneeVelRms.textContent = kneeStats.rms.toFixed(1);
         if (interpMode === "project") {
+          const displayPointCount = targetSource === "manual" ? projectWaypoints.length : waypoints.length;
           els.velLimitNote.textContent =
-            `项目点 ${waypoints.length} 个；hip 限速段 ${capped.hip}，knee 限速段 ${capped.knee}；角加速度上限 ${maxAngAccel.toFixed(0)} deg/s²`;
+            `${targetSource === "manual" ? "控制点" : "项目点"} ${displayPointCount} 个；` +
+            `hip 限速段 ${capped.hip}，knee 限速段 ${capped.knee}；角加速度上限 ${maxAngAccel.toFixed(0)} deg/s²`;
           els.velLimitNote.classList.toggle("warn", capped.hip + capped.knee > 0);
         } else {
           els.velLimitNote.textContent = overLimit
@@ -1325,11 +1908,16 @@
         state.accelLimit = maxAngAccel;
         state.data = data;
         state.waypoints = waypoints;
+        state.controlPoints = interpMode === "project" ? projectWaypoints : [];
+        const metrics = computeCycleMetrics(data, metricParams);
+        state.metrics = metrics;
+        renderMetrics(metrics);
         state.cursor = keepCursor ? clamp(state.cursor, 0, data.length - 1) : 0;
         state.view = makeTrajectoryView(data, l1, l2);
         els.scrub.value = Math.round((state.cursor / (data.length - 1)) * 1000);
+        const pointCount = targetSource === "manual" ? projectWaypoints.length : waypoints.length;
         const modeLabel = interpMode === "project"
-          ? `项目点 ${waypoints.length} 个，限速插补`
+          ? `${targetSource === "manual" ? "手动控制点" : "项目点"} ${pointCount} 个，限速插补`
           : "连续轨迹";
         const rangeSec = data[data.length - 1].timeSec - data[0].timeSec;
         const periodLabel = interpMode === "project"
@@ -1354,6 +1942,12 @@
         maxY = Math.max(maxY, p.y);
       }
       for (const p of state.waypoints) {
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+      }
+      for (const p of state.controlPoints) {
         minX = Math.min(minX, p.x);
         maxX = Math.max(maxX, p.x);
         minY = Math.min(minY, p.y);
@@ -1417,6 +2011,26 @@
       ctx.restore();
     }
 
+    function getTrajectoryTransform() {
+      const view = state.view;
+      const canvas = els.trajectory;
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(1, rect.width);
+      const h = Math.max(1, rect.height);
+      const sx = w / (view.maxX - view.minX);
+      const sy = h / (view.maxY - view.minY);
+      const scale = Math.min(sx, sy);
+      const offsetX = (w - (view.maxX - view.minX) * scale) / 2;
+      const offsetY = (h - (view.maxY - view.minY) * scale) / 2;
+      return {
+        scale,
+        px: (x) => offsetX + (x - view.minX) * scale,
+        py: (y) => h - offsetY - (y - view.minY) * scale,
+        invX: (screenX) => view.minX + (screenX - offsetX) / scale,
+        invY: (screenY) => view.minY + (h - offsetY - screenY) / scale
+      };
+    }
+
     function drawTrajectory() {
       const data = state.data;
       if (!data.length) return;
@@ -1425,13 +2039,7 @@
       drawGrid(ctx, w, h, "x", "y");
 
       const view = state.view;
-      const sx = w / (view.maxX - view.minX);
-      const sy = h / (view.maxY - view.minY);
-      const scale = Math.min(sx, sy);
-      const offsetX = (w - (view.maxX - view.minX) * scale) / 2;
-      const offsetY = (h - (view.maxY - view.minY) * scale) / 2;
-      const px = (x) => offsetX + (x - view.minX) * scale;
-      const py = (y) => h - offsetY - (y - view.minY) * scale;
+      const { px, py, scale } = getTrajectoryTransform();
 
       const l1 = Number(els.l1.value);
       const l2 = Number(els.l2.value);
@@ -1498,17 +2106,31 @@
       });
       ctx.stroke();
 
-      if (state.waypoints.length) {
-        ctx.fillStyle = "#7b8794";
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1.5;
-        for (const wp of state.waypoints) {
+      const manual = els.targetSource.value === "manual";
+      const controlPoints = manual && state.controlPoints.length
+        ? state.controlPoints
+        : state.waypoints;
+      if (controlPoints.length) {
+        for (let i = 0; i < controlPoints.length; i++) {
+          const wp = controlPoints[i];
+          const selected = manual && state.dragging === i;
+          const size = manual ? (selected ? 6 : 5) : 3.5;
           const x = px(wp.x);
           const y = py(wp.y);
+          ctx.fillStyle = selected ? "#c26b15" : manual ? "#1f6feb" : "#7b8794";
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = manual ? 1.8 : 1.5;
           ctx.beginPath();
-          ctx.rect(x - 3.5, y - 3.5, 7, 7);
+          ctx.rect(x - size, y - size, size * 2, size * 2);
           ctx.fill();
           ctx.stroke();
+          if (selected) {
+            ctx.strokeStyle = "#c26b15";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, size + 4, 0, Math.PI * 2);
+            ctx.stroke();
+          }
         }
       }
 
@@ -1675,6 +2297,17 @@
         ctx.stroke();
       }
 
+      if (options.bands && options.bands.length) {
+        ctx.save();
+        for (const band of options.bands) {
+          const x0 = tx(band.startTime);
+          const x1 = tx(band.endTime);
+          ctx.fillStyle = band.color || "rgba(23, 136, 91, 0.16)";
+          ctx.fillRect(x0, top, Math.max(1, x1 - x0), plotH);
+        }
+        ctx.restore();
+      }
+
       if (limit !== null) {
         ctx.save();
         ctx.setLineDash([7, 5]);
@@ -1709,6 +2342,48 @@
         });
         ctx.stroke();
       });
+
+      if (options.hlines && options.hlines.length) {
+        ctx.save();
+        for (const line of options.hlines) {
+          ctx.strokeStyle = line.color || "#9aa6b6";
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash(line.dash || [6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(left, ty(line.value));
+          ctx.lineTo(left + plotW, ty(line.value));
+          ctx.stroke();
+          ctx.setLineDash([]);
+          if (line.label) {
+            ctx.fillStyle = line.color || "#9aa6b6";
+            ctx.font = "10px Segoe UI, Microsoft YaHei, sans-serif";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "bottom";
+            ctx.fillText(line.label, left + 5, ty(line.value) - 3);
+          }
+        }
+        ctx.restore();
+      }
+
+      if (options.markers && options.markers.length) {
+        ctx.save();
+        ctx.font = "10px Segoe UI, Microsoft YaHei, sans-serif";
+        for (const marker of options.markers) {
+          const x = tx(marker.timeSec);
+          const y = ty(marker.value);
+          ctx.fillStyle = marker.color || "#d04444";
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fill();
+          if (marker.label) {
+            ctx.fillStyle = marker.color || "#d04444";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "bottom";
+            ctx.fillText(marker.label, x + 6, y - 5);
+          }
+        }
+        ctx.restore();
+      }
 
       const now = data[state.cursor] || data[0];
       const cx = tx(now.timeSec);
@@ -1755,6 +2430,17 @@
         "deg/s²",
         { limit: state.accelLimit || Number(els.maxAngAccel.value) }
       );
+      const hDes = Number(els.hDes.value);
+      const hHigh = Number(els.hHigh.value);
+      drawChart(els.footChart, ["lift"], ["#1f6feb"], "mm", {
+        bands: state.metrics ? state.metrics.bands : [],
+        hlines: [
+          { value: 0, color: "#9aa6b6", dash: [4, 4], label: "地面" },
+          { value: hDes, color: "#c26b15", dash: [7, 5], label: `h_des ${hDes}` },
+          { value: hHigh, color: "#8b5cf6", dash: [7, 5], label: `h_high ${hHigh}` }
+        ],
+        markers: state.metrics ? state.metrics.events : []
+      });
     }
 
     function animate(time) {
@@ -1784,6 +2470,105 @@
       drawAll();
     }
 
+    function syncManualListFromControlPoints() {
+      if (!state.controlPoints || !state.controlPoints.length) return;
+      els.targetList.value = state.controlPoints
+        .map((wp) => `${formatListNumber(wp.t)}, ${formatListNumber(wp.x)}, ${formatListNumber(wp.y)}`)
+        .join("\n");
+    }
+
+    function findControlPointAt(screenX, screenY) {
+      if (!state.controlPoints.length || !state.view) return null;
+      const { px, py } = getTrajectoryTransform();
+      const threshold = 14;
+      let best = null;
+      let bestDist = threshold * threshold;
+      state.controlPoints.forEach((wp, index) => {
+        const dx = screenX - px(wp.x);
+        const dy = screenY - py(wp.y);
+        const dist = dx * dx + dy * dy;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = index;
+        }
+      });
+      return best;
+    }
+
+    function handleControlPointerDown(event) {
+      if (els.targetSource.value !== "manual" || !state.controlPoints.length || !state.view) return;
+      const rect = els.trajectory.getBoundingClientRect();
+      const index = findControlPointAt(event.clientX - rect.left, event.clientY - rect.top);
+      if (index === null) return;
+      event.preventDefault();
+      state.dragging = index;
+      state.dragPointerId = event.pointerId;
+      els.trajectory.style.cursor = "grabbing";
+      try {
+        els.trajectory.setPointerCapture(event.pointerId);
+      } catch (err) {
+        // Pointer capture can be unavailable on some embedded browsers.
+      }
+      drawTrajectory();
+    }
+
+    function handleControlPointerMove(event) {
+      if (state.dragging === null || event.pointerId !== state.dragPointerId || !state.view) return;
+      event.preventDefault();
+      const rect = els.trajectory.getBoundingClientRect();
+      const transform = getTrajectoryTransform();
+      const l1 = Number(els.l1.value);
+      const l2 = Number(els.l2.value);
+      let worldX = transform.invX(event.clientX - rect.left);
+      let worldY = transform.invY(event.clientY - rect.top);
+      const hipY = l1 + l2;
+      const dx = worldX;
+      const dy = hipY - worldY;
+      const dist = Math.hypot(dx, dy);
+      const maxDist = Math.max(5, l1 + l2 - 2);
+      if (dist > maxDist) {
+        worldX = (dx / dist) * maxDist;
+        worldY = hipY - (dy / dist) * maxDist;
+      }
+
+      const wp = state.controlPoints[state.dragging];
+      wp.x = worldX;
+      wp.y = worldY;
+      const n = state.controlPoints.length;
+      const first = state.controlPoints[0];
+      const last = state.controlPoints[n - 1];
+      const closed = n > 1 && Math.abs(first.t) < 1e-9 && Math.abs(last.t - 1) < 1e-9;
+      if (closed && (state.dragging === 0 || state.dragging === n - 1)) {
+        const other = state.dragging === 0 ? last : first;
+        other.x = worldX;
+        other.y = worldY;
+      }
+      syncManualListFromControlPoints();
+      drawTrajectory();
+      if (!state.dragQueued) {
+        state.dragQueued = true;
+        requestAnimationFrame(() => {
+          if (!state.dragQueued) return;
+          state.dragQueued = false;
+          recalc(true);
+        });
+      }
+    }
+
+    function handleControlPointerUp(event) {
+      if (state.dragging === null || event.pointerId !== state.dragPointerId) return;
+      state.dragging = null;
+      state.dragPointerId = null;
+      state.dragQueued = false;
+      els.trajectory.style.cursor = "grab";
+      try {
+        els.trajectory.releasePointerCapture(event.pointerId);
+      } catch (err) {
+        // Pointer capture may already be released.
+      }
+      recalc(true);
+    }
+
     function downloadCsv() {
       if (!state.data.length) return;
       const headers = [
@@ -1791,17 +2576,25 @@
         "hip_angle_deg", "knee_angle_deg",
         "hip_target_angle_deg", "knee_target_angle_deg",
         "hip_velocity_deg_per_s", "knee_velocity_deg_per_s",
-        "hip_accel_deg_per_s2", "knee_accel_deg_per_s2"
+        "hip_accel_deg_per_s2", "knee_accel_deg_per_s2",
+        "lift_mm", "support", "support_block",
+        "foot_vy_mm_per_s", "foot_ay_mm_per_s2"
       ];
       const lines = [headers.join(",")];
       for (const p of state.data) {
+        const baseY = Number(els.baseY.value);
         lines.push([
           p.t, p.timeSec, p.x, p.y,
           finite(p.targetX, p.x), finite(p.targetY, p.y),
           p.hip, p.knee,
           finite(p.hipTarget, p.hip), finite(p.kneeTarget, p.knee),
           finite(p.hipVel, 0), finite(p.kneeVel, 0),
-          finite(p.hipAccel, 0), finite(p.kneeAccel, 0)
+          finite(p.hipAccel, 0), finite(p.kneeAccel, 0),
+          finite(p.lift, p.y - baseY),
+          finite(p.support, 0),
+          finite(p.supportBlock, -1),
+          finite(p.vy, 0),
+          finite(p.ay, 0)
         ].map((v) => Number(v).toPrecision(10)).join(","));
       }
       const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -1815,15 +2608,46 @@
       URL.revokeObjectURL(url);
     }
 
+    const OPTIMIZED_TARGETS = `0, -26, 57
+0.125, -7.640846, 76.5
+0.25, 21, 99
+0.375, 37.640846, 76.5
+0.5, 50, 57
+0.625, 37.640846, 51
+0.75, 9, 51
+0.875, -19.640846, 54
+1, -26, 57`;
+
+    function loadOptimizedTargets() {
+      els.targetSource.value = "list";
+      els.targetSource.dataset.previous = "list";
+      els.targetList.value = OPTIMIZED_TARGETS;
+      updateTargetSourceUI();
+      recalc(true);
+    }
+
     function updateTargetSourceUI() {
       const listMode = els.targetSource.value === "list";
-      els.xExprField.hidden = listMode;
-      els.yExprField.hidden = listMode;
-      els.baseRow.hidden = listMode;
-      els.biasHeightRow.hidden = listMode;
-      els.stepRangeField.hidden = listMode;
-      els.targetListField.hidden = !listMode;
-      if (listMode) {
+      const manualMode = els.targetSource.value === "manual";
+      const manualLike = listMode || manualMode;
+      els.xExprField.hidden = manualLike;
+      els.yExprField.hidden = manualLike;
+      els.baseRow.hidden = manualLike;
+      els.biasHeightRow.hidden = manualLike;
+      els.stepRangeField.hidden = manualLike;
+      els.targetListField.hidden = !manualLike;
+      els.targetListLabel.textContent = manualMode
+        ? "控制点列表 (t, x, y)"
+        : "目标点列表 (t, x, y)";
+      els.markerLegend.textContent = manualMode ? "控制点" : "项目坐标点";
+      els.markerLegend.className = manualMode ? "key blue" : "key gray";
+      els.trajectory.style.cursor = manualMode ? "grab" : "default";
+      if (!manualMode) {
+        state.dragging = null;
+        state.dragPointerId = null;
+        state.dragQueued = false;
+      }
+      if (manualLike) {
         els.interpMode.value = "project";
       }
     }
@@ -1832,6 +2656,7 @@
       const preset = presets[name];
       if (!preset) return;
       els.targetSource.value = "cycloid";
+      els.targetSource.dataset.previous = "cycloid";
       updateTargetSourceUI();
       els.xExpr.value = preset.x;
       els.yExpr.value = preset.y;
@@ -1866,6 +2691,17 @@
       els.speedFreq,
       els.maxAngVel,
       els.maxAngAccel,
+      els.rDes,
+      els.hDes,
+      els.hHigh,
+      els.ratioHigh,
+      els.epsDown,
+      els.epsUp,
+      els.lambdaE,
+      els.lambdaI,
+      els.lambdaF,
+      els.lambdaC,
+      els.lambdaH,
       els.samples
     ]) {
       el.addEventListener("input", () => {
@@ -1882,8 +2718,13 @@
 
     els.preset.addEventListener("change", () => applyPreset(els.preset.value));
     els.targetSource.addEventListener("change", () => {
+      const previous = els.targetSource.dataset.previous || "cycloid";
+      els.targetSource.dataset.previous = els.targetSource.value;
       els.preset.value = "custom";
-      if (els.targetSource.value === "list") {
+      if (
+        (els.targetSource.value === "list" || els.targetSource.value === "manual") &&
+        previous === "cycloid"
+      ) {
         syncTargetListFromCycloid();
       }
       updateTargetSourceUI();
@@ -1894,6 +2735,10 @@
       recalc(true);
     });
     els.scrub.addEventListener("input", setCursorFromScrub);
+    els.trajectory.addEventListener("pointerdown", handleControlPointerDown);
+    els.trajectory.addEventListener("pointermove", handleControlPointerMove);
+    els.trajectory.addEventListener("pointerup", handleControlPointerUp);
+    els.trajectory.addEventListener("pointercancel", handleControlPointerUp);
     els.playBtn.addEventListener("click", () => {
       state.playing = !state.playing;
       state.lastFrame = 0;
@@ -1906,6 +2751,7 @@
     });
     els.fitBtn.addEventListener("click", () => recalc(true));
     els.csvBtn.addEventListener("click", downloadCsv);
+    els.optimizedBtn.addEventListener("click", loadOptimizedTargets);
     window.addEventListener("resize", drawAll);
 
     updateTargetSourceUI();
