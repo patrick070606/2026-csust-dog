@@ -10,6 +10,7 @@ extern volatile uint8_t g_stair_walk_pitch_stable_samples;
 void StairWalk_Init(void);
 void StairWalk_Start(void);
 void StairWalk_Update(void);
+float StairWalk_GetFilteredRollDeg(void);
 uint8_t StairWalk_IsFinished(void);
 uint8_t StairWalk_IsRunning(void);
 

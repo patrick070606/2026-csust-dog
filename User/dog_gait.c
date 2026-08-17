@@ -139,7 +139,7 @@
 #define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -10.0f // 奇数周期：RB 抬起前施加到 LB 的左侧预加载量。
 #define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   10.0f // RB 抬起前施加到 RF 的反向预加载量；正值 N 实际使 RF Y 减少 N mm。
 #define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -15.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
-#define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        150U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
+#define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        300U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_MOVE_MS 500U // 预加载结束、对侧前腿恢复时的专用舵机动作时间；仅作用一次，不影响普通 walk 轨迹。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES 1U // 释放指令后额外冻结一个 100 ms 更新周期，确保 150 ms 指令不会被普通轨迹提前覆盖。
 #define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     5U // 当前 100 ms 更新周期下约 500 ms。

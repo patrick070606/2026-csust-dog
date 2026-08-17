@@ -18,6 +18,17 @@
 #define DOG_TASK_GAIT_SHIFT_MOVE_MS         120U // 左/右平移时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  130U // 减速带阶段的步态更新周期，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS    130U // 减速带阶段的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_SPEED_BUMP_WALK_ENABLE          1U    // 1: 减速带使用专用 walk；0: 保持原有 trot 方案。
+#define DOG_TASK_SPEED_BUMP_WALK_PERIOD_MS       100U  // 减速带 walk 的目标更新周期。
+#define DOG_TASK_SPEED_BUMP_WALK_MOVE_MS         80U   // 减速带 walk 的普通舵机过渡时间。
+#define DOG_TASK_SPEED_BUMP_WALK_STEP_H_MM       60.0f // 与当前上楼梯 walk 一致的抬腿高度。
+#define DOG_TASK_SPEED_BUMP_WALK_STEP_LEN_MM     60.0f // 与当前上楼梯 walk 一致的步长。
+#define DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ      0.05f // 与当前上楼梯 walk 一致的相位增量。
+#define DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM    0.0f  // 减速带 walk 重心 X 基准。
+#define DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM     70.0f // 与当前上楼梯 walk 一致的 pitch 重心补偿增益。
+#define DOG_TASK_SPEED_BUMP_WALK_FRONT_HEIGHT_MM 0.0f  // 前腿对支撑面高度；减速带首轮保持平地基准。
+#define DOG_TASK_SPEED_BUMP_WALK_REAR_HEIGHT_MM  0.0f  // 后腿对支撑面高度；减速带首轮保持平地基准。
+#define DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT     10U   // 完成该数量的完整 walk 周期后退出减速带。
 #define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 10000U // 站立完成后，过减速带测试的持续时间。
 #define DOG_TASK_SPEED_BUMP_ENTRY_TEST_DURATION_MS 150000U // 减速带前循迹阶段的独立测试持续时间，单位毫秒；到点后回到站立姿态。
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
@@ -183,6 +194,7 @@ static uint32_t s_speed_bump_test_last_gait_ms;
 static uint8_t s_speed_bump_entry_test_active;
 static uint32_t s_speed_bump_entry_test_start_ms;
 static uint32_t s_speed_bump_entry_test_last_gait_ms;
+static uint8_t s_speed_bump_walk_cycle_count;
 
 volatile uint32_t g_dog_task_run_count; // DogTask_Run() 被调用的次数，方便调试器观察主循环是否正常运行。
 volatile uint32_t g_dog_task_gait_update_count; // 步态更新次数，方便判断是否持续下发步态。
@@ -194,6 +206,7 @@ volatile int32_t g_dog_task_last_command; // 最近一次读取到的视觉事�
 volatile int32_t g_dog_task_last_motion; // 当前运动模式的调试镜像。
 volatile int32_t g_dog_task_last_track_valid; // 最近一次循迹数据是否有效。
 volatile int32_t g_dog_task_last_track_error; // 最近一次视觉循迹误差。
+volatile uint8_t g_dog_task_speed_bump_walk_cycle_count; // 减速带 walk 已完成的完整周期数。
 volatile HAL_StatusTypeDef g_k230_tx_status;
 
 #if 0
@@ -510,9 +523,25 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
     s_is_track_correcting = 0U;
     s_last_track_ms = now_ms;
     s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    s_speed_bump_walk_cycle_count = 0U;
+    g_dog_task_speed_bump_walk_cycle_count = 0U;
 
+#if (DOG_TASK_SPEED_BUMP_WALK_ENABLE != 0U)
+    /* This mode intentionally does not reuse stair_walk.c.  Its parameters
+     * and completion criterion are dedicated to the low speed-bump course. */
+    DogGait_SetWalkParams(DOG_TASK_SPEED_BUMP_WALK_STEP_H_MM,
+                          DOG_TASK_SPEED_BUMP_WALK_STEP_LEN_MM,
+                          DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ,
+                          DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM,
+                          DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM);
+    DogGait_ResetWalk();
+    DogGait_SetWalkSupportHeights(DOG_TASK_SPEED_BUMP_WALK_FRONT_HEIGHT_MM,
+                                  DOG_TASK_SPEED_BUMP_WALK_REAR_HEIGHT_MM);
+    s_motion = DOG_TASK_MOTION_FORWARD;
+#else
     /* 减速带阶段统一按视觉循迹参数运行；初始帧使用零误差直行。 */
     DogTask_ApplyTrackError(0);
+#endif
 }
 
 /* 进入循迹到蓝色平台阶段。 */
@@ -960,6 +989,20 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
     }
     else if (s_event_state == DOG_TASK_EVENT_SPEED_BUMP)
     {
+#if (DOG_TASK_SPEED_BUMP_WALK_ENABLE != 0U)
+        /* A speed-bump walk ends by completed gait cycles, not elapsed wall
+         * time.  Line-based trot steering is deliberately disabled here
+         * because the walk implementation has one shared forward step. */
+        if (s_speed_bump_walk_cycle_count >=
+            DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT)
+        {
+            DogTask_BeginTrackToBlue(now_ms);
+        }
+        else
+        {
+            s_is_track_correcting = 0U;
+        }
+#else
         if (elapsed_ms >= DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS)
         {
             DogTask_BeginTrackToBlue(now_ms);
@@ -983,6 +1026,7 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
             s_is_track_correcting = 0U;
             DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
         }
+#endif
     }
     else if (s_event_state == DOG_TASK_EVENT_BLACK_TRACK_DELAY)
     {
@@ -1382,29 +1426,29 @@ void DogTask_Init(void)
     DogGait_GotoStandPose(DOG_TASK_STAND_MOVE_MS);
      HAL_Delay(DOG_TASK_STAND_WAIT_MS);
 
-     ImageCommand_Init();
-     Jy61PImu_Init();
-     StairWalk_Init();
-    DogTask_SetCorrectionLed(0U);
+    //  ImageCommand_Init();
+    //  Jy61PImu_Init();
+    //  StairWalk_Init();
+    // DogTask_SetCorrectionLed(0U);
 
-    s_last_gait_ms = HAL_GetTick();
-    s_last_track_ms = s_last_gait_ms;
-    s_last_status_ms = s_last_gait_ms;
-    s_has_seen_track = 0U;
-    s_is_track_correcting = 0U;
-    s_platform_track_boost = 0U;
-    s_wait_platform_imu = 0U;
-    s_purple_throw_delay_used = 0U;
-    s_brown_throw_delay_used = 0U;
-    s_lap_count = 0U;
-    s_black_center_start_ms = 0U;
-    s_level_start_ms = 0U;
-    s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
-    s_platform_yes_last_ms = 0U;
-    s_event_state = DOG_TASK_EVENT_IDLE;
-    s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT;
-    s_event_start_ms = s_last_gait_ms;
-    s_pending_event_command = IMAGE_COMMAND_NONE;
+    // s_last_gait_ms = HAL_GetTick();
+    // s_last_track_ms = s_last_gait_ms;
+    // s_last_status_ms = s_last_gait_ms;
+    // s_has_seen_track = 0U;
+    // s_is_track_correcting = 0U;
+    // s_platform_track_boost = 0U;
+    // s_wait_platform_imu = 0U;
+    // s_purple_throw_delay_used = 0U;
+    // s_brown_throw_delay_used = 0U;
+    // s_lap_count = 0U;
+    // s_black_center_start_ms = 0U;
+    // s_level_start_ms = 0U;
+    // s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
+    // s_platform_yes_last_ms = 0U;
+    // s_event_state = DOG_TASK_EVENT_IDLE;
+    // s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT;
+    // s_event_start_ms = s_last_gait_ms;
+    // s_pending_event_command = IMAGE_COMMAND_NONE;
 #if (DOG_TASK_FORK_TEST_ENABLE != 0U)
     s_lap_count = DOG_TASK_FORK_TEST_LAP_COUNT;
     DogTask_BeginTrackAfterDownhill(s_last_gait_ms);
@@ -1701,6 +1745,42 @@ void DogTask_Run(void)
         DogTask_SetCorrectionLed(0U);
     }
 
+#if (DOG_TASK_SPEED_BUMP_WALK_ENABLE != 0U)
+    if ((s_task_stage == DOG_TASK_STAGE_SPEED_BUMP) &&
+        (s_event_state == DOG_TASK_EVENT_SPEED_BUMP) &&
+        ((uint32_t)(now_ms - s_last_gait_ms) >=
+         DOG_TASK_SPEED_BUMP_WALK_PERIOD_MS))
+    {
+        Jy61PImuStatus_t imu;
+        float pitch_deg = 0.0f;
+        float roll_deg = 0.0f;
+
+        s_last_gait_ms = now_ms;
+        g_dog_task_gait_update_count++;
+
+        if (Jy61PImu_GetStatus(&imu) != 0U)
+        {
+            pitch_deg = imu.pitch_deg;
+        }
+
+        /* Reuse the stair-walk low-pass filter and continuous roll deadband
+         * so speed-bump vibration is not sent directly to the left/right
+         * foot-height compensation. */
+        roll_deg = StairWalk_GetFilteredRollDeg();
+
+        DogGait_UpdateWalk(DOG_TASK_SPEED_BUMP_WALK_MOVE_MS,
+                           pitch_deg,
+                           roll_deg);
+
+        if (DogGait_IsWalkCycleDone() != 0U)
+        {
+            s_speed_bump_walk_cycle_count++;
+            g_dog_task_speed_bump_walk_cycle_count =
+                s_speed_bump_walk_cycle_count;
+        }
+    }
+    else
+#endif
     if ((s_motion != DOG_TASK_MOTION_STOP) &&
         ((uint32_t)(now_ms - s_last_gait_ms) >= DogTask_GetGaitPeriodMs()))
     {
