@@ -68,7 +68,8 @@ void DogGait_SetWalkParams(float step_height_mm,
                            float speed_freq,
                            float cg_base_x_mm,
                            float imu_gain_mm);
-void DogGait_SetWalkBodyKp(float body_kp);
+void DogGait_SetWalkBodyKpFrontToRear(float body_kp);
+void DogGait_SetWalkBodyKpRearToFront(float body_kp);
 void DogGait_SetWalkFrontRearUnified(uint8_t enabled);
 void DogGait_SetWalkRbPreloadStableUpdates(uint8_t updates);
 void DogGait_SetWalkSecondFrontToRearHoldUpdates(uint8_t updates);

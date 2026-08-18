@@ -51,13 +51,13 @@
 #define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -25.0f
 #define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -25.0f
 #define DOG_GAIT_STAND_FOOT_Y_LF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_STAND_FOOT_Y_RF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
+#define DOG_GAIT_STAND_FOOT_Y_RF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
 #define DOG_GAIT_STAND_FOOT_Y_LB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
+#define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -22.0f
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -22.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -25.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -25.0f
 #define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #endif
 
@@ -65,9 +65,9 @@
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -25.0f
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     -25.0f
 #define DOG_GAIT_TURN_FOOT_Y_LF_MM            (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_TURN_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
+#define DOG_GAIT_TURN_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
 #define DOG_GAIT_TURN_FOOT_Y_LB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_TURN_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
+#define DOG_GAIT_TURN_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
 #else
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -123,7 +123,7 @@
 #define DOG_GAIT_WALK_TOTAL_PHASE                (DOG_GAIT_WALK_PHASE_PER_LEG * 4.0f)
 #define DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON     0.0001f // 消除浮点累加导致的摆动/支撑边界延后一帧。
 #define DOG_GAIT_WALK_BODY_READY_MM              3.0f // 重心目标误差小于 3 mm 后，才允许摆腿相位继续推进。
-#define DOG_GAIT_WALK_BODY_KP                    0.25f // 重心一阶平滑系数默认值；减速带和上台阶分别通过 SetWalkBodyKp 设置。
+#define DOG_GAIT_WALK_BODY_KP                    0.25f // 重心一阶平滑系数默认值；前后方向和场景分别通过 SetWalkBodyKpFrontToRear/RearToFront 设置。
 #define DOG_GAIT_WALK_BODY_MAX_STEP_MM           10.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
 #define DOG_GAIT_WALK_BODY_LENGTH_MM             280.0f // 参考 Py-Apple 经验公式的机身前后支撑长度；应按本机前后髋关节间距实测调整。
 #define DOG_GAIT_WALK_BODY_WIDTH_MM              175.0f // 左右髋关节中心距；初值与原左右补偿的 ±70 mm 对应，应按本机实测调整。
@@ -271,7 +271,8 @@ static uint8_t s_walk_cycle_parity;
 static float s_walk_cg_base_x_mm; // 基础重心偏移
 static float s_walk_imu_gain_mm = 0.0f; // 表示 walk 步态中，IMU 前后倾角对重心前后偏移的增益系数。也就是说，如果 IMU 检测到机器人前倾 1 度，那么重心会向前偏移 60.0mm，从而调整机器人的步态，使其保持平衡。
 static float s_walk_phase_cg_gain = DOG_GAIT_WALK_PHASE_CG_GAIN; // 前/后腿阶段动态重心目标的整体缩放系数。
-static float s_walk_body_kp = DOG_GAIT_WALK_BODY_KP; // 每帧向重心目标收敛的比例系数。
+static float s_walk_body_kp_front_to_rear = DOG_GAIT_WALK_BODY_KP; // 前腿阶段切到后腿阶段时的重心收敛比例。
+static float s_walk_body_kp_rear_to_front = DOG_GAIT_WALK_BODY_KP; // 后腿阶段切到前腿阶段时的重心收敛比例。
 static uint8_t s_walk_front_rear_unified = 0U; // 1: 前后腿摆动轨迹统一为三段式；0: 前腿保持正弦轨迹。
 static uint8_t s_walk_rb_preload_stable_limit = DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES; // RB 起摆前预加载稳定更新次数；减速带可设为 0 关闭。
 static uint8_t s_walk_second_front_to_rear_hold_limit = DOG_GAIT_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES; // 第二前腿落地后的保持更新次数。
@@ -1860,14 +1861,25 @@ void DogGait_SetWalkParams(float step_height_mm,
 }
 
 /*
- * 名称：DogGait_SetWalkBodyKp
- * 作用：单独设置 walk 重心状态向目标收敛的比例系数。
+ * 名称：DogGait_SetWalkBodyKpFrontToRear
+ * 作用：设置前腿阶段切到后腿阶段时，重心状态向目标收敛的比例系数。
  * 输入：body_kp 每帧修正比例；0.25 表示每次修正剩余误差的 25%。
  * 输出：无返回值，更新 walk 重心收敛参数。
  */
-void DogGait_SetWalkBodyKp(float body_kp)
+void DogGait_SetWalkBodyKpFrontToRear(float body_kp)
 {
-    s_walk_body_kp = DogGait_ClampFloat(body_kp, 0.0f, 1.0f);
+    s_walk_body_kp_front_to_rear = DogGait_ClampFloat(body_kp, 0.0f, 1.0f);
+}
+
+/*
+ * 名称：DogGait_SetWalkBodyKpRearToFront
+ * 作用：设置后腿阶段切到前腿阶段时，重心状态向目标收敛的比例系数。
+ * 输入：body_kp 每帧修正比例；0.25 表示每次修正剩余误差的 25%。
+ * 输出：无返回值，更新 walk 重心收敛参数。
+ */
+void DogGait_SetWalkBodyKpRearToFront(float body_kp)
+{
+    s_walk_body_kp_rear_to_front = DogGait_ClampFloat(body_kp, 0.0f, 1.0f);
 }
 
 /*
@@ -1975,8 +1987,12 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     if (s_walk_rb_preload_state != DOG_GAIT_RB_PRELOAD_RELEASE)
     {
         s_walk_body_x_goal_mm = DogGait_GetWalkBodyTarget((uint8_t)active_leg, pitch_deg); // 使用活动腿、机身长度和 IMU 倾角计算经验重心目标。
+        float body_kp = ((active_leg == DOG_GAIT_LEG_LF) ||
+                         (active_leg == DOG_GAIT_LEG_RF)) ?
+                            s_walk_body_kp_rear_to_front :
+                            s_walk_body_kp_front_to_rear;
         float body_step_mm =
-            (s_walk_body_x_goal_mm - s_walk_body_x_state_mm) * s_walk_body_kp;
+            (s_walk_body_x_goal_mm - s_walk_body_x_state_mm) * body_kp;
 
         body_step_mm = DogGait_ClampFloat(body_step_mm,
                                           -DOG_GAIT_WALK_BODY_MAX_STEP_MM,

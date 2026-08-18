@@ -23,11 +23,12 @@
 #define DOG_TASK_SPEED_BUMP_WALK_MOVE_MS         80U   // 减速带 walk 的普通舵机过渡时间。
 #define DOG_TASK_SPEED_BUMP_WALK_STEP_H_MM       60.0f // 与当前上楼梯 walk 一致的抬腿高度。
 #define DOG_TASK_SPEED_BUMP_WALK_STEP_LEN_MM     60.0f // 与当前上楼梯 walk 一致的步长。
-#define DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ      0.1f // 与当前上楼梯 walk 一致的相位增量。
+#define DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ      0.1f // 相位增量。
 #define DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM    18.0f  // 减速带 walk 重心 X 基准。
 #define DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM     60.0f // 与当前上楼梯 walk 一致的 pitch 重心补偿增益。
 #define DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN   0.6f // 减速带 walk 前后腿阶段动态重心缩放；与上楼梯独立可调。
-#define DOG_TASK_SPEED_BUMP_WALK_BODY_KP         0.5f // 减速带 walk 重心收敛系数；与上楼梯独立可调。
+#define DOG_TASK_SPEED_BUMP_WALK_BODY_KP_FRONT_TO_REAR 0.6f // 减速带前腿切后腿时的重心收敛系数。
+#define DOG_TASK_SPEED_BUMP_WALK_BODY_KP_REAR_TO_FRONT 0.3f // 减速带后腿切前腿时的重心收敛系数。
 #define DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED 1U // 1: 减速带前腿与后腿同轨迹；0: 前腿保持正弦。
 #define DOG_TASK_SPEED_BUMP_WALK_RB_PRELOAD_STABLE_UPDATES 0U // 0: 减速带关闭 RB 起摆前预加载稳定停顿。
 #define DOG_TASK_SPEED_BUMP_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES 1U // 1: 第二前腿落地后保持 100 ms。
@@ -202,6 +203,7 @@ static uint8_t s_speed_bump_entry_test_active;
 static uint32_t s_speed_bump_entry_test_start_ms;
 static uint32_t s_speed_bump_entry_test_last_gait_ms;
 static uint8_t s_speed_bump_walk_cycle_count;
+static uint8_t s_color_reaction_test_lap2_ready;
 
 volatile uint32_t g_dog_task_run_count; // DogTask_Run() 被调用的次数，方便调试器观察主循环是否正常运行。
 volatile uint32_t g_dog_task_gait_update_count; // 步态更新次数，方便判断是否持续下发步态。
@@ -541,7 +543,8 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
                           DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ,
                           DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM,
                           DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM);
-    DogGait_SetWalkBodyKp(DOG_TASK_SPEED_BUMP_WALK_BODY_KP);
+    DogGait_SetWalkBodyKpFrontToRear(DOG_TASK_SPEED_BUMP_WALK_BODY_KP_FRONT_TO_REAR);
+    DogGait_SetWalkBodyKpRearToFront(DOG_TASK_SPEED_BUMP_WALK_BODY_KP_REAR_TO_FRONT);
     DogGait_SetWalkFrontRearUnified(DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED);
     DogGait_SetWalkRbPreloadStableUpdates(DOG_TASK_SPEED_BUMP_WALK_RB_PRELOAD_STABLE_UPDATES);
     DogGait_SetWalkSecondFrontToRearHoldUpdates(DOG_TASK_SPEED_BUMP_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES);
@@ -1695,6 +1698,36 @@ void DogTask_StairWalkTest_Init(void)
 void DogTask_StairWalkTest_Run(void)
 {
     DogTask_Run();
+}
+
+/* 颜色反应测试入口：复用主任务初始化，直接进入绿色分岔前的循迹阶段。
+ * 不注入命令、不屏蔽串口，由真实 K230 串口驱动后续颜色事件。 */
+void DogTask_ColorReactionTest_Init(void)
+{
+    uint32_t now_ms;
+
+    DogTask_Init();
+    now_ms = HAL_GetTick();
+    DogTask_BeginTrackAfterDownhill(now_ms);
+    s_lap_count = 0U;
+    s_purple_throw_delay_used = 0U;
+    s_brown_throw_delay_used = 0U;
+    s_color_reaction_test_lap2_ready = 1U;
+}
+
+/* 颜色反应测试运行入口：完全走正常主任务状态机，读取真实 K230 串口。
+ * 第二圈开始时跳回绿色分岔前，方便继续联调绿色/棕色/橙色。 */
+void DogTask_ColorReactionTest_Run(void)
+{
+    DogTask_Run();
+
+    if ((s_color_reaction_test_lap2_ready != 0U) &&
+        (s_lap_count == 1U) &&
+        (s_event_state == DOG_TASK_EVENT_START_SHIFT_LEFT))
+    {
+        s_color_reaction_test_lap2_ready = 0U;
+        DogTask_BeginTrackAfterDownhill(HAL_GetTick());
+    }
 }
 
 /* 机器狗主循环任务：读取视觉数据、处理事件状态机、更新步态、控制 LED 并周期回传状态。 */
