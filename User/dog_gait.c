@@ -56,8 +56,8 @@
 #define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -25.0f
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -25.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -22.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -22.0f
 #define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #endif
 
@@ -78,8 +78,8 @@
 #endif
 
 /* 过减速带专用足端基准；与普通转向基准分离，便于单独标定。 */
-#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_NO_LOAD_MM  -22.0f
-#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_LOAD_MM     -22.0f
+#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
+#define DOG_GAIT_SPEED_BUMP_FOOT_X_OFFSET_LOAD_MM     -20.0f
 #define DOG_GAIT_SPEED_BUMP_FOOT_Y_LF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #define DOG_GAIT_SPEED_BUMP_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #define DOG_GAIT_SPEED_BUMP_FOOT_Y_LB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
@@ -140,6 +140,7 @@
 #define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   1.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
 #define DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM  -6.0f // RB 起摆前额外叠加到 LF 的预加载量。
 #define DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM  6.0f // RB 起摆前额外叠加到 RF 的反向预加载量。
+#define DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM   -7.0f // LB 落脚后、RB 起摆前额外叠加到 LB 的预加载量；方向与基础 LB 补偿相同。
 #define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -15.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
 #define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        150U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_MOVE_MS 500U // 预加载结束、对侧前腿恢复时的专用舵机动作时间；仅作用一次，不影响普通 walk 轨迹。
@@ -1238,6 +1239,10 @@ static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
         else if (leg == DOG_GAIT_LEG_RF)
         {
             adjustment += -DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM;
+        }
+        else if (leg == DOG_GAIT_LEG_LB)
+        {
+            adjustment += -DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM;
         }
     }
 
