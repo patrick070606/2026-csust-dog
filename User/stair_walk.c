@@ -17,7 +17,8 @@
 #define STAIR_WALK_TEST_CG_BASE_X_MM          0.0f // 行走时机身重心在 X（前后）方向的基础偏移，单位 mm，用于提高爬台阶稳定性。
 #define STAIR_WALK_TEST_IMU_GAIN_MM           70.0f // 首轮调试关闭 IMU 前后纠偏，先单独观察后腿轨迹与髋关节运动。
 #define STAIR_WALK_TEST_PHASE_CG_GAIN         1.0f // 上台阶 walk 前后腿阶段动态重心缩放；与减速带独立可调。
-#define STAIR_WALK_TEST_BODY_KP               0.25f // 上台阶 walk 重心收敛系数；与减速带独立可调。
+#define STAIR_WALK_TEST_BODY_KP_FRONT_TO_REAR 0.25f // 上台阶前腿切后腿时的重心收敛系数。
+#define STAIR_WALK_TEST_BODY_KP_REAR_TO_FRONT 0.25f // 上台阶后腿切前腿时的重心收敛系数。
 #define STAIR_WALK_TEST_FRONT_REAR_UNIFIED    0U   // 0: 上台阶保留原前腿正弦/后腿三段式轨迹。
 #define STAIR_WALK_TEST_RB_PRELOAD_STABLE_UPDATES 5U // 上台阶保留原 RB 起摆前预加载稳定 500 ms。
 #define STAIR_WALK_TEST_SECOND_FRONT_TO_REAR_HOLD_UPDATES 5U // 上台阶保留第二前腿落地后保持 500 ms。
@@ -300,7 +301,8 @@ void StairWalk_Start(void)
                           STAIR_WALK_TEST_SPEED_FREQ,
                           STAIR_WALK_TEST_CG_BASE_X_MM,
                           STAIR_WALK_TEST_IMU_GAIN_MM);
-    DogGait_SetWalkBodyKp(STAIR_WALK_TEST_BODY_KP);
+    DogGait_SetWalkBodyKpFrontToRear(STAIR_WALK_TEST_BODY_KP_FRONT_TO_REAR);
+    DogGait_SetWalkBodyKpRearToFront(STAIR_WALK_TEST_BODY_KP_REAR_TO_FRONT);
     DogGait_SetWalkFrontRearUnified(STAIR_WALK_TEST_FRONT_REAR_UNIFIED);
     DogGait_SetWalkRbPreloadStableUpdates(STAIR_WALK_TEST_RB_PRELOAD_STABLE_UPDATES);
     DogGait_SetWalkSecondFrontToRearHoldUpdates(STAIR_WALK_TEST_SECOND_FRONT_TO_REAR_HOLD_UPDATES);
