@@ -7,14 +7,14 @@
 static const DogServoConfig_t s_dog_servo_configs[DOG_SERVO_COUNT] = {
     // 髋关节：480-220 = 260
     // 小腿关节：720-520=200
-    [DOG_SERVO_LF_KNEE] = {1, -1, 500, -18, 339, 800}, //500 - 200 = 300
-    [DOG_SERVO_LF_HIP]  = {2, -1, 500, -5, 200, 745}, // 435+260 = 695
-    [DOG_SERVO_RF_KNEE] = {3, 1, 500, -4, 200, 630},
-    [DOG_SERVO_RF_HIP]  = {4, 1, 500, -27, 189, 800},
-    [DOG_SERVO_LB_KNEE] = {5, -1, 500, 25, 320, 1000},
-    [DOG_SERVO_LB_HIP]  = {6, -1, 500, -22, 200, 936},
-    [DOG_SERVO_RB_KNEE] = {7, 1, 500, -13, 0, 738},
-    [DOG_SERVO_RB_HIP]  = {8, 1, 500, -11, 40, 800},
+    [DOG_SERVO_LF_KNEE] = {1, -1, 500, -18, 295, 800}, //500 - 200 = 300
+    [DOG_SERVO_LF_HIP]  = {2, -1, 500, -5, 115, 815}, // 435+260 = 695
+    [DOG_SERVO_RF_KNEE] = {3, 1, 500, -4, 100, 685},
+    [DOG_SERVO_RF_HIP]  = {4, 1, 500, -27, 150, 850},
+    [DOG_SERVO_LB_KNEE] = {5, -1, 500, 25, 355, 1000},
+    [DOG_SERVO_LB_HIP]  = {6, -1, 500, -22, 330, 860},
+    [DOG_SERVO_RB_KNEE] = {7, 1, 500, -13, 30, 675},
+    [DOG_SERVO_RB_HIP]  = {8, 1, 500, -11, 70, 625},
 };
 
 const DogServoConfig_t *DogServoConfig_Get(DogServoId_t servo)
