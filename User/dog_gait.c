@@ -123,11 +123,11 @@
 #define DOG_GAIT_WALK_TOTAL_PHASE                (DOG_GAIT_WALK_PHASE_PER_LEG * 4.0f)
 #define DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON     0.0001f // 消除浮点累加导致的摆动/支撑边界延后一帧。
 #define DOG_GAIT_WALK_BODY_READY_MM              3.0f // 重心目标误差小于 3 mm 后，才允许摆腿相位继续推进。
-#define DOG_GAIT_WALK_BODY_KP                    0.25f // 重心一阶平滑系数；每次只修正当前误差的 15%。
+#define DOG_GAIT_WALK_BODY_KP                    0.25f // 重心一阶平滑系数默认值；减速带和上台阶分别通过 SetWalkBodyKp 设置。
 #define DOG_GAIT_WALK_BODY_MAX_STEP_MM           10.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
 #define DOG_GAIT_WALK_BODY_LENGTH_MM             280.0f // 参考 Py-Apple 经验公式的机身前后支撑长度；应按本机前后髋关节间距实测调整。
 #define DOG_GAIT_WALK_BODY_WIDTH_MM              175.0f // 左右髋关节中心距；初值与原左右补偿的 ±70 mm 对应，应按本机实测调整。
-#define DOG_GAIT_WALK_PHASE_CG_GAIN              1.0f // 前/后腿阶段重心切换增益；首轮调试关闭，避免足端整体产生正负 60 mm 偏移。
+#define DOG_GAIT_WALK_PHASE_CG_GAIN              1.0f // 前/后腿阶段重心切换增益默认值；减速带和上楼梯分别通过 SetWalkPhaseCgGain 设置。
 #define DOG_GAIT_WALK_PITCH_ANGLE_GAIN           1.5f // 参考公式 tan(pitch * 1.5) 中的倾角经验放大系数。
 #define DOG_GAIT_WALK_BODY_TARGET_MAX_MM         1000.0f // 前后重心目标的安全限幅，首轮调试限制在正负 20 mm。
 #define DOG_GAIT_WALK_CG_AXIS_SIGN              (-1.0f) // Py-Apple 与本工程 X 轴方向相反；负号保持本工程原有的前/后重心移动方向。
@@ -150,9 +150,9 @@
 #define DOG_GAIT_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES 5U // 第二前腿落地后，下一后腿起摆前额外保持约 500 ms。
 #define DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES      6U // 奇偶腿序切换时的平滑过渡时间，当前约 300 ms。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          60.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
-#define DOG_GAIT_WALK_REAR_LIFT_END_PHASE        0.25f // 后腿摆动前段结束相位：先以抬高为主，X 基本保持。
-#define DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE    0.50f // 后腿摆动中段结束相位：在高位完成向前移动。
-#define DOG_GAIT_WALK_REAR_TUCK_X_MM             15.0f // 后腿抬起初期主动后收量；先设为 0，仅观察逆运动学自然收腿效果。
+#define DOG_GAIT_WALK_LIFT_END_PHASE             0.25f // 摆动前段结束相位：先以抬高为主，X 基本保持。
+#define DOG_GAIT_WALK_TRANSFER_END_PHASE         0.50f // 摆动中段结束相位：在高位完成向前移动。
+#define DOG_GAIT_WALK_TUCK_X_MM                  15.0f // 抬起初期主动后收量；先设为 0，仅观察逆运动学自然收腿效果。
 #define DOG_GAIT_DEG_TO_RAD                      (DOG_GAIT_PI / 180.0f) // 角度 -> 弧度
 
 #define DOG_GAIT_MAX_HIP_TEST_ANGLE_DEG         180.0f
@@ -270,6 +270,10 @@ static float s_walk_step_length_mm = 50.0f;
 static uint8_t s_walk_cycle_parity;
 static float s_walk_cg_base_x_mm; // 基础重心偏移
 static float s_walk_imu_gain_mm = 0.0f; // 表示 walk 步态中，IMU 前后倾角对重心前后偏移的增益系数。也就是说，如果 IMU 检测到机器人前倾 1 度，那么重心会向前偏移 60.0mm，从而调整机器人的步态，使其保持平衡。
+static float s_walk_phase_cg_gain = DOG_GAIT_WALK_PHASE_CG_GAIN; // 前/后腿阶段动态重心目标的整体缩放系数。
+static float s_walk_body_kp = DOG_GAIT_WALK_BODY_KP; // 每帧向重心目标收敛的比例系数。
+static uint8_t s_walk_front_rear_unified = 0U; // 1: 前后腿摆动轨迹统一为三段式；0: 前腿保持正弦轨迹。
+static uint8_t s_walk_rb_preload_stable_limit = DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES; // RB 起摆前预加载稳定更新次数；减速带可设为 0 关闭。
 static float s_walk_body_x_goal_mm; // 目标重心偏移
 static float s_walk_body_x_state_mm; // 当前重心偏移
 static float s_walk_foot_x[DOG_GAIT_LEG_COUNT]; // walk 步态中各腿的足端 X 坐标
@@ -894,34 +898,36 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                 (s_walk_support_height_goal_mm[i] -
                  s_walk_swing_start_height_mm[i]) * support_progress;
 
-            if ((i == DOG_GAIT_LEG_LB) ||
-                (i == DOG_GAIT_LEG_RB))// 如果是两条后腿，就采用抬起 - > 前移 - > 落下的三阶段方式来计算足端轨迹。
+            /* 减速带开启统一模式时，前腿也使用抬起 -> 前移 -> 落下的三段式轨迹。 */
+            if ((s_walk_front_rear_unified != 0U) ||
+                (i == DOG_GAIT_LEG_LB) ||
+                (i == DOG_GAIT_LEG_RB))
             {
-                if (swing_phase < DOG_GAIT_WALK_REAR_LIFT_END_PHASE)
+                if (swing_phase < DOG_GAIT_WALK_LIFT_END_PHASE)
                 { //在 0~0.25 阶段，主要是抬腿阶段，足端的 x 坐标会向后收缩，y 坐标会向上抬高。
                     float lift_phase =
-                        swing_phase / DOG_GAIT_WALK_REAR_LIFT_END_PHASE;
+                        swing_phase / DOG_GAIT_WALK_LIFT_END_PHASE;
                     float lift_smooth = DogGait_SmoothStep(lift_phase);
 
                     s_walk_foot_x[i] =
                         s_walk_swing_start_x[i] -
-                        DOG_GAIT_WALK_REAR_TUCK_X_MM * lift_smooth; // x 向后收 DOG_GAIT_WALK_REAR_TUCK_X_MM = 15mm
+                        DOG_GAIT_WALK_TUCK_X_MM * lift_smooth; // x 向后收 DOG_GAIT_WALK_TUCK_X_MM = 15mm
                     s_walk_foot_y[i] =
                         support_height +
-                        s_walk_step_height_mm * lift_smooth; // y 在 support_height 的基础上抬高 s_walk_step_height_mm = 55mm
+                        s_walk_step_height_mm * lift_smooth; // y 在 support_height 的基础上抬高 s_walk_step_height_mm
                 }
-                else if (swing_phase < DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE) 
+                else if (swing_phase < DOG_GAIT_WALK_TRANSFER_END_PHASE)
                 {
                     float transfer_phase =
-                        (swing_phase - DOG_GAIT_WALK_REAR_LIFT_END_PHASE) /
-                        (DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE -
-                         DOG_GAIT_WALK_REAR_LIFT_END_PHASE);
+                        (swing_phase - DOG_GAIT_WALK_LIFT_END_PHASE) /
+                        (DOG_GAIT_WALK_TRANSFER_END_PHASE -
+                         DOG_GAIT_WALK_LIFT_END_PHASE);
                     float transfer_smooth = DogGait_SmoothStep(transfer_phase);
 
                     s_walk_foot_x[i] =
                         s_walk_swing_start_x[i] -
-                        DOG_GAIT_WALK_REAR_TUCK_X_MM +
-                        (s_walk_step_length_mm + DOG_GAIT_WALK_REAR_TUCK_X_MM) *
+                        DOG_GAIT_WALK_TUCK_X_MM +
+                        (s_walk_step_length_mm + DOG_GAIT_WALK_TUCK_X_MM) *
                         transfer_smooth; // x 坐标平滑移动到目标位置。相当于是 后收起点 + （步长 + 后收量）
                     s_walk_foot_y[i] =
                         support_height + s_walk_step_height_mm; // 高度不变
@@ -929,8 +935,8 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                 else // 第三阶段：落下
                 {
                     float landing_phase =
-                        (swing_phase - DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE) /
-                        (1.0f - DOG_GAIT_WALK_REAR_TRANSFER_END_PHASE);
+                        (swing_phase - DOG_GAIT_WALK_TRANSFER_END_PHASE) /
+                        (1.0f - DOG_GAIT_WALK_TRANSFER_END_PHASE);
 
                     s_walk_foot_x[i] =
                         s_walk_swing_start_x[i] + s_walk_step_length_mm; // x 坐标平滑移动到目标位置。相当于是 起点 + 步长
@@ -941,7 +947,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                 }
             }
             else
-            { // 如果是两条前腿，就采用平滑的正弦波方式来计算足端轨迹。
+            { // 前腿默认保持平滑的正弦波轨迹。
                 s_walk_foot_x[i] =
                     s_walk_swing_start_x[i] +
                     s_walk_step_length_mm * DogGait_SmoothStep(swing_phase);
@@ -1021,7 +1027,7 @@ static float DogGait_GetWalkBodyTarget(uint8_t active_leg, float pitch_deg)
 
     target = s_walk_cg_base_x_mm +
              DOG_GAIT_WALK_CG_AXIS_SIGN *
-             (reference_phase_adjust * DOG_GAIT_WALK_PHASE_CG_GAIN +
+             (reference_phase_adjust * s_walk_phase_cg_gain +
               pitch_adjust);
 
     return DogGait_ClampFloat(target,
@@ -1850,6 +1856,50 @@ void DogGait_SetWalkParams(float step_height_mm,
 }
 
 /*
+ * 名称：DogGait_SetWalkBodyKp
+ * 作用：单独设置 walk 重心状态向目标收敛的比例系数。
+ * 输入：body_kp 每帧修正比例；0.25 表示每次修正剩余误差的 25%。
+ * 输出：无返回值，更新 walk 重心收敛参数。
+ */
+void DogGait_SetWalkBodyKp(float body_kp)
+{
+    s_walk_body_kp = DogGait_ClampFloat(body_kp, 0.0f, 1.0f);
+}
+
+/*
+ * 名称：DogGait_SetWalkFrontRearUnified
+ * 作用：设置前后腿摆动轨迹是否统一为三段式。
+ * 输入：enabled 1 表示前腿与后腿轨迹一致；0 表示前腿保持正弦、后腿三段式。
+ * 输出：无返回值，更新 walk 轨迹模式。
+ */
+void DogGait_SetWalkFrontRearUnified(uint8_t enabled)
+{
+    s_walk_front_rear_unified = (enabled != 0U) ? 1U : 0U;
+}
+
+/*
+ * 名称：DogGait_SetWalkRbPreloadStableUpdates
+ * 作用：设置 RB 起摆前预加载稳定的更新次数；0 表示减速带关闭该停顿。
+ * 输入：updates 保持的更新周期数，每个更新周期约 100 ms。
+ * 输出：无返回值，更新 walk 预加载稳定参数。
+ */
+void DogGait_SetWalkRbPreloadStableUpdates(uint8_t updates)
+{
+    s_walk_rb_preload_stable_limit = updates;
+}
+
+/*
+ * 名称：DogGait_SetWalkPhaseCgGain
+ * 作用：单独设置 walk 前/后腿阶段动态重心目标的整体缩放系数。
+ * 输入：phase_cg_gain 缩放系数；1.0 保持原有幅度，0.0 关闭动态切换。
+ * 输出：无返回值，更新 walk 动态重心缩放参数。
+ */
+void DogGait_SetWalkPhaseCgGain(float phase_cg_gain)
+{
+    s_walk_phase_cg_gain = DogGait_ClampFloat(phase_cg_gain, 0.0f, 3.0f);
+}
+
+/*
  * 名称：DogGait_UpdateWalk
  * 作用：更新 walk 步态。
  * 输入：time_ms 更新时间；pitch_deg IMU 检测到的俯仰角；roll_deg IMU 检测到的滚转角。
@@ -1902,7 +1952,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     {
         s_walk_body_x_goal_mm = DogGait_GetWalkBodyTarget((uint8_t)active_leg, pitch_deg); // 使用活动腿、机身长度和 IMU 倾角计算经验重心目标。
         float body_step_mm =
-            (s_walk_body_x_goal_mm - s_walk_body_x_state_mm) * DOG_GAIT_WALK_BODY_KP;
+            (s_walk_body_x_goal_mm - s_walk_body_x_state_mm) * s_walk_body_kp;
 
         body_step_mm = DogGait_ClampFloat(body_step_mm,
                                           -DOG_GAIT_WALK_BODY_MAX_STEP_MM,
@@ -2012,7 +2062,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
                  * leg while the LF/RF preload settles, so the preload does
                  * not fight the X-direction body transfer. */
                 if (s_walk_rb_preload_stable_updates <
-                    DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES)
+                    s_walk_rb_preload_stable_limit)
                 {
                     s_walk_rb_preload_stable_updates++;
                     return;
