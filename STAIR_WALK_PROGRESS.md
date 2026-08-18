@@ -60,6 +60,10 @@ void DogGait_SetWalkParams(float step_height_mm,
 void DogGait_SetWalkBodyKp(float body_kp);
 void DogGait_SetWalkFrontRearUnified(uint8_t enabled);
 void DogGait_SetWalkRbPreloadStableUpdates(uint8_t updates);
+void DogGait_SetWalkSecondFrontToRearHoldUpdates(uint8_t updates);
+void DogGait_SetWalkRbFinalPreloadStableUpdates(uint8_t updates);
+void DogGait_SetWalkRearPreloadReleaseHoldUpdates(uint8_t updates);
+void DogGait_SetWalkOrderTransitionUpdates(uint8_t updates);
 void DogGait_SetWalkPhaseCgGain(float phase_cg_gain);
 void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg);
 uint8_t DogGait_IsWalkCycleDone(void);
@@ -70,6 +74,8 @@ uint8_t DogGait_IsWalkCycleDone(void);
 `DogGait_SetWalkFrontRearUnified()` 控制前腿摆动轨迹是否与后腿统一；减速带由 `DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED` 开启，上台阶由 `STAIR_WALK_TEST_FRONT_REAR_UNIFIED` 保持原前腿正弦轨迹。
 
 `DogGait_SetWalkRbPreloadStableUpdates()` 设置 RB 起摆前预加载稳定次数；减速带当前设为 `0U` 关闭该停顿，上台阶保持 `5U`。
+
+减速带其余显式保持参数也拆开：第二前腿落地保持 `1U`（100 ms）、RB 最终预加载 `1U`（100 ms）、释放冻结 `0U`、周期过渡 `2U`（200 ms）；上台阶分别保留原 `5U/3U/1U/6U`。
 
 `DogGait_SetWalkPhaseCgGain()` 把前后腿阶段动态重心目标缩放系数拆成独立参数；减速带由 `DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN` 设置，上台阶由 `STAIR_WALK_TEST_PHASE_CG_GAIN` 设置，不再共用一个全局宏。
 

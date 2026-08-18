@@ -20,6 +20,10 @@
 #define STAIR_WALK_TEST_BODY_KP               0.25f // 上台阶 walk 重心收敛系数；与减速带独立可调。
 #define STAIR_WALK_TEST_FRONT_REAR_UNIFIED    0U   // 0: 上台阶保留原前腿正弦/后腿三段式轨迹。
 #define STAIR_WALK_TEST_RB_PRELOAD_STABLE_UPDATES 5U // 上台阶保留原 RB 起摆前预加载稳定 500 ms。
+#define STAIR_WALK_TEST_SECOND_FRONT_TO_REAR_HOLD_UPDATES 5U // 上台阶保留第二前腿落地后保持 500 ms。
+#define STAIR_WALK_TEST_RB_FINAL_PRELOAD_STABLE_UPDATES 3U // 上台阶保留 RB 起摆前额外稳定 300 ms。
+#define STAIR_WALK_TEST_REAR_PRELOAD_RELEASE_HOLD_UPDATES 1U // 上台阶保留释放冻结 100 ms。
+#define STAIR_WALK_TEST_ORDER_TRANSITION_UPDATES 6U // 上台阶保留周期切换过渡 600 ms。
 // #define STAIR_WALK_TEST_STEP_H_MM             0.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
 // #define STAIR_WALK_TEST_STEP_LEN_MM           0.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
 // #define STAIR_WALK_TEST_SPEED_FREQ            0.0f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
@@ -299,6 +303,10 @@ void StairWalk_Start(void)
     DogGait_SetWalkBodyKp(STAIR_WALK_TEST_BODY_KP);
     DogGait_SetWalkFrontRearUnified(STAIR_WALK_TEST_FRONT_REAR_UNIFIED);
     DogGait_SetWalkRbPreloadStableUpdates(STAIR_WALK_TEST_RB_PRELOAD_STABLE_UPDATES);
+    DogGait_SetWalkSecondFrontToRearHoldUpdates(STAIR_WALK_TEST_SECOND_FRONT_TO_REAR_HOLD_UPDATES);
+    DogGait_SetWalkRbFinalPreloadStableUpdates(STAIR_WALK_TEST_RB_FINAL_PRELOAD_STABLE_UPDATES);
+    DogGait_SetWalkRearPreloadReleaseHoldUpdates(STAIR_WALK_TEST_REAR_PRELOAD_RELEASE_HOLD_UPDATES);
+    DogGait_SetWalkOrderTransitionUpdates(STAIR_WALK_TEST_ORDER_TRANSITION_UPDATES);
     DogGait_SetWalkPhaseCgGain(STAIR_WALK_TEST_PHASE_CG_GAIN);
     /* 先装载本次楼梯参数，再按新的基础重心复位，避免沿用上一次 walk 的重心初值。 */
     DogGait_ResetWalk();
