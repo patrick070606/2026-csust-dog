@@ -30,6 +30,10 @@
 #define DOG_TASK_SPEED_BUMP_WALK_BODY_KP         0.5f // 减速带 walk 重心收敛系数；与上楼梯独立可调。
 #define DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED 1U // 1: 减速带前腿与后腿同轨迹；0: 前腿保持正弦。
 #define DOG_TASK_SPEED_BUMP_WALK_RB_PRELOAD_STABLE_UPDATES 0U // 0: 减速带关闭 RB 起摆前预加载稳定停顿。
+#define DOG_TASK_SPEED_BUMP_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES 1U // 1: 第二前腿落地后保持 100 ms。
+#define DOG_TASK_SPEED_BUMP_WALK_RB_FINAL_PRELOAD_STABLE_UPDATES 1U // 1: RB 起摆前额外预加载稳定 100 ms。
+#define DOG_TASK_SPEED_BUMP_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES 0U // 0: 关闭释放冻结。
+#define DOG_TASK_SPEED_BUMP_WALK_ORDER_TRANSITION_UPDATES 2U // 2: 周期切换过渡 200 ms。
 #define DOG_TASK_SPEED_BUMP_WALK_FRONT_HEIGHT_MM 0.0f  // 前腿对支撑面高度；减速带首轮保持平地基准。
 #define DOG_TASK_SPEED_BUMP_WALK_REAR_HEIGHT_MM  0.0f  // 后腿对支撑面高度；减速带首轮保持平地基准。
 #define DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT     10U   // 完成该数量的完整 walk 周期后退出减速带。
@@ -540,6 +544,10 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
     DogGait_SetWalkBodyKp(DOG_TASK_SPEED_BUMP_WALK_BODY_KP);
     DogGait_SetWalkFrontRearUnified(DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED);
     DogGait_SetWalkRbPreloadStableUpdates(DOG_TASK_SPEED_BUMP_WALK_RB_PRELOAD_STABLE_UPDATES);
+    DogGait_SetWalkSecondFrontToRearHoldUpdates(DOG_TASK_SPEED_BUMP_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES);
+    DogGait_SetWalkRbFinalPreloadStableUpdates(DOG_TASK_SPEED_BUMP_WALK_RB_FINAL_PRELOAD_STABLE_UPDATES);
+    DogGait_SetWalkRearPreloadReleaseHoldUpdates(DOG_TASK_SPEED_BUMP_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES);
+    DogGait_SetWalkOrderTransitionUpdates(DOG_TASK_SPEED_BUMP_WALK_ORDER_TRANSITION_UPDATES);
     DogGait_SetWalkPhaseCgGain(DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN);
     DogGait_ResetWalk();
     DogGait_SetWalkSupportHeights(DOG_TASK_SPEED_BUMP_WALK_FRONT_HEIGHT_MM,

@@ -274,6 +274,10 @@ static float s_walk_phase_cg_gain = DOG_GAIT_WALK_PHASE_CG_GAIN; // 前/后腿�
 static float s_walk_body_kp = DOG_GAIT_WALK_BODY_KP; // 每帧向重心目标收敛的比例系数。
 static uint8_t s_walk_front_rear_unified = 0U; // 1: 前后腿摆动轨迹统一为三段式；0: 前腿保持正弦轨迹。
 static uint8_t s_walk_rb_preload_stable_limit = DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES; // RB 起摆前预加载稳定更新次数；减速带可设为 0 关闭。
+static uint8_t s_walk_second_front_to_rear_hold_limit = DOG_GAIT_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES; // 第二前腿落地后的保持更新次数。
+static uint8_t s_walk_rb_final_preload_stable_limit = DOG_GAIT_WALK_RB_FINAL_PRELOAD_STABLE_UPDATES; // RB 起摆前额外预加载稳定更新次数。
+static uint8_t s_walk_rear_preload_release_hold_limit = DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES; // 预加载释放后的冻结更新次数。
+static uint8_t s_walk_order_transition_limit = DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES; // 周期切换平滑过渡更新次数。
 static float s_walk_body_x_goal_mm; // 目标重心偏移
 static float s_walk_body_x_state_mm; // 当前重心偏移
 static float s_walk_foot_x[DOG_GAIT_LEG_COUNT]; // walk 步态中各腿的足端 X 坐标
@@ -687,7 +691,7 @@ static void DogGait_ApplyWalkOrderTransition(void)
 {
     float transition_phase =
         ((float)s_walk_order_transition_updates + 1.0f) /
-        (float)DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES;
+        (float)s_walk_order_transition_limit;
     float transition_smooth = DogGait_SmoothStep(transition_phase);
 
     for (uint8_t i = 0U; i < DOG_GAIT_LEG_COUNT; i++)
@@ -1117,7 +1121,7 @@ static void DogGait_UpdateRearPreloadState(void)
         (s_walk_second_front_to_rear_state ==
          DOG_GAIT_SECOND_FRONT_TO_REAR_HOLD) &&
         (s_walk_second_front_to_rear_stable_updates >=
-         DOG_GAIT_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES))
+         s_walk_second_front_to_rear_hold_limit))
     {
         /* The front-to-rear body transfer is complete, but LB is still held.
          * Apply the two preload offsets in this stable support pose before
@@ -1888,6 +1892,26 @@ void DogGait_SetWalkRbPreloadStableUpdates(uint8_t updates)
     s_walk_rb_preload_stable_limit = updates;
 }
 
+void DogGait_SetWalkSecondFrontToRearHoldUpdates(uint8_t updates)
+{
+    s_walk_second_front_to_rear_hold_limit = updates;
+}
+
+void DogGait_SetWalkRbFinalPreloadStableUpdates(uint8_t updates)
+{
+    s_walk_rb_final_preload_stable_limit = updates;
+}
+
+void DogGait_SetWalkRearPreloadReleaseHoldUpdates(uint8_t updates)
+{
+    s_walk_rear_preload_release_hold_limit = updates;
+}
+
+void DogGait_SetWalkOrderTransitionUpdates(uint8_t updates)
+{
+    s_walk_order_transition_limit = updates;
+}
+
 /*
  * 名称：DogGait_SetWalkPhaseCgGain
  * 作用：单独设置 walk 前/后腿阶段动态重心目标的整体缩放系数。
@@ -1931,7 +1955,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         (s_walk_rb_preload_release_pending == 0U)) // 如果处于释放状态且没有挂起的释放命令，则增加计数器，直到达到预设的更新次数。
     {
         if (s_walk_rb_preload_release_hold_updates >=
-            DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES) // 超过停顿时间，更新为预加载结束状态。
+            s_walk_rear_preload_release_hold_limit) // 超过停顿时间，更新为预加载结束状态。
         {
             s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_NONE;
         }
@@ -2050,7 +2074,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
             DOG_GAIT_SECOND_FRONT_TO_REAR_HOLD)
         {
             if (s_walk_second_front_to_rear_stable_updates <
-                DOG_GAIT_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES)
+                s_walk_second_front_to_rear_hold_limit)
             {
                 s_walk_second_front_to_rear_stable_updates++;
                 return;
@@ -2083,7 +2107,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         {
             s_walk_order_transition_updates++;
             if (s_walk_order_transition_updates >=
-                DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES)
+                s_walk_order_transition_limit)
             {
                 s_walk_order_transition_active = 0U;
             }
@@ -2093,7 +2117,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
         if (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_FINAL_HOLD)
         {
             if (s_walk_rb_preload_stable_updates <
-                DOG_GAIT_WALK_RB_FINAL_PRELOAD_STABLE_UPDATES)
+                s_walk_rb_final_preload_stable_limit)
             {
                 s_walk_rb_preload_stable_updates++;
                 return;
