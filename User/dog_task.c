@@ -23,13 +23,17 @@
 #define DOG_TASK_SPEED_BUMP_WALK_MOVE_MS         80U   // 减速带 walk 的普通舵机过渡时间。
 #define DOG_TASK_SPEED_BUMP_WALK_STEP_H_MM       60.0f // 与当前上楼梯 walk 一致的抬腿高度。
 #define DOG_TASK_SPEED_BUMP_WALK_STEP_LEN_MM     60.0f // 与当前上楼梯 walk 一致的步长。
-#define DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ      0.05f // 与当前上楼梯 walk 一致的相位增量。
-#define DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM    0.0f  // 减速带 walk 重心 X 基准。
-#define DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM     70.0f // 与当前上楼梯 walk 一致的 pitch 重心补偿增益。
+#define DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ      0.1f // 与当前上楼梯 walk 一致的相位增量。
+#define DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM    18.0f  // 减速带 walk 重心 X 基准。
+#define DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM     60.0f // 与当前上楼梯 walk 一致的 pitch 重心补偿增益。
+#define DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN   0.6f // 减速带 walk 前后腿阶段动态重心缩放；与上楼梯独立可调。
+#define DOG_TASK_SPEED_BUMP_WALK_BODY_KP         0.5f // 减速带 walk 重心收敛系数；与上楼梯独立可调。
+#define DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED 1U // 1: 减速带前腿与后腿同轨迹；0: 前腿保持正弦。
+#define DOG_TASK_SPEED_BUMP_WALK_RB_PRELOAD_STABLE_UPDATES 0U // 0: 减速带关闭 RB 起摆前预加载稳定停顿。
 #define DOG_TASK_SPEED_BUMP_WALK_FRONT_HEIGHT_MM 0.0f  // 前腿对支撑面高度；减速带首轮保持平地基准。
 #define DOG_TASK_SPEED_BUMP_WALK_REAR_HEIGHT_MM  0.0f  // 后腿对支撑面高度；减速带首轮保持平地基准。
 #define DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT     10U   // 完成该数量的完整 walk 周期后退出减速带。
-#define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 10000U // 站立完成后，过减速带测试的持续时间。
+#define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 50000U // 独立过减速带测试的超时兜底；walk 正常按周期数结束，约 20 s。
 #define DOG_TASK_SPEED_BUMP_ENTRY_TEST_DURATION_MS 150000U // 减速带前循迹阶段的独立测试持续时间，单位毫秒；到点后回到站立姿态。
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
 #define DOG_TASK_LED_OFF_STATE         GPIO_PIN_RESET // 表示 LED 灯灭的状态，GPIO_PIN_RESET 表示将 GPIO 引脚设置为低电平，通常用于熄灭 LED。
@@ -190,7 +194,6 @@ static uint8_t s_brown_throw_delay_used; // 棕色投掷事件是否已经使用
 static uint8_t s_lap_count; // 圈数计数。
 static uint8_t s_speed_bump_test_active;
 static uint32_t s_speed_bump_test_start_ms;
-static uint32_t s_speed_bump_test_last_gait_ms;
 static uint8_t s_speed_bump_entry_test_active;
 static uint32_t s_speed_bump_entry_test_start_ms;
 static uint32_t s_speed_bump_entry_test_last_gait_ms;
@@ -534,6 +537,10 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
                           DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ,
                           DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM,
                           DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM);
+    DogGait_SetWalkBodyKp(DOG_TASK_SPEED_BUMP_WALK_BODY_KP);
+    DogGait_SetWalkFrontRearUnified(DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED);
+    DogGait_SetWalkRbPreloadStableUpdates(DOG_TASK_SPEED_BUMP_WALK_RB_PRELOAD_STABLE_UPDATES);
+    DogGait_SetWalkPhaseCgGain(DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN);
     DogGait_ResetWalk();
     DogGait_SetWalkSupportHeights(DOG_TASK_SPEED_BUMP_WALK_FRONT_HEIGHT_MM,
                                   DOG_TASK_SPEED_BUMP_WALK_REAR_HEIGHT_MM);
@@ -542,6 +549,49 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
     /* 减速带阶段统一按视觉循迹参数运行；初始帧使用零误差直行。 */
     DogTask_ApplyTrackError(0);
 #endif
+}
+
+/* 主流程和独立减速带测试共用的 walk 推进；walk 未启用或条件不满足时返回 0。 */
+static uint8_t DogTask_UpdateSpeedBumpWalk(uint32_t now_ms)
+{
+#if (DOG_TASK_SPEED_BUMP_WALK_ENABLE != 0U)
+    if ((s_task_stage == DOG_TASK_STAGE_SPEED_BUMP) &&
+        (s_event_state == DOG_TASK_EVENT_SPEED_BUMP) &&
+        ((uint32_t)(now_ms - s_last_gait_ms) >=
+         DOG_TASK_SPEED_BUMP_WALK_PERIOD_MS))
+    {
+        Jy61PImuStatus_t imu;
+        float pitch_deg = 0.0f;
+        float roll_deg = 0.0f;
+
+        s_last_gait_ms = now_ms;
+        g_dog_task_gait_update_count++;
+
+        if (Jy61PImu_GetStatus(&imu) != 0U)
+        {
+            pitch_deg = imu.pitch_deg;
+        }
+
+        /* Reuse the stair-walk low-pass filter and continuous roll deadband
+         * so speed-bump vibration is not sent directly to the left/right
+         * foot-height compensation. */
+        roll_deg = StairWalk_GetFilteredRollDeg();
+
+        DogGait_UpdateWalk(DOG_TASK_SPEED_BUMP_WALK_MOVE_MS,
+                           pitch_deg,
+                           roll_deg);
+
+        if (DogGait_IsWalkCycleDone() != 0U)
+        {
+            s_speed_bump_walk_cycle_count++;
+            g_dog_task_speed_bump_walk_cycle_count =
+                s_speed_bump_walk_cycle_count;
+        }
+
+        return 1U;
+    }
+#endif
+    return 0U;
 }
 
 /* 进入循迹到蓝色平台阶段。 */
@@ -1470,7 +1520,7 @@ void DogTask_Init(void)
 #endif
 }
 
-/* 上电测试：完成回中和站立后，使用减速带专用基准连续行走 10 秒。 */
+/* 上电测试：完成回中和站立后，按主流程的减速带方案行走（walk 优先）。 */
 void DogTask_SpeedBumpTest_Init(void)
 {
     uint32_t now_ms;
@@ -1489,28 +1539,23 @@ void DogTask_SpeedBumpTest_Init(void)
     HAL_Delay(DOG_TASK_STAND_WAIT_MS);
 
     ImageCommand_Init();
+    Jy61PImu_Init();
+    StairWalk_Init();
     DogTask_SetCorrectionLed(0U);
     now_ms = HAL_GetTick();
     s_speed_bump_test_start_ms = now_ms;
-    s_speed_bump_test_last_gait_ms = now_ms;
     s_speed_bump_test_active = 1U;
-    s_task_stage = DOG_TASK_STAGE_SPEED_BUMP;
     s_platform_track_boost = 0U;
+    s_last_gait_ms = now_ms;
 
-    DogGait_SetTrackParamsWithFootBase(DOG_TASK_SPEED_BUMP_TRACK_STEP_H_MM,
-                                       DOG_TASK_SPEED_BUMP_TRACK_LEFT_FORWARD_R_MM,
-                                       DOG_TASK_SPEED_BUMP_TRACK_RIGHT_FORWARD_R_MM,
-                                       0.0f,
-                                       0.0f,
-                                       DOG_TASK_SPEED_FREQ,
-                                       DOG_GAIT_FOOT_BASE_SPEED_BUMP);
+    /* 与主流程进入减速带阶段共用同一套初始化。 */
+    DogTask_BeginSpeedBump(now_ms);
 }
 
-/* 非阻塞过减速带测试：满 10 秒后只下发一次站立姿态。 */
+/* 非阻塞过减速带测试：与主流程一致使用 walk，按周期数结束并保留超时兜底。 */
 void DogTask_SpeedBumpTest_Run(void)
 {
     uint32_t now_ms;
-    ImageTrack_t track;
 
     if (s_speed_bump_test_active == 0U)
     {
@@ -1518,6 +1563,8 @@ void DogTask_SpeedBumpTest_Run(void)
     }
 
     now_ms = HAL_GetTick();
+    Jy61PImu_Update(now_ms);
+
     if ((uint32_t)(now_ms - s_speed_bump_test_start_ms) >=
         DOG_TASK_SPEED_BUMP_TEST_DURATION_MS)
     {
@@ -1526,6 +1573,18 @@ void DogTask_SpeedBumpTest_Run(void)
         return;
     }
 
+#if (DOG_TASK_SPEED_BUMP_WALK_ENABLE != 0U)
+    if (s_speed_bump_walk_cycle_count >= DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT)
+    {
+        s_speed_bump_test_active = 0U;
+        DogGait_AllStand(DOG_TASK_SPEED_BUMP_WALK_MOVE_MS);
+        return;
+    }
+
+    DogTask_UpdateSpeedBumpWalk(now_ms);
+#else
+    ImageTrack_t track;
+
     /* 使用视觉误差设置左右腿差速；SPEED_BUMP 阶段会保留减速带专用基准。 */
     track = ImageCommand_TakeLatestTrack();
     if (track.valid != 0U)
@@ -1533,12 +1592,13 @@ void DogTask_SpeedBumpTest_Run(void)
         DogTask_ApplyTrackError(track.error);
     }
 
-    if ((uint32_t)(now_ms - s_speed_bump_test_last_gait_ms) >=
+    if ((uint32_t)(now_ms - s_last_gait_ms) >=
         DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS)
     {
-        s_speed_bump_test_last_gait_ms = now_ms;
+        s_last_gait_ms = now_ms;
         DogGait_UpdateTrot(DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS);
     }
+#endif
 }
 
 /* 减速带前循迹阶段的独立测试入口：完成回中和站立后，固定进入 SPEED_BUMP_ENTRY_TRACK 阶段。 */
@@ -1745,43 +1805,11 @@ void DogTask_Run(void)
         DogTask_SetCorrectionLed(0U);
     }
 
-#if (DOG_TASK_SPEED_BUMP_WALK_ENABLE != 0U)
-    if ((s_task_stage == DOG_TASK_STAGE_SPEED_BUMP) &&
-        (s_event_state == DOG_TASK_EVENT_SPEED_BUMP) &&
-        ((uint32_t)(now_ms - s_last_gait_ms) >=
-         DOG_TASK_SPEED_BUMP_WALK_PERIOD_MS))
+    if (DogTask_UpdateSpeedBumpWalk(now_ms) != 0U)
     {
-        Jy61PImuStatus_t imu;
-        float pitch_deg = 0.0f;
-        float roll_deg = 0.0f;
-
-        s_last_gait_ms = now_ms;
-        g_dog_task_gait_update_count++;
-
-        if (Jy61PImu_GetStatus(&imu) != 0U)
-        {
-            pitch_deg = imu.pitch_deg;
-        }
-
-        /* Reuse the stair-walk low-pass filter and continuous roll deadband
-         * so speed-bump vibration is not sent directly to the left/right
-         * foot-height compensation. */
-        roll_deg = StairWalk_GetFilteredRollDeg();
-
-        DogGait_UpdateWalk(DOG_TASK_SPEED_BUMP_WALK_MOVE_MS,
-                           pitch_deg,
-                           roll_deg);
-
-        if (DogGait_IsWalkCycleDone() != 0U)
-        {
-            s_speed_bump_walk_cycle_count++;
-            g_dog_task_speed_bump_walk_cycle_count =
-                s_speed_bump_walk_cycle_count;
-        }
+        /* 减速带 walk 本帧已推进。 */
     }
-    else
-#endif
-    if ((s_motion != DOG_TASK_MOTION_STOP) &&
+    else if ((s_motion != DOG_TASK_MOTION_STOP) &&
         ((uint32_t)(now_ms - s_last_gait_ms) >= DogTask_GetGaitPeriodMs()))
     {
         s_last_gait_ms = now_ms;
