@@ -135,14 +135,18 @@
 #define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN        -1.0f  // IMU 坐标已统一到机身坐标；实机左右足端纠偏方向需反转。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -0.0f // 奇数周期：RB 抬起前施加到 LF 的左侧预加载量。
-#define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -10.0f // 奇数周期：RB 抬起前施加到 LB 的左侧预加载量。
-#define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   10.0f // RB 抬起前施加到 RF 的反向预加载量；正值 N 实际使 RF Y 减少 N mm。
+#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -1.0f // 在 LB 起摆前施加到 LF 的左侧预加载量，并保持至 RB 落脚。
+#define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -10.0f // LB 起摆前开始施加到 LB，并连续保持至 RB 落脚后的预加载量。
+#define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   1.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
+#define DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM  -6.0f // RB 起摆前额外叠加到 LF 的预加载量。
+#define DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM  6.0f // RB 起摆前额外叠加到 RF 的反向预加载量。
+#define DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM   -7.0f // LB 落脚后、RB 起摆前额外叠加到 LB 的预加载量；方向与基础 LB 补偿相同。
 #define DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM        -15.0f // 偶数周期：LB 抬起前施加到 RF 的右侧预加载量。
 #define DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS        150U // RB/LB 起摆前对侧前腿预加载的舵机动作时间。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_MOVE_MS 500U // 预加载结束、对侧前腿恢复时的专用舵机动作时间；仅作用一次，不影响普通 walk 轨迹。
 #define DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES 1U // 释放指令后额外冻结一个 100 ms 更新周期，确保 150 ms 指令不会被普通轨迹提前覆盖。
 #define DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES     5U // 当前 100 ms 更新周期下约 500 ms。
+#define DOG_GAIT_WALK_RB_FINAL_PRELOAD_STABLE_UPDATES 3U // RB 起摆前额外预加载稳定约 300 ms。
 #define DOG_GAIT_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES 5U // 第二前腿落地后，下一后腿起摆前额外保持约 500 ms。
 #define DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES      6U // 奇偶腿序切换时的平滑过渡时间，当前约 300 ms。
 #define DOG_GAIT_WALK_SUPPORT_RETURN_MM          60.0f // 支撑腿相对机身向后移动的距离，与摆动步长独立。
@@ -167,6 +171,7 @@ typedef enum
 {
     DOG_GAIT_RB_PRELOAD_NONE = 0U,
     DOG_GAIT_RB_PRELOAD_HOLD,
+    DOG_GAIT_RB_PRELOAD_FINAL_HOLD,
     DOG_GAIT_RB_PRELOAD_RELEASE,
     DOG_GAIT_RB_PRELOAD_SWING,
 } DogGaitRbPreloadState_t;
@@ -280,6 +285,8 @@ static uint8_t s_walk_support_phase;
 static uint8_t s_walk_support_ready;
 static DogGaitRbPreloadState_t s_walk_rb_preload_state;
 static uint8_t s_walk_rb_preload_stable_updates;
+static uint8_t s_walk_rb_preload_rb_swing_started;
+static uint8_t s_walk_rb_preload_rb_touchdown_output_done;
 static uint8_t s_walk_rb_preload_release_pending;
 static uint8_t s_walk_rb_preload_release_hold_updates;
 static DogGaitLeg_t s_walk_preload_support_leg;
@@ -728,6 +735,8 @@ static void DogGait_ResetWalkFootStates(void)
     s_walk_support_ready = 0U;
     s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_NONE;
     s_walk_rb_preload_stable_updates = 0U;
+    s_walk_rb_preload_rb_swing_started = 0U;
+    s_walk_rb_preload_rb_touchdown_output_done = 0U;
     s_walk_rb_preload_release_pending = 0U;
     s_walk_rb_preload_release_hold_updates = 0U;
     s_walk_preload_support_leg = DOG_GAIT_LEG_LF;
@@ -831,7 +840,8 @@ static void DogGait_UpdateWalkFootTrajectories(void)
         }
 
         if ((i == DogGait_GetWalkRearPreloadSwingLeg()) &&
-            (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD))
+            ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ||
+             (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_FINAL_HOLD)))
         {
             /* Keep the selected rear leg still while the opposite front leg
              * establishes its preload. */
@@ -1065,10 +1075,30 @@ static void DogGait_UpdateRearPreloadState(void)
     DogGaitLeg_t swing_leg = DogGait_GetWalkRearPreloadSwingLeg();
 
     if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING) &&
+        (s_walk_rb_preload_rb_swing_started == 0U) &&
+        (s_walk_phase >= (DOG_GAIT_WALK_PHASE_PER_LEG * 3.0f)))
+    {
+        /* LB has landed and RB is next.  Hold RB at its stance pose while
+         * the extra LF/RF preload is established. */
+        s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_FINAL_HOLD;
+        s_walk_rb_preload_stable_updates = 0U;
+        s_walk_rb_preload_hold_x_mm = s_walk_foot_x[swing_leg];
+        s_walk_rb_preload_hold_y_mm = s_walk_foot_y[swing_leg];
+    }
+
+    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING) &&
+        (s_walk_rb_preload_rb_swing_started != 0U) &&
         (s_walk_phase < (DOG_GAIT_WALK_PHASE_PER_LEG * 3.0f)))
     {
-        /* The selected rear leg has landed. Release the front-leg preload
-         * only now, rather than before the rear leg begins its swing. */
+        /* The first wrapped-phase output is RB's touchdown pose.  Keep the
+         * shared LB/RB preload for that output, then release it on the next
+         * update so the whole RB landing is covered. */
+        if (s_walk_rb_preload_rb_touchdown_output_done == 0U)
+        {
+            s_walk_rb_preload_rb_touchdown_output_done = 1U;
+            return;
+        }
+
         s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_RELEASE;
         s_walk_rb_preload_stable_updates = 0U;
         s_walk_rb_preload_release_pending = 1U;
@@ -1076,25 +1106,26 @@ static void DogGait_UpdateRearPreloadState(void)
     }
 
     if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_NONE) &&
-        (s_walk_phase >= (DOG_GAIT_WALK_PHASE_PER_LEG * 3.0f)) &&
-        (s_walk_phase < DOG_GAIT_WALK_TOTAL_PHASE))
+        (s_walk_phase >= (DOG_GAIT_WALK_PHASE_PER_LEG * 2.0f)) &&
+        (s_walk_phase < DOG_GAIT_WALK_TOTAL_PHASE) &&
+        (s_walk_second_front_to_rear_state ==
+         DOG_GAIT_SECOND_FRONT_TO_REAR_HOLD) &&
+        (s_walk_second_front_to_rear_stable_updates >=
+         DOG_GAIT_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES))
     {
-        /* This is the first update after the other rear leg reaches stance. */
+        /* The front-to-rear body transfer is complete, but LB is still held.
+         * Apply the two preload offsets in this stable support pose before
+         * allowing LB to swing.  They remain active through RB's landing. */
         s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_HOLD;
         s_walk_rb_preload_stable_updates = 0U;
+        s_walk_rb_preload_rb_swing_started = 0U;
+        s_walk_rb_preload_rb_touchdown_output_done = 0U;
         s_walk_preload_support_leg =
             DogGait_GetWalkRearPreloadSupportLeg();
         s_walk_rb_preload_hold_x_mm = s_walk_foot_x[swing_leg];
         s_walk_rb_preload_hold_y_mm = s_walk_foot_y[swing_leg];
     }
 
-    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) &&
-        (s_walk_rb_preload_stable_updates >=
-         DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES))
-    {
-        /* Keep the preload throughout the selected rear-leg swing. */
-        s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_SWING;
-    }
 }
 
 /*
@@ -1163,7 +1194,10 @@ static void DogGait_GetWalkAttitudeOffset(DogGaitLeg_t leg,
 
 static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
 {
+    float adjustment = 0.0f;
+
     if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ||
+        (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_FINAL_HOLD) ||
         (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING))
     {
         if (s_walk_preload_support_leg == DOG_GAIT_LEG_LF)
@@ -1172,26 +1206,47 @@ static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
              * support pair (LF and the newly landed LB). */
             if ((leg == DOG_GAIT_LEG_LF) || (leg == DOG_GAIT_LEG_LB))
             {
-                return (leg == DOG_GAIT_LEG_LF) ?
-                       -DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM :
-                       -DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM;
+                adjustment += (leg == DOG_GAIT_LEG_LF) ?
+                              -DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM :
+                              -DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM;
             }
 
             if (leg == DOG_GAIT_LEG_RF)
             {
                 /* RF is moved in the opposite height direction to LF while
                  * the RB preload is held. */
-                return -DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM;
+                adjustment += -DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM;
             }
         }
         else if (leg == DOG_GAIT_LEG_RF)
         {
             /* Even cycle remains unchanged: preload RF before LB swings. */
-            return -DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
+            adjustment += -DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
         }
     }
 
-    return 0.0f;
+    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_FINAL_HOLD) ||
+        ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_SWING) &&
+         (s_walk_rb_preload_rb_swing_started != 0U)))
+    {
+        /* Enable the RB-only extra preload after LB has landed while RB is
+         * still held, then retain it through RB's actual swing.  Do not add
+         * it during the earlier LB swing, which also uses the SWING state. */
+        if (leg == DOG_GAIT_LEG_LF)
+        {
+            adjustment += -DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM;
+        }
+        else if (leg == DOG_GAIT_LEG_RF)
+        {
+            adjustment += -DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM;
+        }
+        else if (leg == DOG_GAIT_LEG_LB)
+        {
+            adjustment += -DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM;
+        }
+    }
+
+    return adjustment;
 }
 
 static void DogGait_ComposeWalkPose(float pitch_deg, float roll_deg)
@@ -1716,6 +1771,7 @@ void DogGait_UpdateWalkAttitude(uint16_t time_ms,
     s_walk_last_roll_deg = roll_deg;
 
     if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ||
+        (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_FINAL_HOLD) ||
         (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_RELEASE))
     {
         return;
@@ -1913,7 +1969,8 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
 
     /* Apply and release preload with dedicated timings; normal walk targets
      * continue using the caller's gait time. */
-    if (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD)
+    if ((s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD) ||
+        (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_FINAL_HOLD))
     {
         output_time_ms = DOG_GAIT_WALK_REAR_PRELOAD_MOVE_MS;
     }
@@ -1949,8 +2006,24 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
                 return;
             }
 
-            /* Keep phase at 1.0 for one more call.  The next call releases
-             * the saved rear leg and starts its rear-leg swing. */
+            if (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD)
+            {
+                /* The body transfer has finished.  Keep LB as a support
+                 * leg while the LF/RF preload settles, so the preload does
+                 * not fight the X-direction body transfer. */
+                if (s_walk_rb_preload_stable_updates <
+                    DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES)
+                {
+                    s_walk_rb_preload_stable_updates++;
+                    return;
+                }
+
+                s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_SWING;
+            }
+
+            /* The preload is established.  The next call releases LB and
+             * begins its swing while retaining the preload through RB's
+             * subsequent swing and landing. */
             s_walk_second_front_to_rear_state =
                 DOG_GAIT_SECOND_FRONT_TO_REAR_SWING;
             return;
@@ -1967,14 +2040,21 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
             return;
         }
 
-        if (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_HOLD)
+        if (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_FINAL_HOLD)
         {
             if (s_walk_rb_preload_stable_updates <
-                DOG_GAIT_WALK_RB_PRELOAD_STABLE_UPDATES)
+                DOG_GAIT_WALK_RB_FINAL_PRELOAD_STABLE_UPDATES)
             {
                 s_walk_rb_preload_stable_updates++;
                 return;
             }
+
+            /* The extra preload is settled.  The next update starts RB's
+             * swing from its held stance pose; release remains armed only
+             * after that swing has completed. */
+            s_walk_rb_preload_state = DOG_GAIT_RB_PRELOAD_SWING;
+            s_walk_rb_preload_rb_swing_started = 1U;
+            return;
         }
 
         if (s_walk_rb_preload_state == DOG_GAIT_RB_PRELOAD_RELEASE)
