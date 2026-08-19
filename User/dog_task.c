@@ -100,7 +100,7 @@ float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人
 /* Left/right turn test entry is kept only for reference. */
 #define DOG_TASK_TURN_TEST_DURATION_MS 3000U // 表示左/右转测试的持续时间，单位毫秒。这个测试是用来验证机器人在转弯时的步态和转向是否正常的。
 #define DOG_TASK_GREEN_TURN_DURATION_MS 5000U // 表示绿色岔路第一圈右转的持续时间，单位毫秒。
-#define DOG_TASK_GREEN_TRACK_DELAY_MS 5000U // 第二圈识别绿色后，保持视觉循迹的时间，单位毫秒。
+#define DOG_TASK_GREEN_TRACK_DELAY_MS 3000U // 第二圈识别绿色后，保持视觉循迹的时间，单位毫秒。
 #define DOG_TASK_GREEN_SECOND_LAP_LEFT_TURN_DURATION_MS 2000U // 第二圈绿色岔路左转的持续时间，单位毫秒。
 #define DOG_TASK_GREEN_LEFT_STEER_MM     25.0f // 表示绿色岔路差速转向量，单位毫米；正/负号分别对应右/左转。
 
@@ -920,16 +920,8 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     {
         DogTask_SendVisionAck();
         s_task_stage = DOG_TASK_STAGE_GREEN_TURN;
-        if (s_lap_count == 0U)
-        {
-            /* 第一圈：循迹差速右转，右腿慢左腿快，保持向前行进 */
-            DogTask_BeginGreenRightTurn(now_ms);
-        }
-        else
-        {
-            /* 第二圈：先循迹 2 秒，再固定差速左转 2 秒。 */
-            DogTask_BeginGreenTrackDelay(now_ms);
-        }
+        /* 识别绿色后先按视觉误差循迹，再按圈数差速转向（第一圈右转、第二圈左转）。 */
+        DogTask_BeginGreenTrackDelay(now_ms);
     }
     else if ((command == IMAGE_COMMAND_ORANGE) &&
              (s_task_stage == DOG_TASK_STAGE_TRACK_TO_ORANGE))
@@ -1111,7 +1103,16 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
     {
         if (elapsed_ms >= DOG_TASK_GREEN_TRACK_DELAY_MS)
         {
-            DogTask_BeginGreenLeftTurn(now_ms);
+            if (s_lap_count == 0U)
+            {
+                /* 第一圈：循迹结束后差速右转 */
+                DogTask_BeginGreenRightTurn(now_ms);
+            }
+            else
+            {
+                /* 第二圈：循迹结束后差速左转 */
+                DogTask_BeginGreenLeftTurn(now_ms);
+            }
         }
         else if (track.valid != 0U)
         {
