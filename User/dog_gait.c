@@ -51,13 +51,13 @@
 #define DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM -25.0f
 #define DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM    -25.0f
 #define DOG_GAIT_STAND_FOOT_Y_LF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_STAND_FOOT_Y_RF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_STAND_FOOT_Y_RF_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #define DOG_GAIT_STAND_FOOT_Y_LB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -25.0f
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -25.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -20.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -20.0f
 #define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #endif
 
@@ -65,9 +65,9 @@
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  -25.0f
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     -25.0f
 #define DOG_GAIT_TURN_FOOT_Y_LF_MM            (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_TURN_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_TURN_FOOT_Y_RF_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #define DOG_GAIT_TURN_FOOT_Y_LB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
-#define DOG_GAIT_TURN_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 172.0f)
+#define DOG_GAIT_TURN_FOOT_Y_RB_MM              (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #else
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_NO_LOAD_MM  DOG_GAIT_STAND_FOOT_X_OFFSET_NO_LOAD_MM
 #define DOG_GAIT_TURN_FOOT_X_OFFSET_LOAD_MM     DOG_GAIT_STAND_FOOT_X_OFFSET_LOAD_MM
@@ -124,10 +124,10 @@
 #define DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON     0.0001f // 消除浮点累加导致的摆动/支撑边界延后一帧。
 #define DOG_GAIT_WALK_BODY_READY_MM              3.0f // 重心目标误差小于 3 mm 后，才允许摆腿相位继续推进。
 #define DOG_GAIT_WALK_BODY_KP                    0.25f // 重心一阶平滑系数默认值；前后方向和场景分别通过 SetWalkBodyKpFrontToRear/RearToFront 设置。
-#define DOG_GAIT_WALK_BODY_MAX_STEP_MM           10.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
+#define DOG_GAIT_WALK_BODY_MAX_STEP_MM           7.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
 #define DOG_GAIT_WALK_BODY_LENGTH_MM             280.0f // 参考 Py-Apple 经验公式的机身前后支撑长度；应按本机前后髋关节间距实测调整。
 #define DOG_GAIT_WALK_BODY_WIDTH_MM              175.0f // 左右髋关节中心距；初值与原左右补偿的 ±70 mm 对应，应按本机实测调整。
-#define DOG_GAIT_WALK_PHASE_CG_GAIN              1.0f // 前/后腿阶段重心切换增益默认值；减速带和上楼梯分别通过 SetWalkPhaseCgGain 设置。
+#define DOG_GAIT_WALK_PHASE_CG_GAIN              0.9f // 前/后腿阶段重心切换增益默认值；减速带和上楼梯分别通过 SetWalkPhaseCgGain 设置。
 #define DOG_GAIT_WALK_PITCH_ANGLE_GAIN           1.5f // 参考公式 tan(pitch * 1.5) 中的倾角经验放大系数。
 #define DOG_GAIT_WALK_BODY_TARGET_MAX_MM         1000.0f // 前后重心目标的安全限幅，首轮调试限制在正负 20 mm。
 #define DOG_GAIT_WALK_CG_AXIS_SIGN              (-1.0f) // Py-Apple 与本工程 X 轴方向相反；负号保持本工程原有的前/后重心移动方向。
@@ -135,9 +135,9 @@
 #define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN        -1.0f  // IMU 坐标已统一到机身坐标；实机左右足端纠偏方向需反转。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -1.0f // 在 LB 起摆前施加到 LF 的左侧预加载量，并保持至 RB 落脚。
+#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -0.0f // 在 LB 起摆前施加到 LF 的左侧预加载量，并保持至 RB 落脚。
 #define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -10.0f // LB 起摆前开始施加到 LB，并连续保持至 RB 落脚后的预加载量。
-#define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   1.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
+#define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   10.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
 #define DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM  -6.0f // RB 起摆前额外叠加到 LF 的预加载量。
 #define DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM  6.0f // RB 起摆前额外叠加到 RF 的反向预加载量。
 #define DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM   -7.0f // LB 落脚后、RB 起摆前额外叠加到 LB 的预加载量；方向与基础 LB 补偿相同。
