@@ -135,9 +135,9 @@
 #define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN        -1.0f  // IMU 坐标已统一到机身坐标；实机左右足端纠偏方向需反转。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -0.0f // 在 LB 起摆前施加到 LF 的左侧预加载量，并保持至 RB 落脚。
+#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -1.0f // 在 LB 起摆前施加到 LF 的左侧预加载量，并保持至 RB 落脚。
 #define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -10.0f // LB 起摆前开始施加到 LB，并连续保持至 RB 落脚后的预加载量。
-#define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   10.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
+#define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   1.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
 #define DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM  -6.0f // RB 起摆前额外叠加到 LF 的预加载量。
 #define DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM  6.0f // RB 起摆前额外叠加到 RF 的反向预加载量。
 #define DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM   -7.0f // LB 落脚后、RB 起摆前额外叠加到 LB 的预加载量；方向与基础 LB 补偿相同。
