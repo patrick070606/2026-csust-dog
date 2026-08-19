@@ -5,14 +5,16 @@
  * 机械装配后，根据实际腿部位置、转向和限位修改本表。
  */
 static const DogServoConfig_t s_dog_servo_configs[DOG_SERVO_COUNT] = {
-    [DOG_SERVO_LF_KNEE] = {1, -1, 500, -10, 310, 800}, //500 - 200 = 300
-    [DOG_SERVO_LF_HIP]  = {2, -1, 500, -65, 200, 745}, // 435+260 = 695
-    [DOG_SERVO_RF_KNEE] = {3, 1, 500, -20, 200, 630},
-    [DOG_SERVO_RF_HIP]  = {4, 1, 500, -21, 189, 800},
-    [DOG_SERVO_LB_KNEE] = {5, -1, 500, 0, 320, 1000},
-    [DOG_SERVO_LB_HIP]  = {6, -1, 500, 21, 200, 936},
-    [DOG_SERVO_RB_KNEE] = {7, 1, 500, 43, 0, 738},
-    [DOG_SERVO_RB_HIP]  = {8, 1, 500, -40, 40, 800},
+    // 髋关节：480-220 = 260
+    // 小腿关节：720-520=200
+    [DOG_SERVO_LF_KNEE] = {4, -1, 500, 10, 325, 900},
+    [DOG_SERVO_LF_HIP]  = {3, -1, 500, 32, 100, 855}, 
+    [DOG_SERVO_RF_KNEE] = {2, 1, 500, 18, 100, 710},
+    [DOG_SERVO_RF_HIP]  = {1, 1, 500, 12, 180, 900},
+    [DOG_SERVO_LB_KNEE] = {8, -1, 500, 22, 295, 900},
+    [DOG_SERVO_LB_HIP]  = {7, -1, 500, -1, 100, 890},
+    [DOG_SERVO_RB_KNEE] = {6, 1, 500, 44, 100, 705},
+    [DOG_SERVO_RB_HIP]  = {5, 1, 500, 10, 115, 900},
 };
 
 const DogServoConfig_t *DogServoConfig_Get(DogServoId_t servo)
