@@ -37,6 +37,14 @@
 #define DOG_TASK_SPEED_BUMP_WALK_ORDER_TRANSITION_UPDATES 2U // 2: 周期切换过渡 200 ms。
 #define DOG_TASK_SPEED_BUMP_WALK_FRONT_HEIGHT_MM 0.0f  // 前腿对支撑面高度；减速带首轮保持平地基准。
 #define DOG_TASK_SPEED_BUMP_WALK_REAR_HEIGHT_MM  0.0f  // 后腿对支撑面高度；减速带首轮保持平地基准。
+/* 减速带 walk 暂不启用预加载侧向补偿；以下均为 0，仅保留接口以便后续按需恢复。 */
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LF_Y_MM           0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_RF_Y_MM           0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_Y_MM           0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LF_Y_MM     0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_RF_Y_MM     0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LB_Y_MM     0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_RIGHT_RF_Y_MM  0.0f
 #define DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT     10U   // 完成该数量的完整 walk 周期后退出减速带。
 #define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 50000U // 独立过减速带测试的超时兜底；walk 正常按周期数结束，约 20 s。
 #define DOG_TASK_SPEED_BUMP_ENTRY_TEST_DURATION_MS 150000U // 减速带前循迹阶段的独立测试持续时间，单位毫秒；到点后回到站立姿态。
@@ -543,6 +551,13 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
                           DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ,
                           DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM,
                           DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM);
+    DogGait_SetWalkPreloadSideOffsets(DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LF_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_RF_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LF_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_RF_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LB_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_RIGHT_RF_Y_MM);
     DogGait_SetWalkBodyKpFrontToRear(DOG_TASK_SPEED_BUMP_WALK_BODY_KP_FRONT_TO_REAR);
     DogGait_SetWalkBodyKpRearToFront(DOG_TASK_SPEED_BUMP_WALK_BODY_KP_REAR_TO_FRONT);
     DogGait_SetWalkFrontRearUnified(DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED);

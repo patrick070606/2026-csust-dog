@@ -65,6 +65,13 @@ void DogGait_SetWalkSecondFrontToRearHoldUpdates(uint8_t updates);
 void DogGait_SetWalkRbFinalPreloadStableUpdates(uint8_t updates);
 void DogGait_SetWalkRearPreloadReleaseHoldUpdates(uint8_t updates);
 void DogGait_SetWalkOrderTransitionUpdates(uint8_t updates);
+void DogGait_SetWalkPreloadSideOffsets(float lf_y_mm,
+                                       float rf_y_mm,
+                                       float lb_y_mm,
+                                       float extra_lf_y_mm,
+                                       float extra_rf_y_mm,
+                                       float extra_lb_y_mm,
+                                       float lb_right_rf_y_mm);
 void DogGait_SetWalkPhaseCgGain(float phase_cg_gain);
 void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg);
 uint8_t DogGait_IsWalkCycleDone(void);
@@ -79,6 +86,8 @@ uint8_t DogGait_IsWalkCycleDone(void);
 减速带其余显式保持参数也拆开：第二前腿落地保持 `1U`（100 ms）、RB 最终预加载 `1U`（100 ms）、释放冻结 `0U`、周期过渡 `2U`（200 ms）；上台阶分别保留原 `5U/3U/1U/6U`。
 
 `DogGait_SetWalkPhaseCgGain()` 把前后腿阶段动态重心目标缩放系数拆成独立参数；减速带由 `DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN` 设置，上台阶由 `STAIR_WALK_TEST_PHASE_CG_GAIN` 设置。
+
+`DogGait_SetWalkPreloadSideOffsets()` 把预加载侧向补偿的最终 y 偏移按场景拆分；减速带当前全部传 `0.0f`，该补偿在减速带 walk 中不产生效果，上台阶保留原标定值 `1.0f / -1.0f / 10.0f / 6.0f / -6.0f / 7.0f / 15.0f`。
 
 当前 WALK 是单腿顺序步态，相序为：
 
