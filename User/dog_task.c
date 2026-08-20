@@ -26,6 +26,7 @@
 #define DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ      0.1f // 相位增量。
 #define DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM    18.0f  // 减速带 walk 重心 X 基准。
 #define DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM     60.0f // 与当前上楼梯 walk 一致的 pitch 重心补偿增益。
+#define DOG_TASK_SPEED_BUMP_WALK_PITCH_ANGLE_GAIN 0.0f // 减速带 pitch 重心补偿的角度倍率。
 #define DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN   0.6f // 减速带 walk 前后腿阶段动态重心缩放；与上楼梯独立可调。
 #define DOG_TASK_SPEED_BUMP_WALK_BODY_KP_FRONT_TO_REAR 0.6f // 减速带前腿切后腿时的重心收敛系数。
 #define DOG_TASK_SPEED_BUMP_WALK_BODY_KP_REAR_TO_FRONT 0.3f // 减速带后腿切前腿时的重心收敛系数。
@@ -543,6 +544,8 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
                           DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ,
                           DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM,
                           DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM);
+    DogGait_SetWalkPitchAngleGain(
+        DOG_TASK_SPEED_BUMP_WALK_PITCH_ANGLE_GAIN);
     DogGait_SetWalkBodyKpFrontToRear(DOG_TASK_SPEED_BUMP_WALK_BODY_KP_FRONT_TO_REAR);
     DogGait_SetWalkBodyKpRearToFront(DOG_TASK_SPEED_BUMP_WALK_BODY_KP_REAR_TO_FRONT);
     DogGait_SetWalkFrontRearUnified(DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED);
