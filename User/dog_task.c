@@ -24,7 +24,7 @@
 #define DOG_TASK_SPEED_BUMP_WALK_STEP_H_MM       60.0f // 与当前上楼梯 walk 一致的抬腿高度。
 #define DOG_TASK_SPEED_BUMP_WALK_STEP_LEN_MM     60.0f // 与当前上楼梯 walk 一致的步长。
 #define DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ      0.1f // 相位增量。
-#define DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM    18.0f  // 减速带 walk 重心 X 基准。
+#define DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM    26.0f  // 减速带 walk 重心 X 基准。
 #define DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM     60.0f // 与当前上楼梯 walk 一致的 pitch 重心补偿增益。
 #define DOG_TASK_SPEED_BUMP_WALK_PITCH_ANGLE_GAIN 0.0f // 减速带 pitch 重心补偿的角度倍率。
 #define DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN   0.6f // 减速带 walk 前后腿阶段动态重心缩放；与上楼梯独立可调。
@@ -38,6 +38,14 @@
 #define DOG_TASK_SPEED_BUMP_WALK_ORDER_TRANSITION_UPDATES 2U // 2: 周期切换过渡 200 ms。
 #define DOG_TASK_SPEED_BUMP_WALK_FRONT_HEIGHT_MM 0.0f  // 前腿对支撑面高度；减速带首轮保持平地基准。
 #define DOG_TASK_SPEED_BUMP_WALK_REAR_HEIGHT_MM  0.0f  // 后腿对支撑面高度；减速带首轮保持平地基准。
+/* 减速带 walk 仅保留 LB 与 EXTRA LB 的标定值；其余预加载侧向补偿项为 0。 */
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LF_Y_MM           0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_RF_Y_MM           0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_Y_MM           -2.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LF_Y_MM     0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_RF_Y_MM     0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LB_Y_MM     -10.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_RIGHT_RF_Y_MM  0.0f
 #define DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT     10U   // 完成该数量的完整 walk 周期后退出减速带。
 #define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 50000U // 独立过减速带测试的超时兜底；walk 正常按周期数结束，约 20 s。
 #define DOG_TASK_SPEED_BUMP_ENTRY_TEST_DURATION_MS 150000U // 减速带前循迹阶段的独立测试持续时间，单位毫秒；到点后回到站立姿态。
@@ -544,6 +552,13 @@ static void DogTask_BeginSpeedBump(uint32_t now_ms)
                           DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ,
                           DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM,
                           DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM);
+    DogGait_SetWalkPreloadSideOffsets(DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LF_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_RF_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LF_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_RF_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LB_Y_MM,
+                                      DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_RIGHT_RF_Y_MM);
     DogGait_SetWalkPitchAngleGain(
         DOG_TASK_SPEED_BUMP_WALK_PITCH_ANGLE_GAIN);
     DogGait_SetWalkBodyKpFrontToRear(DOG_TASK_SPEED_BUMP_WALK_BODY_KP_FRONT_TO_REAR);

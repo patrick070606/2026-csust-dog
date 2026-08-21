@@ -280,6 +280,14 @@ static uint8_t s_walk_second_front_to_rear_hold_limit = DOG_GAIT_WALK_SECOND_FRO
 static uint8_t s_walk_rb_final_preload_stable_limit = DOG_GAIT_WALK_RB_FINAL_PRELOAD_STABLE_UPDATES; // RB 起摆前额外预加载稳定更新次数。
 static uint8_t s_walk_rear_preload_release_hold_limit = DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES; // 预加载释放后的冻结更新次数。
 static uint8_t s_walk_order_transition_limit = DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES; // 周期切换平滑过渡更新次数。
+/* 预加载侧向补偿的最终 y 偏移；默认保留上楼梯标定值，减速带场景可整体清零。 */
+static float s_walk_preload_lf_y_mm = -DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM;
+static float s_walk_preload_rf_y_mm = -DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM;
+static float s_walk_preload_lb_y_mm = -DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM;
+static float s_walk_preload_extra_lf_y_mm = -DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM;
+static float s_walk_preload_extra_rf_y_mm = -DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM;
+static float s_walk_preload_extra_lb_y_mm = -DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM;
+static float s_walk_lb_right_preload_rf_y_mm = -DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
 static float s_walk_body_x_goal_mm; // 目标重心偏移
 static float s_walk_body_x_state_mm; // 当前重心偏移
 static float s_walk_foot_x[DOG_GAIT_LEG_COUNT]; // walk 步态中各腿的足端 X 坐标
@@ -1219,21 +1227,21 @@ static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
             if ((leg == DOG_GAIT_LEG_LF) || (leg == DOG_GAIT_LEG_LB))
             {
                 adjustment += (leg == DOG_GAIT_LEG_LF) ?
-                              -DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM :
-                              -DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM;
+                              s_walk_preload_lf_y_mm :
+                              s_walk_preload_lb_y_mm;
             }
 
             if (leg == DOG_GAIT_LEG_RF)
             {
                 /* RF is moved in the opposite height direction to LF while
                  * the RB preload is held. */
-                adjustment += -DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM;
+                adjustment += s_walk_preload_rf_y_mm;
             }
         }
         else if (leg == DOG_GAIT_LEG_RF)
         {
             /* Even cycle remains unchanged: preload RF before LB swings. */
-            adjustment += -DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
+            adjustment += s_walk_lb_right_preload_rf_y_mm;
         }
     }
 
@@ -1246,15 +1254,15 @@ static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
          * it during the earlier LB swing, which also uses the SWING state. */
         if (leg == DOG_GAIT_LEG_LF)
         {
-            adjustment += -DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM;
+            adjustment += s_walk_preload_extra_lf_y_mm;
         }
         else if (leg == DOG_GAIT_LEG_RF)
         {
-            adjustment += -DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM;
+            adjustment += s_walk_preload_extra_rf_y_mm;
         }
         else if (leg == DOG_GAIT_LEG_LB)
         {
-            adjustment += -DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM;
+            adjustment += s_walk_preload_extra_lb_y_mm;
         }
     }
 
@@ -1932,6 +1940,29 @@ void DogGait_SetWalkRearPreloadReleaseHoldUpdates(uint8_t updates)
 void DogGait_SetWalkOrderTransitionUpdates(uint8_t updates)
 {
     s_walk_order_transition_limit = updates;
+}
+
+/*
+ * 名称：DogGait_SetWalkPreloadSideOffsets
+ * 作用：单独设置 walk 预加载侧向补偿在各腿上的最终 y 偏移，减速带与上楼梯可分场景配置。
+ * 输入：lf_y_mm 等为实际叠加到足端 y 的偏移；全部传 0 表示该补偿在本场景不产生效果。
+ * 输出：无返回值，更新 walk 预加载侧向补偿参数。
+ */
+void DogGait_SetWalkPreloadSideOffsets(float lf_y_mm,
+                                       float rf_y_mm,
+                                       float lb_y_mm,
+                                       float extra_lf_y_mm,
+                                       float extra_rf_y_mm,
+                                       float extra_lb_y_mm,
+                                       float lb_right_rf_y_mm)
+{
+    s_walk_preload_lf_y_mm = DogGait_ClampFloat(lf_y_mm, -100.0f, 100.0f);
+    s_walk_preload_rf_y_mm = DogGait_ClampFloat(rf_y_mm, -100.0f, 100.0f);
+    s_walk_preload_lb_y_mm = DogGait_ClampFloat(lb_y_mm, -100.0f, 100.0f);
+    s_walk_preload_extra_lf_y_mm = DogGait_ClampFloat(extra_lf_y_mm, -100.0f, 100.0f);
+    s_walk_preload_extra_rf_y_mm = DogGait_ClampFloat(extra_rf_y_mm, -100.0f, 100.0f);
+    s_walk_preload_extra_lb_y_mm = DogGait_ClampFloat(extra_lb_y_mm, -100.0f, 100.0f);
+    s_walk_lb_right_preload_rf_y_mm = DogGait_ClampFloat(lb_right_rf_y_mm, -100.0f, 100.0f);
 }
 
 /*
