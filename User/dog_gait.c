@@ -270,6 +270,7 @@ static float s_walk_step_length_mm = 50.0f;
 static uint8_t s_walk_cycle_parity;
 static float s_walk_cg_base_x_mm; // 基础重心偏移
 static float s_walk_imu_gain_mm = 0.0f; // 表示 walk 步态中，IMU 前后倾角对重心前后偏移的增益系数。也就是说，如果 IMU 检测到机器人前倾 1 度，那么重心会向前偏移 60.0mm，从而调整机器人的步态，使其保持平衡。
+static float s_walk_pitch_angle_gain = DOG_GAIT_WALK_PITCH_ANGLE_GAIN;
 static float s_walk_phase_cg_gain = DOG_GAIT_WALK_PHASE_CG_GAIN; // 前/后腿阶段动态重心目标的整体缩放系数。
 static float s_walk_body_kp_front_to_rear = DOG_GAIT_WALK_BODY_KP; // 前腿阶段切到后腿阶段时的重心收敛比例。
 static float s_walk_body_kp_rear_to_front = DOG_GAIT_WALK_BODY_KP; // 后腿阶段切到前腿阶段时的重心收敛比例。
@@ -1006,7 +1007,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
 
 static float DogGait_GetWalkBodyTarget(uint8_t active_leg, float pitch_deg)
 {
-    float pitch_angle_rad = pitch_deg * DOG_GAIT_WALK_PITCH_ANGLE_GAIN * DOG_GAIT_DEG_TO_RAD;
+    float pitch_angle_rad = pitch_deg * s_walk_pitch_angle_gain * DOG_GAIT_DEG_TO_RAD;
     float pitch_adjust;
     float reference_phase_adjust;
     float target;
@@ -1858,6 +1859,15 @@ void DogGait_SetWalkParams(float step_height_mm,
     s_foot_base = DOG_GAIT_FOOT_BASE_WALK;
     DogGait_ClearLegBiases();
     DogGait_ClearFootYOffsets();
+}
+
+/* Configure the pitch multiplier used by the WALK body-CG correction.
+ * This is deliberately separate from imu_gain_mm: gain changes correction
+ * magnitude, while this value changes the pitch-angle sensitivity. */
+void DogGait_SetWalkPitchAngleGain(float pitch_angle_gain)
+{
+    s_walk_pitch_angle_gain =
+        DogGait_ClampFloat(pitch_angle_gain, 0.0f, 3.0f);
 }
 
 /*
