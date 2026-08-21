@@ -84,13 +84,13 @@ float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人
 #define DOG_TASK_SPEED_BUMP_TRACK_RIGHT_FORWARD_R_MM 40.0f // 过减速带循迹右侧步长，单位毫米。
 #define DOG_TASK_TRACK_MAX_STEER_MM    30.0f // 表示循迹时的最大转向量，单位毫米。将 steer 限制在 ±18mm 以内，防止机器人转向过度。
 #define DOG_TASK_TRACK_STEER_GAIN      0.4f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
-#define DOG_TASK_TRACK_ROLL_GAIN       0.15f // 循迹差速时机身横滚补偿增益，roll_mm = steer * ROLL_GAIN。
+#define DOG_TASK_TRACK_ROLL_GAIN       0.20f // 循迹差速时机身横滚补偿增益，roll_mm = steer * ROLL_GAIN。
 #define DOG_TASK_TRACK_MAX_ROLL_MM     99.0f // 循迹差速时机身横滚补偿上限，单位毫米。（横滚补偿与差速值steer呈线性关系，受steer上下限约束，此处事实上不构成限制，仅为预留）
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  50.0f // 表示平台循迹时向左前进的半径，单位毫米。    
 #define DOG_TASK_PLATFORM_TRACK_RIGHT_FORWARD_R_MM 50.0f // 表示平台循迹时向右前进的半径，单位毫米。
-#define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 2000U // 启动后的左平移阶段持续时间，单位毫秒。
-#define DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS 8000U // 左平移结束后、进入减速带前的普通循迹时间，单位毫秒。
+#define DOG_TASK_START_SHIFT_LEFT_DURATION_MS 4000U // 启动后的左平移阶段持续时间，单位毫秒。
+#define DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS 8000U // 左平移结束后、切入正常循迹到蓝色平台前的普通循迹时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS  15000U // 进入减速带状态后，退出到普通循迹前的保持时间，单位毫秒。
 #define DOG_TASK_BLACK_CENTER_STABLE_MS    500U // 上楼梯阶段，黑框识别到机器狗已经到中心后，需要稳定保持的时间。
 #define DOG_TASK_DOWNHILL_MIN_MS           1500U // 进入下坡循迹后，最少要跑的时间。
@@ -516,7 +516,7 @@ static void DogTask_BeginStartShiftLeft(uint32_t now_ms)
     DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_LEFT);
 }
 
-/* 左平移结束后，先按普通循迹运行一段时间，再进入减速带。 */
+/* 左平移结束后，先按普通循迹运行一段时间，再切入正常循迹到蓝色平台。 */
 static void DogTask_BeginSpeedBumpEntryTrack(uint32_t now_ms)
 {
     s_task_stage = DOG_TASK_STAGE_SPEED_BUMP_ENTRY_TRACK;
@@ -1044,7 +1044,7 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
     {
         if (elapsed_ms >= DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS)
         {
-            DogTask_BeginSpeedBump(now_ms);
+            DogTask_BeginTrackToBlue(now_ms);
         }
         else if (track.valid != 0U)
         {
