@@ -102,7 +102,7 @@ float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人
 
 #define DOG_TASK_BLACK_TRACK_DELAY_MS      3000U // 识别黑框后，按视觉偏差循迹的保持时间。
 #define DOG_TASK_STAIR_WALK_ENABLE         1U // 置 0 跳过上楼梯，直接进入绿色分岔测试阶段。
-#define DOG_TASK_FORK_TEST_ENABLE           0U // 置 1 上电后跳过分岔前全部任务阶段。
+#define DOG_TASK_FORK_TEST_ENABLE           1U // 置 1 上电后跳过分岔前全部任务阶段。
 #define DOG_TASK_FORK_TEST_LAP_COUNT        0U // 分岔测试圈数：1 表示直接测试第二圈绿色后的左转流程。
 
 /* Left/right turn test entry is kept only for reference. */
