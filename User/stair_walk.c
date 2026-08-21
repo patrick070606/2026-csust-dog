@@ -44,12 +44,12 @@
 #define STAIR_WALK_TEST_PITCH_FILTER_ALPHA    0.15f // IMU 一阶低通滤波中新测量值的权重；越小越平滑，但姿态响应越慢（俯仰和横滚共用）。
 #define STAIR_WALK_TEST_ROLL_FILTER_ALPHA     0.12f
 #define STAIR_WALK_TEST_ROLL_DEADBAND_DEG      2.0f  // 小于该横滚角的补偿视为零，抑制静态零偏和细小振动。
-#define STAIR_WALK_PITCH_DIFF_0_MIN_DEG       (-1.0f)
-#define STAIR_WALK_PITCH_DIFF_0_MAX_DEG        1.5f
-#define STAIR_WALK_PITCH_DIFF_30_MIN_DEG      (-3.3f)
-#define STAIR_WALK_PITCH_DIFF_30_MAX_DEG      (-1.3f)
-#define STAIR_WALK_PITCH_DIFF_60_MIN_DEG      (-7.0f)
-#define STAIR_WALK_PITCH_DIFF_60_MAX_DEG      (-4.0f)
+#define STAIR_WALK_PITCH_DIFF_0_MIN_DEG       (-2.0f)
+#define STAIR_WALK_PITCH_DIFF_0_MAX_DEG        1.0f
+#define STAIR_WALK_PITCH_DIFF_30_MIN_DEG      (-4.5f)
+#define STAIR_WALK_PITCH_DIFF_30_MAX_DEG      (-2.5f)
+#define STAIR_WALK_PITCH_DIFF_60_MIN_DEG      (-7.5f)
+#define STAIR_WALK_PITCH_DIFF_60_MAX_DEG      (-4.5f)
 #define STAIR_WALK_LEVEL_PITCH_DEG            4.0f  // “机身恢复水平”的俯仰角阈值：滤波后 |pitch| 不得超过 3°。
 #define STAIR_WALK_LEVEL_ROLL_DEG             6.0f  // “机身恢复水平”的横滚角阈值：滤波后 |roll| 不得超过 6°。
 #define STAIR_WALK_LEVEL_STABLE_MS            2000U // pitch 和 roll 同时满足水平阈值后，必须连续稳定 2 s 才判定上高台完成。
