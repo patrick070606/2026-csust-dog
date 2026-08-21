@@ -7,13 +7,13 @@
 static const DogServoConfig_t s_dog_servo_configs[DOG_SERVO_COUNT] = {
     // 髋关节：480-220 = 260
     // 小腿关节：720-520=200
-    [DOG_SERVO_LF_KNEE] = {4, -1, 500, 10, 320, 900},
+    [DOG_SERVO_LF_KNEE] = {4, -1, 500, 20, 320, 900},
     [DOG_SERVO_LF_HIP]  = {3, -1, 500, 32, 100, 860}, 
-    [DOG_SERVO_RF_KNEE] = {2, 1, 500, 18, 100, 715},
+    [DOG_SERVO_RF_KNEE] = {2, 1, 500, 25, 100, 715},
     [DOG_SERVO_RF_HIP]  = {1, 1, 500, 12, 180, 900},
-    [DOG_SERVO_LB_KNEE] = {8, -1, 500, 22, 290, 900},
+    [DOG_SERVO_LB_KNEE] = {8, -1, 500, -35, 290, 900},
     [DOG_SERVO_LB_HIP]  = {7, -1, 500, -1, 100, 895},
-    [DOG_SERVO_RB_KNEE] = {6, 1, 500, 44, 100, 715},
+    [DOG_SERVO_RB_KNEE] = {6, 1, 500, 35, 100, 715},
     [DOG_SERVO_RB_HIP]  = {5, 1, 500, 10, 115, 900},
 };
 
