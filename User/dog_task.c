@@ -21,14 +21,14 @@
 #define DOG_TASK_SPEED_BUMP_WALK_ENABLE          1U    // 1: 减速带使用专用 walk；0: 保持原有 trot 方案。
 #define DOG_TASK_SPEED_BUMP_WALK_PERIOD_MS       100U  // 减速带 walk 的目标更新周期。
 #define DOG_TASK_SPEED_BUMP_WALK_MOVE_MS         80U   // 减速带 walk 的普通舵机过渡时间。
-#define DOG_TASK_SPEED_BUMP_WALK_STEP_H_MM       60.0f // 与当前上楼梯 walk 一致的抬腿高度。
+#define DOG_TASK_SPEED_BUMP_WALK_STEP_H_MM       30.0f // 与当前上楼梯 walk 一致的抬腿高度。
 #define DOG_TASK_SPEED_BUMP_WALK_STEP_LEN_MM     60.0f // 与当前上楼梯 walk 一致的步长。
 #define DOG_TASK_SPEED_BUMP_WALK_SPEED_FREQ      0.1f // 相位增量。
-#define DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM    18.0f  // 减速带 walk 重心 X 基准。
+#define DOG_TASK_SPEED_BUMP_WALK_CG_BASE_X_MM    6.0f  // 减速带 walk 重心 X 基准。
 #define DOG_TASK_SPEED_BUMP_WALK_IMU_GAIN_MM     60.0f // 与当前上楼梯 walk 一致的 pitch 重心补偿增益。
 #define DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN   0.6f // 减速带 walk 前后腿阶段动态重心缩放；与上楼梯独立可调。
 #define DOG_TASK_SPEED_BUMP_WALK_BODY_KP_FRONT_TO_REAR 0.6f // 减速带前腿切后腿时的重心收敛系数。
-#define DOG_TASK_SPEED_BUMP_WALK_BODY_KP_REAR_TO_FRONT 0.3f // 减速带后腿切前腿时的重心收敛系数。
+#define DOG_TASK_SPEED_BUMP_WALK_BODY_KP_REAR_TO_FRONT 0.4f // 减速带后腿切前腿时的重心收敛系数。
 #define DOG_TASK_SPEED_BUMP_WALK_FRONT_REAR_UNIFIED 1U // 1: 减速带前腿与后腿同轨迹；0: 前腿保持正弦。
 #define DOG_TASK_SPEED_BUMP_WALK_RB_PRELOAD_STABLE_UPDATES 0U // 0: 减速带关闭 RB 起摆前预加载稳定停顿。
 #define DOG_TASK_SPEED_BUMP_WALK_SECOND_FRONT_TO_REAR_HOLD_UPDATES 1U // 1: 第二前腿落地后保持 100 ms。
@@ -40,10 +40,10 @@
 /* 减速带 walk 暂不启用预加载侧向补偿；以下均为 0，仅保留接口以便后续按需恢复。 */
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LF_Y_MM           0.0f
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_RF_Y_MM           0.0f
-#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_Y_MM           0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_Y_MM           2.0f
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LF_Y_MM     0.0f
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_RF_Y_MM     0.0f
-#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LB_Y_MM     0.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LB_Y_MM     -9.0f
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_RIGHT_RF_Y_MM  0.0f
 #define DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT     10U   // 完成该数量的完整 walk 周期后退出减速带。
 #define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 50000U // 独立过减速带测试的超时兜底；walk 正常按周期数结束，约 20 s。
