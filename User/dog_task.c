@@ -214,9 +214,27 @@ static uint32_t s_speed_bump_entry_test_start_ms;
 static uint32_t s_speed_bump_entry_test_last_gait_ms;
 static uint8_t s_speed_bump_walk_cycle_count;
 static uint8_t s_color_reaction_test_lap2_ready;
+static uint8_t s_color_reaction_test_enabled;
 static uint8_t s_straight_line_test_active;
 static uint32_t s_straight_line_test_start_ms;
 static uint32_t s_straight_line_test_last_gait_ms;
+
+typedef enum
+{
+    DOG_TASK_BGP_TEST_WAIT_BLUE = 0,
+    DOG_TASK_BGP_TEST_BLUE_PAUSE,
+    DOG_TASK_BGP_TEST_WAIT_GREEN,
+    DOG_TASK_BGP_TEST_GREEN_PAUSE,
+    DOG_TASK_BGP_TEST_WAIT_PURPLE,
+    DOG_TASK_BGP_TEST_THROW_ROTATING,
+    DOG_TASK_BGP_TEST_DONE,
+} DogTaskBlueGreenPurpleTestState_t;
+
+#define DOG_TASK_BGP_TEST_BLUE_PAUSE_MS   8000U
+#define DOG_TASK_BGP_TEST_GREEN_PAUSE_MS  2000U
+
+static DogTaskBlueGreenPurpleTestState_t s_bgp_test_state;
+static uint32_t s_bgp_test_start_ms;
 
 volatile uint32_t g_dog_task_run_count; // DogTask_Run() 被调用的次数，方便调试器观察主循环是否正常运行。
 volatile uint32_t g_dog_task_gait_update_count; // 步态更新次数，方便判断是否持续下发步态。
@@ -899,6 +917,17 @@ static void DogTask_SendVisionAck(void)
     DogTask_SendVisionStatus("OK");
 }
 
+/* 向视觉模块发送裸 OK，供颜色反应测试确认紫色解析结果。 */
+static void DogTask_SendRawOk(void)
+{
+    static const uint8_t ok_message[] = "OK\n";
+
+    (void)HAL_UART_Transmit(&huart1,
+                            (uint8_t *)ok_message,
+                            (uint16_t)(sizeof(ok_message) - 1U),
+                            DOG_TASK_VISION_ACK_TIMEOUT_MS);
+}
+
 /* 通过 USART1 向视觉模块发送当前事件状态和运动状态，tag 可为 OK 或 ST。 */
 static void DogTask_SendVisionStatus(const char *tag)
 {
@@ -961,10 +990,20 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
         DogTask_SendVisionAck();
         DogTask_BeginForkTurn(DOG_TASK_MOTION_TURN_RIGHT, now_ms);
     }
-    else if (((command == IMAGE_COMMAND_PURPLE) && (s_task_stage == DOG_TASK_STAGE_TRACK_TO_THROW) && (s_lap_count == 0U)) ||
+    /* 颜色反应测试中不要求紫色先于绿色，允许紫色直接触发投掷。 */
+    else if (((command == IMAGE_COMMAND_PURPLE) &&
+              (((s_task_stage == DOG_TASK_STAGE_TRACK_TO_THROW) && (s_lap_count == 0U)) ||
+               (s_color_reaction_test_enabled != 0U))) ||
              ((command == IMAGE_COMMAND_BROWN) && (s_task_stage == DOG_TASK_STAGE_TRACK_TO_THROW) && (s_lap_count != 0U)))
     {
-        DogTask_SendVisionAck();
+        if ((command == IMAGE_COMMAND_PURPLE) && (s_color_reaction_test_enabled != 0U))
+        {
+            DogTask_SendRawOk();
+        }
+        else
+        {
+            DogTask_SendVisionAck();
+        }
         s_task_stage = DOG_TASK_STAGE_THROW_TARGET;
         if (((command == IMAGE_COMMAND_PURPLE) && (s_purple_throw_delay_used == 0U)) ||
             ((command == IMAGE_COMMAND_BROWN) && (s_brown_throw_delay_used == 0U)))
@@ -1525,6 +1564,7 @@ void DogTask_Init(void)
     s_purple_throw_delay_used = 0U;
     s_brown_throw_delay_used = 0U;
     s_lap_count = 0U;
+    s_color_reaction_test_enabled = 0U;
     s_black_center_start_ms = 0U;
     s_level_start_ms = 0U;
     s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD;
@@ -1790,6 +1830,7 @@ void DogTask_ColorReactionTest_Init(void)
     s_purple_throw_delay_used = 0U;
     s_brown_throw_delay_used = 0U;
     s_color_reaction_test_lap2_ready = 1U;
+    s_color_reaction_test_enabled = 1U;
 }
 
 /* 颜色反应测试运行入口：完全走正常主任务状态机，读取真实 K230 串口。
@@ -1804,6 +1845,124 @@ void DogTask_ColorReactionTest_Run(void)
     {
         s_color_reaction_test_lap2_ready = 0U;
         DogTask_BeginTrackAfterDownhill(HAL_GetTick());
+    }
+}
+
+/* 蓝/绿/紫顺序测试中的循迹推进：复用 DogTask_Run 的循迹误差处理。 */
+static void DogTask_BgpTest_UpdateTracking(uint32_t now_ms, ImageTrack_t track)
+{
+    if (track.valid != 0U)
+    {
+        s_has_seen_track = 1U;
+        s_last_track_ms = now_ms;
+        DogTask_ApplyTrackError(track.error);
+    }
+    else if ((s_has_seen_track != 0U) &&
+             ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
+    {
+        DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+    }
+}
+
+/* 蓝/绿/紫顺序测试入口：初始化后直接进入正常循迹，等待蓝色事件。 */
+void DogTask_BlueGreenPurpleTest_Init(void)
+{
+    uint32_t now_ms;
+
+    DogTask_Init();
+    now_ms = HAL_GetTick();
+    DogTask_BeginTrackAfterDownhill(now_ms);
+    s_bgp_test_state = DOG_TASK_BGP_TEST_WAIT_BLUE;
+    s_bgp_test_start_ms = 0U;
+}
+
+/* 蓝/绿/紫顺序测试运行：蓝色暂停 8s，绿色暂停 2s，紫色触发投掷舵机。 */
+void DogTask_BlueGreenPurpleTest_Run(void)
+{
+    uint32_t now_ms = HAL_GetTick();
+    ImageCommand_t command = ImageCommand_TakeLatest();
+    ImageTrack_t track = ImageCommand_TakeLatestTrack();
+
+    ThrowServo_Update();
+
+    switch (s_bgp_test_state)
+    {
+        case DOG_TASK_BGP_TEST_WAIT_BLUE:
+            DogTask_BgpTest_UpdateTracking(now_ms, track);
+            if (command == IMAGE_COMMAND_PLATFORM)
+            {
+                DogTask_SendK230Yes();
+                DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+                s_bgp_test_state = DOG_TASK_BGP_TEST_BLUE_PAUSE;
+                s_bgp_test_start_ms = now_ms;
+            }
+            break;
+
+        case DOG_TASK_BGP_TEST_BLUE_PAUSE:
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+            if ((uint32_t)(now_ms - s_bgp_test_start_ms) >= DOG_TASK_BGP_TEST_BLUE_PAUSE_MS)
+            {
+                s_bgp_test_state = DOG_TASK_BGP_TEST_WAIT_GREEN;
+                DogTask_ResumeTracking(now_ms);
+            }
+            break;
+
+        case DOG_TASK_BGP_TEST_WAIT_GREEN:
+            DogTask_BgpTest_UpdateTracking(now_ms, track);
+            if (command == IMAGE_COMMAND_GREEN)
+            {
+                DogTask_SendRawOk();
+                DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+                s_bgp_test_state = DOG_TASK_BGP_TEST_GREEN_PAUSE;
+                s_bgp_test_start_ms = now_ms;
+            }
+            break;
+
+        case DOG_TASK_BGP_TEST_GREEN_PAUSE:
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+            if ((uint32_t)(now_ms - s_bgp_test_start_ms) >= DOG_TASK_BGP_TEST_GREEN_PAUSE_MS)
+            {
+                s_bgp_test_state = DOG_TASK_BGP_TEST_WAIT_PURPLE;
+                DogTask_ResumeTracking(now_ms);
+            }
+            break;
+
+        case DOG_TASK_BGP_TEST_WAIT_PURPLE:
+            DogTask_BgpTest_UpdateTracking(now_ms, track);
+            if (command == IMAGE_COMMAND_PURPLE)
+            {
+                DogTask_SendRawOk();
+                DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+                s_bgp_test_state = DOG_TASK_BGP_TEST_THROW_ROTATING;
+                s_bgp_test_start_ms = now_ms;
+                DogTask_BeginThrowRotation(IMAGE_COMMAND_PURPLE, now_ms);
+            }
+            break;
+
+        case DOG_TASK_BGP_TEST_THROW_ROTATING:
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+            if (ThrowServo_IsBusy() == 0U)
+            {
+                ThrowServo_Stop();
+                DogGait_SetLoadMode(DOG_GAIT_LOAD_NONE);
+                s_bgp_test_state = DOG_TASK_BGP_TEST_DONE;
+                DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+            }
+            break;
+
+        case DOG_TASK_BGP_TEST_DONE:
+            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+            break;
+    }
+
+    if (((s_bgp_test_state == DOG_TASK_BGP_TEST_WAIT_BLUE) ||
+         (s_bgp_test_state == DOG_TASK_BGP_TEST_WAIT_GREEN) ||
+         (s_bgp_test_state == DOG_TASK_BGP_TEST_WAIT_PURPLE)) &&
+        (s_motion != DOG_TASK_MOTION_STOP) &&
+        ((uint32_t)(now_ms - s_last_gait_ms) >= DogTask_GetGaitPeriodMs()))
+    {
+        s_last_gait_ms = now_ms;
+        DogGait_UpdateTrot(DogTask_GetGaitMoveMs());
     }
 }
 

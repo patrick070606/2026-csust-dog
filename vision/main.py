@@ -5,7 +5,7 @@
 # 2. The full-width center fifth detects brown, orange, green, blue, and purple targets.
 # 3. UART status: E:<error>,C:<none|brown|orange|green|blue|purple|black>.
 # 4. Fork-test mode can bypass the blue/black stair-recognition sequence and
-#    send only the green fork event.
+#    send active target colors without the green/purple order lock.
 # 5. UART continuously sends E:<error> separately from discrete events.
 
 import os
@@ -57,9 +57,9 @@ ERROR_DEADBAND = 3
 # COLOR SEQUENCE LOCK CONFIG
 # ============================================================
 
-# 0: no extra color recognition constraint.
+# 0: no extra color recognition constraint (green/purple order lock commented out).
 # 1: use the two fixed color cycles below. Green pauses recognition for 6s.
-GREEN_SEQUENCE_LOCK_ENABLED = 1
+GREEN_SEQUENCE_LOCK_ENABLED = 0
 GREEN_SEQUENCE_PAUSE_MS = 6000
 
 # 1: bypass the blue-platform / black-frame stair sequence and emit only green
@@ -811,10 +811,10 @@ try:
         else:
             filtered_error = last_error
 
-        # 2. Fork test bypasses the stair color sequence and reports green only.
+        # 2. Fork test bypasses the stair color sequence and reports active colors.
         if FORK_TEST_ENABLE:
             draw_color_rois(img)
-            detection = find_best_color_blob(img, ("green",))
+            detection = find_best_color_blob(img)
         # Full route: stop color recognition after blue and wait for Yes.
         elif step_state == STATE_WAIT_COLOR and not is_color_sequence_paused(now):
             draw_color_rois(img)
