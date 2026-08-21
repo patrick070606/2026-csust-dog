@@ -58,8 +58,8 @@
 #define DOG_GAIT_STAND_FOOT_Y_RB_MM             (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 160.0f)
 
 #if (DOG_GAIT_WALK_FOOT_BASE_ENABLE != 0U)
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -35.0f
-#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -35.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_NO_LOAD_MM  -25.0f
+#define DOG_GAIT_WALK_FOOT_X_OFFSET_LOAD_MM     -25.0f
 #define DOG_GAIT_WALK_FOOT_Y_MM                 (DOG_GAIT_DEFAULT_L1_MM + DOG_GAIT_DEFAULT_L2_MM - 170.0f)
 #endif
 
@@ -126,7 +126,7 @@
 #define DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON     0.0001f // 消除浮点累加导致的摆动/支撑边界延后一帧。
 #define DOG_GAIT_WALK_BODY_READY_MM              3.0f // 重心目标误差小于 3 mm 后，才允许摆腿相位继续推进。
 #define DOG_GAIT_WALK_BODY_KP                    0.25f // 重心一阶平滑系数默认值；前后方向和场景分别通过 SetWalkBodyKpFrontToRear/RearToFront 设置。
-#define DOG_GAIT_WALK_BODY_MAX_STEP_MM           10.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
+#define DOG_GAIT_WALK_BODY_MAX_STEP_MM           12.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
 #define DOG_GAIT_WALK_BODY_LENGTH_MM             280.0f // 参考 Py-Apple 经验公式的机身前后支撑长度；应按本机前后髋关节间距实测调整。
 #define DOG_GAIT_WALK_BODY_WIDTH_MM              175.0f // 左右髋关节中心距；初值与原左右补偿的 ±70 mm 对应，应按本机实测调整。
 #define DOG_GAIT_WALK_PHASE_CG_GAIN              1.0f // 前/后腿阶段重心切换增益默认值；减速带和上楼梯分别通过 SetWalkPhaseCgGain 设置。
@@ -137,9 +137,9 @@
 #define DOG_GAIT_WALK_ATTITUDE_ROLL_SIGN        -1.0f  // IMU 坐标已统一到机身坐标；实机左右足端纠偏方向需反转。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_PITCH_DEG     20.0f // 姿态基础坐标变换的俯仰限幅。
 #define DOG_GAIT_WALK_ATTITUDE_MAX_ROLL_DEG      20.0f // 姿态基础坐标变换的横滚限幅。
-#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -1.0f // 在 LB 起摆前施加到 LF 的左侧预加载量，并保持至 RB 落脚。
+#define DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM   -5.0f // 在 LB 起摆前施加到 LF 的左侧预加载量，并保持至 RB 落脚。
 #define DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM    -10.0f // LB 起摆前开始施加到 LB，并连续保持至 RB 落脚后的预加载量。
-#define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   1.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
+#define DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM   5.0f // 在 LB 起摆前施加到 RF 的反向预加载量，并保持至 RB 落脚；正值 N 实际使 RF Y 减少 N mm。
 #define DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM  -6.0f // RB 起摆前额外叠加到 LF 的预加载量。
 #define DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM  6.0f // RB 起摆前额外叠加到 RF 的反向预加载量。
 #define DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM   -7.0f // LB 落脚后、RB 起摆前额外叠加到 LB 的预加载量；方向与基础 LB 补偿相同。
@@ -266,7 +266,10 @@ static float s_trot_speed_freq = DOG_GAIT_DEFAULT_SPEED_FREQ;
 static float s_walk_phase; // walk 步态的当前相位，范围是 [0.0, DOG_GAIT_WALK_TOTAL_PHASE)，表示整个 walk 步态周期的进度。
 static float s_walk_speed_freq = 0.03f; // 表示 walk 步态的速度频率。
 static float s_walk_step_height_mm = 55.0f;
-static float s_walk_step_length_mm = 50.0f;
+static float s_walk_step_length_mm[DOG_GAIT_LEG_COUNT] =
+{
+    50.0f, 50.0f, 50.0f, 50.0f,
+};
 /* Keep the stair walk order left-first on every cycle:
  * LF -> RF -> LB -> RB.  The value stays 0 rather than alternating. */
 static uint8_t s_walk_cycle_parity;
@@ -632,9 +635,9 @@ static float DogGait_CalcLegReach(float x, float y, float l1, float l2)
     return sqrtf(x * x + dy * dy);
 }
 
-static float DogGait_GetWalkSupportReturnMm(void)
+static float DogGait_GetWalkSupportReturnMm(DogGaitLeg_t leg)
 {
-    return DogGait_ClampFloat(s_walk_step_length_mm,
+    return DogGait_ClampFloat(s_walk_step_length_mm[leg],
                               -DOG_GAIT_WALK_SUPPORT_RETURN_MM,
                                DOG_GAIT_WALK_SUPPORT_RETURN_MM);
 }
@@ -721,11 +724,11 @@ static void DogGait_ApplyWalkOrderTransition(void)
 
 static void DogGait_ResetWalkFootStates(void)
 {
-    float support_return_mm = DogGait_GetWalkSupportReturnMm();
-
     /* Initialize a continuous stance arrangement at global phase 0. */
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
+        float support_return_mm =
+            DogGait_GetWalkSupportReturnMm((DogGaitLeg_t)i);
         float leg_phase = DogGait_WrapWalkLegPhase(
             -((float)i * DOG_GAIT_WALK_PHASE_PER_LEG)); // leg_phase 表示每条腿到哪个阶段了。
         float stance_phase =
@@ -781,13 +784,12 @@ static void DogGait_ResetWalkFootStates(void)
  * phase slots 0/1/2/3 receive R, 0.741R, 0.259R, 0 respectively. */
 static void DogGait_RebaseWalkFootStatesForNewOrder(void)
 {
-    float support_return_mm = DogGait_GetWalkSupportReturnMm();
-
     for (uint8_t phase_index = 0U;
          phase_index < DOG_GAIT_LEG_COUNT;
          phase_index++)
     {
         DogGaitLeg_t leg = DogGait_GetWalkLegByPhaseIndex(phase_index);
+        float support_return_mm = DogGait_GetWalkSupportReturnMm(leg);
         float leg_phase = DogGait_WrapWalkLegPhase(
             -((float)phase_index * DOG_GAIT_WALK_PHASE_PER_LEG));
         float stance_phase =
@@ -838,12 +840,13 @@ void DogGait_SetWalkSupportHeights(float front_height_mm,
 
 static void DogGait_UpdateWalkFootTrajectories(void)
 {
-    float support_return_mm = DogGait_GetWalkSupportReturnMm();
-
     for (uint8_t i = 0; i < DOG_GAIT_LEG_COUNT; i++)
     {
         float support_progress;
         float support_height;
+        float step_length_mm = s_walk_step_length_mm[i];
+        float support_return_mm =
+            DogGait_GetWalkSupportReturnMm((DogGaitLeg_t)i);
         float leg_phase = DogGait_WrapWalkLegPhase(
             s_walk_phase - DogGait_GetWalkLegPhaseStart((DogGaitLeg_t)i));// leg_phase 表示每条腿到哪个阶段了。如果在 0~0.5 之间，说明是摆动相，如果在 0.5~2.0 说明是支撑相。
 
@@ -943,7 +946,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                     s_walk_foot_x[i] =
                         s_walk_swing_start_x[i] -
                         DOG_GAIT_WALK_TUCK_X_MM +
-                        (s_walk_step_length_mm + DOG_GAIT_WALK_TUCK_X_MM) *
+                        (step_length_mm + DOG_GAIT_WALK_TUCK_X_MM) *
                         transfer_smooth; // x 坐标平滑移动到目标位置。相当于是 后收起点 + （步长 + 后收量）
                     s_walk_foot_y[i] =
                         support_height + s_walk_step_height_mm; // 高度不变
@@ -955,7 +958,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
                         (1.0f - DOG_GAIT_WALK_TRANSFER_END_PHASE);
 
                     s_walk_foot_x[i] =
-                        s_walk_swing_start_x[i] + s_walk_step_length_mm; // x 坐标平滑移动到目标位置。相当于是 起点 + 步长
+                        s_walk_swing_start_x[i] + step_length_mm; // x 坐标平滑移动到目标位置。相当于是 起点 + 步长
                     s_walk_foot_y[i] =
                         support_height +
                         s_walk_step_height_mm *
@@ -966,7 +969,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
             { // 前腿默认保持平滑的正弦波轨迹。
                 s_walk_foot_x[i] =
                     s_walk_swing_start_x[i] +
-                    s_walk_step_length_mm * DogGait_SmoothStep(swing_phase);
+                    step_length_mm * DogGait_SmoothStep(swing_phase);
                 s_walk_foot_y[i] =
                     support_height +
                     s_walk_step_height_mm * sinf(DOG_GAIT_PI * swing_phase);
@@ -983,7 +986,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
             if (s_walk_leg_in_swing[i] != 0U)
             {
                 s_walk_touchdown_x[i] =
-                    s_walk_swing_start_x[i] + s_walk_step_length_mm;
+                    s_walk_swing_start_x[i] + step_length_mm;
                 s_walk_support_height_mm[i] =
                     s_walk_support_height_goal_mm[i];
                 s_walk_leg_in_swing[i] = 0U;
@@ -1038,7 +1041,8 @@ static float DogGait_GetWalkBodyTarget(uint8_t active_leg, float pitch_deg)
     {
         /* Py-Apple: period=+1；后腿阶段额外计入已经向前迈出的步长。 */
         reference_phase_adjust =
-            (DOG_GAIT_WALK_BODY_LENGTH_MM + fabsf(s_walk_step_length_mm)) * 0.25f;
+            (DOG_GAIT_WALK_BODY_LENGTH_MM +
+             fabsf(s_walk_step_length_mm[active_leg])) * 0.25f;
     }
 
     target = s_walk_cg_base_x_mm +
@@ -1862,13 +1866,25 @@ void DogGait_SetWalkParams(float step_height_mm,
                            float imu_gain_mm)
 {
     s_walk_step_height_mm = DogGait_ClampFloat(step_height_mm, 0.0f, 140.0f);
-    s_walk_step_length_mm = DogGait_ClampFloat(step_length_mm, -80.0f, 80.0f);
+    DogGait_SetWalkSideStepLengths(step_length_mm, step_length_mm);
     s_walk_speed_freq = DogGait_ClampFloat(speed_freq, 0.0f, 0.2f);
     s_walk_cg_base_x_mm = DogGait_ClampFloat(cg_base_x_mm, -50.0f, 50.0f);
     s_walk_imu_gain_mm = DogGait_ClampFloat(imu_gain_mm, -120.0f, 120.0f);
     s_foot_base = DOG_GAIT_FOOT_BASE_WALK;
     DogGait_ClearLegBiases();
     DogGait_ClearFootYOffsets();
+}
+
+void DogGait_SetWalkSideStepLengths(float left_step_length_mm,
+                                    float right_step_length_mm)
+{
+    float left = DogGait_ClampFloat(left_step_length_mm, -80.0f, 80.0f);
+    float right = DogGait_ClampFloat(right_step_length_mm, -80.0f, 80.0f);
+
+    s_walk_step_length_mm[DOG_GAIT_LEG_LF] = left;
+    s_walk_step_length_mm[DOG_GAIT_LEG_LB] = left;
+    s_walk_step_length_mm[DOG_GAIT_LEG_RF] = right;
+    s_walk_step_length_mm[DOG_GAIT_LEG_RB] = right;
 }
 
 /* Configure the pitch multiplier used by the WALK body-CG correction.
@@ -2048,7 +2064,7 @@ void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg)
     DogGait_GetPosByCycloidalEquation(s_gait[active_leg].bias_angle,
                                       local_phase,
                                       s_walk_step_height_mm,
-                                      s_walk_step_length_mm,
+                                      s_walk_step_length_mm[active_leg],
                                       &dx,
                                       &lift); // 得到当前活动腿前后方向的位移 dx 和竖直方向上的抬腿量 lift。
     s_walk_foot_x[active_leg] = dx;

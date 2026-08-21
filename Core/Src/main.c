@@ -93,8 +93,8 @@ int main(void)
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
   //  DogTask_Init();
-  //DogTask_StairWalkTest_Init();
-   DogTask_SpeedBumpEntryTest_Init();
+  DogTask_StairWalkTest_Init();
+   //DogTask_SpeedBumpEntryTest_Init();
   // DogTask_SpeedBumpTest_Init();
    //DogTask_ColorReactionTest_Init();
   //  DogTask_StraightLineTest_Init();
@@ -108,8 +108,8 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     //DogTask_Run();
-    //DogTask_StairWalkTest_Run();
-    DogTask_SpeedBumpEntryTest_Run();
+    DogTask_StairWalkTest_Run();
+    //DogTask_SpeedBumpEntryTest_Run();
   //  DogTask_SpeedBumpTest_Run();
     //DogTask_ColorReactionTest_Run();
     // DogTask_StraightLineTest_Run();
