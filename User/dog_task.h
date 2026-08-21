@@ -11,5 +11,9 @@ void DogTask_StairWalkTest_Init(void);
 void DogTask_StairWalkTest_Run(void);
 void DogTask_ColorReactionTest_Init(void);
 void DogTask_ColorReactionTest_Run(void);
+void DogTask_BlueGreenPurpleTest_Init(void);
+void DogTask_BlueGreenPurpleTest_Run(void);
+void DogTask_ServoRotationTest_Init(void);
+void DogTask_ServoRotationTest_Run(void);
 
 #endif
