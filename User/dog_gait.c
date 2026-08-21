@@ -270,6 +270,7 @@ static float s_walk_step_length_mm = 50.0f;
 static uint8_t s_walk_cycle_parity;
 static float s_walk_cg_base_x_mm; // 基础重心偏移
 static float s_walk_imu_gain_mm = 0.0f; // 表示 walk 步态中，IMU 前后倾角对重心前后偏移的增益系数。也就是说，如果 IMU 检测到机器人前倾 1 度，那么重心会向前偏移 60.0mm，从而调整机器人的步态，使其保持平衡。
+static float s_walk_pitch_angle_gain = DOG_GAIT_WALK_PITCH_ANGLE_GAIN;
 static float s_walk_phase_cg_gain = DOG_GAIT_WALK_PHASE_CG_GAIN; // 前/后腿阶段动态重心目标的整体缩放系数。
 static float s_walk_body_kp_front_to_rear = DOG_GAIT_WALK_BODY_KP; // 前腿阶段切到后腿阶段时的重心收敛比例。
 static float s_walk_body_kp_rear_to_front = DOG_GAIT_WALK_BODY_KP; // 后腿阶段切到前腿阶段时的重心收敛比例。
@@ -279,6 +280,14 @@ static uint8_t s_walk_second_front_to_rear_hold_limit = DOG_GAIT_WALK_SECOND_FRO
 static uint8_t s_walk_rb_final_preload_stable_limit = DOG_GAIT_WALK_RB_FINAL_PRELOAD_STABLE_UPDATES; // RB 起摆前额外预加载稳定更新次数。
 static uint8_t s_walk_rear_preload_release_hold_limit = DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES; // 预加载释放后的冻结更新次数。
 static uint8_t s_walk_order_transition_limit = DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES; // 周期切换平滑过渡更新次数。
+/* 预加载侧向补偿的最终 y 偏移；默认保留上楼梯标定值，减速带场景可整体清零。 */
+static float s_walk_preload_lf_y_mm = -DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM;
+static float s_walk_preload_rf_y_mm = -DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM;
+static float s_walk_preload_lb_y_mm = -DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM;
+static float s_walk_preload_extra_lf_y_mm = -DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM;
+static float s_walk_preload_extra_rf_y_mm = -DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM;
+static float s_walk_preload_extra_lb_y_mm = -DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM;
+static float s_walk_lb_right_preload_rf_y_mm = -DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
 static float s_walk_body_x_goal_mm; // 目标重心偏移
 static float s_walk_body_x_state_mm; // 当前重心偏移
 static float s_walk_foot_x[DOG_GAIT_LEG_COUNT]; // walk 步态中各腿的足端 X 坐标
@@ -1006,7 +1015,7 @@ static void DogGait_UpdateWalkFootTrajectories(void)
 
 static float DogGait_GetWalkBodyTarget(uint8_t active_leg, float pitch_deg)
 {
-    float pitch_angle_rad = pitch_deg * DOG_GAIT_WALK_PITCH_ANGLE_GAIN * DOG_GAIT_DEG_TO_RAD;
+    float pitch_angle_rad = pitch_deg * s_walk_pitch_angle_gain * DOG_GAIT_DEG_TO_RAD;
     float pitch_adjust;
     float reference_phase_adjust;
     float target;
@@ -1218,21 +1227,21 @@ static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
             if ((leg == DOG_GAIT_LEG_LF) || (leg == DOG_GAIT_LEG_LB))
             {
                 adjustment += (leg == DOG_GAIT_LEG_LF) ?
-                              -DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM :
-                              -DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM;
+                              s_walk_preload_lf_y_mm :
+                              s_walk_preload_lb_y_mm;
             }
 
             if (leg == DOG_GAIT_LEG_RF)
             {
                 /* RF is moved in the opposite height direction to LF while
                  * the RB preload is held. */
-                adjustment += -DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM;
+                adjustment += s_walk_preload_rf_y_mm;
             }
         }
         else if (leg == DOG_GAIT_LEG_RF)
         {
             /* Even cycle remains unchanged: preload RF before LB swings. */
-            adjustment += -DOG_GAIT_WALK_LB_RIGHT_PRELOAD_MM;
+            adjustment += s_walk_lb_right_preload_rf_y_mm;
         }
     }
 
@@ -1245,15 +1254,15 @@ static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
          * it during the earlier LB swing, which also uses the SWING state. */
         if (leg == DOG_GAIT_LEG_LF)
         {
-            adjustment += -DOG_GAIT_WALK_RB_EXTRA_LEFT_FRONT_PRELOAD_MM;
+            adjustment += s_walk_preload_extra_lf_y_mm;
         }
         else if (leg == DOG_GAIT_LEG_RF)
         {
-            adjustment += -DOG_GAIT_WALK_RB_EXTRA_RIGHT_FRONT_PRELOAD_MM;
+            adjustment += s_walk_preload_extra_rf_y_mm;
         }
         else if (leg == DOG_GAIT_LEG_LB)
         {
-            adjustment += -DOG_GAIT_WALK_RB_EXTRA_LEFT_REAR_PRELOAD_MM;
+            adjustment += s_walk_preload_extra_lb_y_mm;
         }
     }
 
@@ -1860,6 +1869,15 @@ void DogGait_SetWalkParams(float step_height_mm,
     DogGait_ClearFootYOffsets();
 }
 
+/* Configure the pitch multiplier used by the WALK body-CG correction.
+ * This is deliberately separate from imu_gain_mm: gain changes correction
+ * magnitude, while this value changes the pitch-angle sensitivity. */
+void DogGait_SetWalkPitchAngleGain(float pitch_angle_gain)
+{
+    s_walk_pitch_angle_gain =
+        DogGait_ClampFloat(pitch_angle_gain, 0.0f, 3.0f);
+}
+
 /*
  * 名称：DogGait_SetWalkBodyKpFrontToRear
  * 作用：设置前腿阶段切到后腿阶段时，重心状态向目标收敛的比例系数。
@@ -1922,6 +1940,29 @@ void DogGait_SetWalkRearPreloadReleaseHoldUpdates(uint8_t updates)
 void DogGait_SetWalkOrderTransitionUpdates(uint8_t updates)
 {
     s_walk_order_transition_limit = updates;
+}
+
+/*
+ * 名称：DogGait_SetWalkPreloadSideOffsets
+ * 作用：单独设置 walk 预加载侧向补偿在各腿上的最终 y 偏移，减速带与上楼梯可分场景配置。
+ * 输入：lf_y_mm 等为实际叠加到足端 y 的偏移；全部传 0 表示该补偿在本场景不产生效果。
+ * 输出：无返回值，更新 walk 预加载侧向补偿参数。
+ */
+void DogGait_SetWalkPreloadSideOffsets(float lf_y_mm,
+                                       float rf_y_mm,
+                                       float lb_y_mm,
+                                       float extra_lf_y_mm,
+                                       float extra_rf_y_mm,
+                                       float extra_lb_y_mm,
+                                       float lb_right_rf_y_mm)
+{
+    s_walk_preload_lf_y_mm = DogGait_ClampFloat(lf_y_mm, -100.0f, 100.0f);
+    s_walk_preload_rf_y_mm = DogGait_ClampFloat(rf_y_mm, -100.0f, 100.0f);
+    s_walk_preload_lb_y_mm = DogGait_ClampFloat(lb_y_mm, -100.0f, 100.0f);
+    s_walk_preload_extra_lf_y_mm = DogGait_ClampFloat(extra_lf_y_mm, -100.0f, 100.0f);
+    s_walk_preload_extra_rf_y_mm = DogGait_ClampFloat(extra_rf_y_mm, -100.0f, 100.0f);
+    s_walk_preload_extra_lb_y_mm = DogGait_ClampFloat(extra_lb_y_mm, -100.0f, 100.0f);
+    s_walk_lb_right_preload_rf_y_mm = DogGait_ClampFloat(lb_right_rf_y_mm, -100.0f, 100.0f);
 }
 
 /*

@@ -16,6 +16,7 @@
 #define STAIR_WALK_TEST_SPEED_FREQ            0.04f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
 #define STAIR_WALK_TEST_CG_BASE_X_MM          0.0f // 行走时机身重心在 X（前后）方向的基础偏移，单位 mm，用于提高爬台阶稳定性。
 #define STAIR_WALK_TEST_IMU_GAIN_MM           70.0f // 首轮调试关闭 IMU 前后纠偏，先单独观察后腿轨迹与髋关节运动。
+#define STAIR_WALK_TEST_PITCH_ANGLE_GAIN      1.5f // 上高台 pitch 重心补偿的角度倍率。
 #define STAIR_WALK_TEST_PHASE_CG_GAIN         1.0f // 上台阶 walk 前后腿阶段动态重心缩放；与减速带独立可调。
 #define STAIR_WALK_TEST_BODY_KP_FRONT_TO_REAR 0.25f // 上台阶前腿切后腿时的重心收敛系数。
 #define STAIR_WALK_TEST_BODY_KP_REAR_TO_FRONT 0.25f // 上台阶后腿切前腿时的重心收敛系数。
@@ -25,6 +26,14 @@
 #define STAIR_WALK_TEST_RB_FINAL_PRELOAD_STABLE_UPDATES 3U // 上台阶保留 RB 起摆前额外稳定 300 ms。
 #define STAIR_WALK_TEST_REAR_PRELOAD_RELEASE_HOLD_UPDATES 1U // 上台阶保留释放冻结 100 ms。
 #define STAIR_WALK_TEST_ORDER_TRANSITION_UPDATES 6U // 上台阶保留周期切换过渡 600 ms。
+/* 上台阶保留原有预加载侧向补偿幅值；以下为最终 y 偏移。 */
+#define STAIR_WALK_TEST_PRELOAD_LF_Y_MM           1.0f
+#define STAIR_WALK_TEST_PRELOAD_RF_Y_MM          -1.0f
+#define STAIR_WALK_TEST_PRELOAD_LB_Y_MM          10.0f
+#define STAIR_WALK_TEST_PRELOAD_EXTRA_LF_Y_MM     6.0f
+#define STAIR_WALK_TEST_PRELOAD_EXTRA_RF_Y_MM    -6.0f
+#define STAIR_WALK_TEST_PRELOAD_EXTRA_LB_Y_MM     7.0f
+#define STAIR_WALK_TEST_PRELOAD_LB_RIGHT_RF_Y_MM 15.0f
 // #define STAIR_WALK_TEST_STEP_H_MM             0.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
 // #define STAIR_WALK_TEST_STEP_LEN_MM           0.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
 // #define STAIR_WALK_TEST_SPEED_FREQ            0.0f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
@@ -301,6 +310,14 @@ void StairWalk_Start(void)
                           STAIR_WALK_TEST_SPEED_FREQ,
                           STAIR_WALK_TEST_CG_BASE_X_MM,
                           STAIR_WALK_TEST_IMU_GAIN_MM);
+    DogGait_SetWalkPreloadSideOffsets(STAIR_WALK_TEST_PRELOAD_LF_Y_MM,
+                                      STAIR_WALK_TEST_PRELOAD_RF_Y_MM,
+                                      STAIR_WALK_TEST_PRELOAD_LB_Y_MM,
+                                      STAIR_WALK_TEST_PRELOAD_EXTRA_LF_Y_MM,
+                                      STAIR_WALK_TEST_PRELOAD_EXTRA_RF_Y_MM,
+                                      STAIR_WALK_TEST_PRELOAD_EXTRA_LB_Y_MM,
+                                      STAIR_WALK_TEST_PRELOAD_LB_RIGHT_RF_Y_MM);
+    DogGait_SetWalkPitchAngleGain(STAIR_WALK_TEST_PITCH_ANGLE_GAIN);
     DogGait_SetWalkBodyKpFrontToRear(STAIR_WALK_TEST_BODY_KP_FRONT_TO_REAR);
     DogGait_SetWalkBodyKpRearToFront(STAIR_WALK_TEST_BODY_KP_REAR_TO_FRONT);
     DogGait_SetWalkFrontRearUnified(STAIR_WALK_TEST_FRONT_REAR_UNIFIED);
