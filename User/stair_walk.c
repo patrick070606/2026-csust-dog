@@ -12,12 +12,14 @@
 #define STAIR_WALK_TEST_ROLL_MOVE_MS          40U
 
 #define STAIR_WALK_TEST_STEP_H_MM             60.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
-#define STAIR_WALK_TEST_STEP_LEN_MM           60.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
+#define STAIR_WALK_TEST_LEFT_STEP_LEN_MM      65.0f // 左侧（LF/LB）前后步长，单位 mm；左侧比右侧多 5 mm。
+#define STAIR_WALK_TEST_RIGHT_STEP_LEN_MM     60.0f // 右侧（RF/RB）前后步长，单位 mm；正值表示向前行走。
 #define STAIR_WALK_TEST_SPEED_FREQ            0.04f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
 #define STAIR_WALK_TEST_CG_BASE_X_MM          0.0f // 行走时机身重心在 X（前后）方向的基础偏移，单位 mm，用于提高爬台阶稳定性。
 #define STAIR_WALK_TEST_IMU_GAIN_MM           70.0f // 首轮调试关闭 IMU 前后纠偏，先单独观察后腿轨迹与髋关节运动。
 // #define STAIR_WALK_TEST_STEP_H_MM             0.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
-// #define STAIR_WALK_TEST_STEP_LEN_MM           0.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。
+// #define STAIR_WALK_TEST_LEFT_STEP_LEN_MM      0.0f // 左侧（LF/LB）前后步长，单位 mm；正值表示向前行走。
+// #define STAIR_WALK_TEST_RIGHT_STEP_LEN_MM     0.0f // 右侧（RF/RB）前后步长，单位 mm；正值表示向前行走。
 // #define STAIR_WALK_TEST_SPEED_FREQ            0.0f // 每次步态更新增加的相位量；数值越大，一个完整步态周期完成得越快。
 // #define STAIR_WALK_TEST_CG_BASE_X_MM          0.0f // 行走时机身重心在 X（前后）方向的基础偏移，单位 mm，用于提高爬台阶稳定性。
 // #define STAIR_WALK_TEST_IMU_GAIN_MM           0.0f // IMU 姿态补偿增益：把俯仰/横滚角换算为足端或重心修正量，数值越大姿态修正越强。
@@ -288,10 +290,12 @@ void StairWalk_Init(void)
 void StairWalk_Start(void)
 {
     DogGait_SetWalkParams(STAIR_WALK_TEST_STEP_H_MM,
-                          STAIR_WALK_TEST_STEP_LEN_MM,
+                          STAIR_WALK_TEST_RIGHT_STEP_LEN_MM,
                           STAIR_WALK_TEST_SPEED_FREQ,
                           STAIR_WALK_TEST_CG_BASE_X_MM,
                           STAIR_WALK_TEST_IMU_GAIN_MM);
+    DogGait_SetWalkSideStepLengths(STAIR_WALK_TEST_LEFT_STEP_LEN_MM,
+                                   STAIR_WALK_TEST_RIGHT_STEP_LEN_MM);
     /* 先装载本次楼梯参数，再按新的基础重心复位，避免沿用上一次 walk 的重心初值。 */
     DogGait_ResetWalk();
     StairWalk_ApplyStageSupportHeights();

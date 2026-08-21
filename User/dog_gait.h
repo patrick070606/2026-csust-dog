@@ -68,6 +68,11 @@ void DogGait_SetWalkParams(float step_height_mm,
                            float speed_freq,
                            float cg_base_x_mm,
                            float imu_gain_mm);
+/* Set the forward step length for the left (LF/LB) and right (RF/RB) sides.
+ * The matching stance return is adjusted internally to keep each foot's
+ * periodic trajectory from drifting. */
+void DogGait_SetWalkSideStepLengths(float left_step_length_mm,
+                                    float right_step_length_mm);
 void DogGait_SetWalkSupportHeights(float front_height_mm,
                                    float rear_height_mm);
 void DogGait_UpdateWalk(uint16_t time_ms, float pitch_deg, float roll_deg);
