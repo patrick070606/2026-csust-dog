@@ -28,9 +28,9 @@
 | 6 | `DOG_TASK_EVENT_PLATFORM_PAUSE` | 蓝色平台停止等待（测试用） | 5000 | → PLATFORM_YES_SEND |
 | 7 | `DOG_TASK_EVENT_PLATFORM_YES_SEND` | 连续发送 `YES` | 5000（每 200ms 发一次） | → IDLE（开启平台增强循迹） |
 | 8 | `DOG_TASK_EVENT_STAIR_WALK` | 爬楼梯 | `StairWalk` 内部时长 | 爬完发 `YES`，阶段切 `WAIT_BLACK` → IDLE |
-| 9 | `DOG_TASK_EVENT_START_SHIFT_LEFT` | 启动/第二圈开始左平移 | 5000 | → SPEED_BUMP_ENTRY_TRACK |
-| 10 | `DOG_TASK_EVENT_SPEED_BUMP_ENTRY_TRACK` | 减速带前普通循迹 | 8000 | → SPEED_BUMP |
-| 11 | `DOG_TASK_EVENT_SPEED_BUMP` | 过减速带 | 15000 | → IDLE，阶段切 `TRACK_TO_BLUE` |
+| 9 | `DOG_TASK_EVENT_START_SHIFT_LEFT` | 启动/第二圈开始左平移 | 5000 | → IDLE，阶段切 `TRACK_TO_BLUE` |
+| 10 | `DOG_TASK_EVENT_SPEED_BUMP_ENTRY_TRACK` | 减速带前循迹（已从主流程移除，仅独立测试保留） | — | 不进入主流程 |
+| 11 | `DOG_TASK_EVENT_SPEED_BUMP` | 过减速带（已从主流程移除，仅独立测试保留） | — | 不进入主流程 |
 | 12 | `DOG_TASK_EVENT_SHIFT_TO_CENTER` | 黑框居中平移 | 中心稳定 500 | → IDLE，阶段切 `DOWNHILL_TRACK` |
 | 13 | `DOG_TASK_EVENT_ORANGE_TRACK_DELAY` | 橙色循迹延迟 | 4000 | → SHIFT_RIGHT |
 | 14 | `DOG_TASK_EVENT_SHIFT_RIGHT` | 向右平移 | 8000 | → LAP_PAUSE |
@@ -43,9 +43,9 @@
 | 编号 | 枚举 | 含义 | 进入时刻（相对 T0）/触发 | 持续时长 |
 |---|---|---|---|---|
 | 0 | `DOG_TASK_STAGE_START_SHIFT_LEFT` | 启动左平移 | 0 / 上电 `Init`、第二圈开始 | 5000 |
-| 1 | `DOG_TASK_STAGE_SPEED_BUMP_ENTRY_TRACK` | 减速带前循迹 | 5000 | 8000 |
-| 2 | `DOG_TASK_STAGE_SPEED_BUMP` | 过减速带 | 13000 | 15000 |
-| 3 | `DOG_TASK_STAGE_TRACK_TO_BLUE` | 循迹到蓝色平台 | 28000 | 视觉触发 `PLATFORM`（时刻不定） |
+| 1 | `DOG_TASK_STAGE_SPEED_BUMP_ENTRY_TRACK` | 减速带前循迹（已从主流程移除，仅独立测试保留） | — | — |
+| 2 | `DOG_TASK_STAGE_SPEED_BUMP` | 过减速带（已从主流程移除，仅独立测试保留） | — | — |
+| 3 | `DOG_TASK_STAGE_TRACK_TO_BLUE` | 循迹到蓝色平台 | 左平移结束（5000） | 视觉触发 `PLATFORM`（时刻不定） |
 | 4 | `DOG_TASK_STAGE_STAIR_WALK` | 爬楼梯 | `PLATFORM` 时刻 | `StairWalk` 内部时长 |
 | 5 | `DOG_TASK_STAGE_WAIT_BLACK` | 等待识别黑框 | 楼梯完成时刻 | 视觉触发 `BLACK`（时刻不定） |
 | 6 | `DOG_TASK_STAGE_SHIFT_TO_CENTER` | 黑框居中（预留，未接入主流程） | — | — |
@@ -76,21 +76,19 @@
 | 阶段 | 相对 T0 时刻 | 持续 | 说明 |
 |---|---:|---:|---|
 | 0 左平移 | 0 | 5000 | 事件 9 `START_SHIFT_LEFT` |
-| 1 减速带前循迹 | 5000 | 8000 | 事件 10 `SPEED_BUMP_ENTRY_TRACK` |
-| 2 过减速带 | 13000 | 15000 | 事件 11 `SPEED_BUMP` |
-| 3 循迹到蓝平台 | 28000 | 视觉触发 | 事件 0 `IDLE`，等 `PLATFORM` 命令 |
-| 4 爬楼梯 | 视觉触发 | `StairWalk` 时长 | 事件 8 `STAIR_WALK` |
-| 5 等黑框 | 楼梯完成 | 视觉触发 | 事件 0 `IDLE`，等 `BLACK` 命令 |
-| 黑框延迟 | `BLACK` 时刻 | 3000 | 事件 16 `BLACK_TRACK_DELAY` |
-| 7 下坡循迹 | 黑框延迟结束 | ≥1500+800 | 事件 0；机身水平稳定后进阶段 8 |
-| 8 下坡后循迹 | 水平稳定 | 视觉触发 | 事件 0，等 `GREEN` 命令 |
-| 9 绿色转弯 | `GREEN` 时刻 | 5000（第一圈右转） | 事件 2 `FORK_TURN` |
-| 10 投掷前循迹 | 转弯结束 | 视觉触发 | 事件 0，等紫/棕命令 |
-| 11 投掷目标 | 紫/棕时刻 | 1000+0+旋转 | 事件 3→4→5 |
-| 12 投掷后循迹 | 投掷完成 | 视觉触发 | 事件 0，等 `ORANGE` 命令 |
-| 13 橙色延迟 | `ORANGE` 时刻 | 4000 | 事件 13 `ORANGE_TRACK_DELAY` |
-| 14 右平移 | 橙色延迟结束 | 8000 | 事件 14 `SHIFT_RIGHT` |
-| 15 一圈暂停 | 右平移结束 | 8000 | 事件 15 `LAP_PAUSE` |
+| 1 循迹到蓝平台 | 5000 | 视觉触发 | 事件 0 `IDLE`，等 `PLATFORM` 命令 |
+| 2 爬楼梯 | 视觉触发 | `StairWalk` 时长 | 事件 8 `STAIR_WALK` |
+| 3 等黑框 | 楼梯完成 | 视觉触发 | 事件 0 `IDLE`，等 `BLACK` 命令 |
+| 4 黑框延迟 | `BLACK` 时刻 | 3000 | 事件 16 `BLACK_TRACK_DELAY` |
+| 5 下坡循迹 | 黑框延迟结束 | ≥1500+800 | 事件 0；机身水平稳定后进阶段 8 |
+| 6 下坡后循迹 | 水平稳定 | 视觉触发 | 事件 0，等 `GREEN` 命令 |
+| 7 绿色转弯 | `GREEN` 时刻 | 5000（第一圈右转） | 事件 2 `FORK_TURN` |
+| 8 投掷前循迹 | 转弯结束 | 视觉触发 | 事件 0，等紫/棕命令 |
+| 9 投掷目标 | 紫/棕时刻 | 1000+0+旋转 | 事件 3→4→5 |
+| 10 投掷后循迹 | 投掷完成 | 视觉触发 | 事件 0，等 `ORANGE` 命令 |
+| 11 橙色延迟 | `ORANGE` 时刻 | 4000 | 事件 13 `ORANGE_TRACK_DELAY` |
+| 12 右平移 | 橙色延迟结束 | 8000 | 事件 14 `SHIFT_RIGHT` |
+| 13 一圈暂停 | 右平移结束 | 8000 | 事件 15 `LAP_PAUSE` |
 
 ## 6. 圈间流程
 
@@ -103,4 +101,4 @@
 
 - 状态 12 `SHIFT_TO_CENTER`（事件/阶段）虽已定义且有 `BeginShiftToCenter()`，但当前主流程**未调用**：`BLACK` 命令直接走 `BLACK_TRACK_DELAY` → 下坡。
 - `DOG_TASK_STAGE_DOWNHILL_TRACK` → `TRACK_AFTER_DOWNHILL` 由 `DogTask_Run()` 判定：下坡 ≥1500ms 且机身 pitch/roll 接近水平（5°/6°）稳定 800ms。
-- `DogTask_SpeedBumpTest_*` 是独立的减速带测试入口，不经过上述任务状态机。
+- `DogTask_SpeedBumpTest_*` / `DogTask_SpeedBumpEntryTest_*` 是独立的减速带测试入口；这两个事件/阶段已从主流程移除，只保留在独立测试中使用。
