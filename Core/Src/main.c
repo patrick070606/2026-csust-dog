@@ -97,6 +97,7 @@ int main(void)
    DogTask_SpeedBumpEntryTest_Init();
   // DogTask_SpeedBumpTest_Init();
    //DogTask_ColorReactionTest_Init();
+  //  DogTask_StraightLineTest_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -111,6 +112,7 @@ int main(void)
     DogTask_SpeedBumpEntryTest_Run();
   //  DogTask_SpeedBumpTest_Run();
     //DogTask_ColorReactionTest_Run();
+    // DogTask_StraightLineTest_Run();
   }
   /* USER CODE END 3 */
 }

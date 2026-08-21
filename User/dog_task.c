@@ -12,10 +12,10 @@
 #include <math.h>
 #include <stdio.h>
 
-#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      120U // 正常运行时的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_NORMAL_MOVE_MS        120U // 正常运行时的舵机目标过渡时间，单位毫秒。
-#define DOG_TASK_GAIT_SHIFT_PERIOD_MS       120U // 左/右平移时的步态更新周期，单位毫秒。
-#define DOG_TASK_GAIT_SHIFT_MOVE_MS         120U // 左/右平移时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_PERIOD_MS      140U // 正常运行时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_NORMAL_MOVE_MS        140U // 正常运行时的舵机目标过渡时间，单位毫秒。
+#define DOG_TASK_GAIT_SHIFT_PERIOD_MS       140U // 左/右平移时的步态更新周期，单位毫秒。
+#define DOG_TASK_GAIT_SHIFT_MOVE_MS         140U // 左/右平移时的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_PERIOD_MS  130U // 减速带阶段的步态更新周期，单位毫秒。
 #define DOG_TASK_GAIT_SPEED_BUMP_MOVE_MS    130U // 减速带阶段的舵机目标过渡时间，单位毫秒。
 #define DOG_TASK_SPEED_BUMP_WALK_ENABLE          1U    // 1: 减速带使用专用 walk；0: 保持原有 trot 方案。
@@ -49,6 +49,7 @@
 #define DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT     10U   // 完成该数量的完整 walk 周期后退出减速带。
 #define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 50000U // 独立过减速带测试的超时兜底；walk 正常按周期数结束，约 20 s。
 #define DOG_TASK_SPEED_BUMP_ENTRY_TEST_DURATION_MS 150000U // 减速带前循迹阶段的独立测试持续时间，单位毫秒；到点后回到站立姿态。
+#define DOG_TASK_STRAIGHT_LINE_TEST_DURATION_MS 150000U // 直线行走测试的持续时间，单位毫秒；到点后回到站立姿态。
 #define DOG_TASK_LED_ON_STATE          GPIO_PIN_SET // 表示 LED 灯亮的状态，GPIO_PIN_SET 表示将 GPIO 引脚设置为高电平，通常用于点亮 LED。
 #define DOG_TASK_LED_OFF_STATE         GPIO_PIN_RESET // 表示 LED 灯灭的状态，GPIO_PIN_RESET 表示将 GPIO 引脚设置为低电平，通常用于熄灭 LED。
 #define DOG_TASK_COLOR_PAUSE_MS        2000U // 表示颜色暂停的时间，单位毫秒。
@@ -213,6 +214,9 @@ static uint32_t s_speed_bump_entry_test_start_ms;
 static uint32_t s_speed_bump_entry_test_last_gait_ms;
 static uint8_t s_speed_bump_walk_cycle_count;
 static uint8_t s_color_reaction_test_lap2_ready;
+static uint8_t s_straight_line_test_active;
+static uint32_t s_straight_line_test_start_ms;
+static uint32_t s_straight_line_test_last_gait_ms;
 
 volatile uint32_t g_dog_task_run_count; // DogTask_Run() 被调用的次数，方便调试器观察主循环是否正常运行。
 volatile uint32_t g_dog_task_gait_update_count; // 步态更新次数，方便判断是否持续下发步态。
@@ -1699,6 +1703,60 @@ void DogTask_SpeedBumpEntryTest_Run(void)
          DogTask_GetGaitPeriodMs()))
     {
         s_speed_bump_entry_test_last_gait_ms = now_ms;
+        DogGait_UpdateTrot(DogTask_GetGaitMoveMs());
+    }
+}
+
+/* 直线行走测试入口：完成回中和站立后，直接设置前进步态，不依赖视觉循迹。 */
+void DogTask_StraightLineTest_Init(void)
+{
+    uint32_t now_ms;
+
+    ThrowServo_Init();
+    HAL_Delay(DOG_TASK_SERVO_READY_MS);
+
+    DogServo_AllCenter(DOG_TASK_CENTER_MOVE_MS);
+    HAL_Delay(DOG_TASK_CENTER_WAIT_MS);
+
+    DogGait_SetLoadMode((DOG_TASK_USE_PAYLOAD_GAIT != 0U) ?
+                            DOG_GAIT_LOAD_WITH_PAYLOAD :
+                            DOG_GAIT_LOAD_NONE);
+    DogGait_Init();
+    DogGait_GotoStandPose(DOG_TASK_STAND_MOVE_MS);
+    HAL_Delay(DOG_TASK_STAND_WAIT_MS);
+
+    /* 复用普通前进动作设置步态参数；Run 阶段周期推进相位即可直线前进。 */
+    DogTask_ApplyMotion(DOG_TASK_MOTION_FORWARD);
+
+    now_ms = HAL_GetTick();
+    s_straight_line_test_start_ms = now_ms;
+    s_straight_line_test_last_gait_ms = now_ms;
+    s_straight_line_test_active = 1U;
+}
+
+/* 非阻塞直线行走测试：按正常步态周期推进 trot，满时长后回到站立姿态。 */
+void DogTask_StraightLineTest_Run(void)
+{
+    uint32_t now_ms;
+
+    if (s_straight_line_test_active == 0U)
+    {
+        return;
+    }
+
+    now_ms = HAL_GetTick();
+    if ((uint32_t)(now_ms - s_straight_line_test_start_ms) >=
+        DOG_TASK_STRAIGHT_LINE_TEST_DURATION_MS)
+    {
+        s_straight_line_test_active = 0U;
+        DogGait_AllStand(DogTask_GetGaitMoveMs());
+        return;
+    }
+
+    if ((uint32_t)(now_ms - s_straight_line_test_last_gait_ms) >=
+        DogTask_GetGaitPeriodMs())
+    {
+        s_straight_line_test_last_gait_ms = now_ms;
         DogGait_UpdateTrot(DogTask_GetGaitMoveMs());
     }
 }
