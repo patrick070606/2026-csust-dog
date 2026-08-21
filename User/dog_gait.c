@@ -124,7 +124,7 @@
 #define DOG_GAIT_WALK_PHASE_BOUNDARY_EPSILON     0.0001f // 消除浮点累加导致的摆动/支撑边界延后一帧。
 #define DOG_GAIT_WALK_BODY_READY_MM              3.0f // 重心目标误差小于 3 mm 后，才允许摆腿相位继续推进。
 #define DOG_GAIT_WALK_BODY_KP                    0.25f // 重心一阶平滑系数；每次只修正当前误差的 15%。
-#define DOG_GAIT_WALK_BODY_MAX_STEP_MM           10.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
+#define DOG_GAIT_WALK_BODY_MAX_STEP_MM           12.0f // 单次步态更新允许的最大重心移动量，防止目标变化时足端坐标突跳。
 #define DOG_GAIT_WALK_BODY_LENGTH_MM             280.0f // 参考 Py-Apple 经验公式的机身前后支撑长度；应按本机前后髋关节间距实测调整。
 #define DOG_GAIT_WALK_BODY_WIDTH_MM              175.0f // 左右髋关节中心距；初值与原左右补偿的 ±70 mm 对应，应按本机实测调整。
 #define DOG_GAIT_WALK_PHASE_CG_GAIN              1.0f // 前/后腿阶段重心切换增益；首轮调试关闭，避免足端整体产生正负 60 mm 偏移。
