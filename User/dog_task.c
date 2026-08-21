@@ -75,15 +75,15 @@ float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人
 
 #define DOG_TASK_TRACK_DEADBAND        35U // 表示循迹误差的死区范围，单位毫米。也就是说，如果摄像头识别到的线条偏离机器人中心线的距离在 ±35mm 以内，就认为机器人不需要调整方向，继续前进即可。 
 #define DOG_TASK_TRACK_RECOVER_MS      500U // 表示循迹丢失后，机器人保持上一次循迹动作的时间，单位毫秒。
-#define DOG_TASK_TRACK_STEP_H_MM       40.0f // 表示循迹时的步高，单位毫米。
-#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   55.0f // 表示循迹时向左前进的半径，单位毫米。    
-#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  55.0f // 表示循迹时向右前进的半径，单位毫米。
-#define DOG_TASK_SPEED_BUMP_TRACK_STEP_H_MM       45.0f // 过减速带循迹步高，单位毫米。
+#define DOG_TASK_TRACK_STEP_H_MM       30.0f // 表示循迹时的步高，单位毫米。
+#define DOG_TASK_TRACK_LEFT_FORWARD_R_MM   65.0f // 表示循迹时向左前进的半径，单位毫米。    
+#define DOG_TASK_TRACK_RIGHT_FORWARD_R_MM  65.0f // 表示循迹时向右前进的半径，单位毫米。
+#define DOG_TASK_SPEED_BUMP_TRACK_STEP_H_MM       30.0f // 过减速带循迹步高，单位毫米。
 #define DOG_TASK_SPEED_BUMP_TRACK_LEFT_FORWARD_R_MM  40.0f // 过减速带循迹左侧步长，单位毫米。
 #define DOG_TASK_SPEED_BUMP_TRACK_RIGHT_FORWARD_R_MM 40.0f // 过减速带循迹右侧步长，单位毫米。
 #define DOG_TASK_TRACK_MAX_STEER_MM    30.0f // 表示循迹时的最大转向量，单位毫米。将 steer 限制在 ±18mm 以内，防止机器人转向过度。
-#define DOG_TASK_TRACK_STEER_GAIN      0.4f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
-#define DOG_TASK_TRACK_ROLL_GAIN       0.15f // 循迹差速时机身横滚补偿增益，roll_mm = steer * ROLL_GAIN。
+#define DOG_TASK_TRACK_STEER_GAIN      0.40f // 表示循迹时的转向增益系数。这个增益系数就是用来计算转向量 steer 的。steer = error * DOG_TASK_TRACK_STEER_GAIN。
+#define DOG_TASK_TRACK_ROLL_GAIN       0.20f // 循迹差速时机身横滚补偿增益，roll_mm = steer * ROLL_GAIN。
 #define DOG_TASK_TRACK_MAX_ROLL_MM     99.0f // 循迹差速时机身横滚补偿上限，单位毫米。（横滚补偿与差速值steer呈线性关系，受steer上下限约束，此处事实上不构成限制，仅为预留）
 #define DOG_TASK_PLATFORM_TRACK_STEP_H_MM          45.0f // 表示平台循迹时的步高，单位毫米。
 #define DOG_TASK_PLATFORM_TRACK_LEFT_FORWARD_R_MM  50.0f // 表示平台循迹时向左前进的半径，单位毫米。    
@@ -1030,72 +1030,79 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
     {
         if (elapsed_ms >= DOG_TASK_START_SHIFT_LEFT_DURATION_MS)
         {
-            DogTask_BeginSpeedBumpEntryTrack(now_ms);
+            /* 减速带任务已注释：左平移结束后直接进入循迹到蓝色平台。 */
+            //DogTask_BeginSpeedBumpEntryTrack(now_ms);
+            DogTask_BeginTrackToBlue(now_ms);
         }
         else
         {
             DogTask_ApplyMotion(DOG_TASK_MOTION_SHIFT_LEFT);
         }
     }
-    else if (s_event_state == DOG_TASK_EVENT_SPEED_BUMP_ENTRY_TRACK)
-    {
-        if (elapsed_ms >= DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS)
-        {
-            DogTask_BeginSpeedBump(now_ms);
-        }
-        else if (track.valid != 0U)
-        {
-            s_has_seen_track = 1U;
-            s_last_track_ms = now_ms;
-            DogTask_ApplyTrackError(track.error);
-        }
-        else if ((s_has_seen_track != 0U) &&
-                 ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
-        {
-            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
-        }
-    }
-    else if (s_event_state == DOG_TASK_EVENT_SPEED_BUMP)
-    {
-#if (DOG_TASK_SPEED_BUMP_WALK_ENABLE != 0U)
-        /* A speed-bump walk ends by completed gait cycles, not elapsed wall
-         * time.  Line-based trot steering is deliberately disabled here
-         * because the walk implementation has one shared forward step. */
-        if (s_speed_bump_walk_cycle_count >=
-            DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT)
-        {
-            DogTask_BeginTrackToBlue(now_ms);
-        }
-        else
-        {
-            s_is_track_correcting = 0U;
-        }
-#else
-        if (elapsed_ms >= DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS)
-        {
-            DogTask_BeginTrackToBlue(now_ms);
-        }
-        else if (track.valid != 0U)
-        {
-            s_has_seen_track = 1U;
-            s_last_track_ms = now_ms;
-            DogTask_ApplyTrackError(track.error);
-        }
-        else if ((s_has_seen_track != 0U) &&
-                 ((uint32_t)(now_ms - s_last_track_ms) < DOG_TASK_TRACK_RECOVER_MS))
-        {
-            /* 帧间空档保持上一帧纠偏，与普通循迹逻辑一致。 */
-            s_is_track_correcting =
-                (uint8_t)(s_last_track_recover_motion != DOG_TASK_MOTION_FORWARD);
-        }
-        else if ((s_has_seen_track != 0U) &&
-                 ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
-        {
-            s_is_track_correcting = 0U;
-            DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
-        }
-#endif
-    }
+    /*
+     * 减速带任务已注释：不再进入 SPEED_BUMP_ENTRY_TRACK / SPEED_BUMP 阶段。
+     * 需要恢复时，取消以下注释，并把左平移结束后改回调用
+     * DogTask_BeginSpeedBumpEntryTrack()。
+     */
+    //else if (s_event_state == DOG_TASK_EVENT_SPEED_BUMP_ENTRY_TRACK)
+    //{
+    //    if (elapsed_ms >= DOG_TASK_SPEED_BUMP_ENTRY_DELAY_MS)
+    //    {
+    //        DogTask_BeginSpeedBump(now_ms);
+    //    }
+    //    else if (track.valid != 0U)
+    //    {
+    //        s_has_seen_track = 1U;
+    //        s_last_track_ms = now_ms;
+    //        DogTask_ApplyTrackError(track.error);
+    //    }
+    //    else if ((s_has_seen_track != 0U) &&
+    //             ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
+    //    {
+    //        DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+    //    }
+    //}
+    //else if (s_event_state == DOG_TASK_EVENT_SPEED_BUMP)
+    //{
+    //#if (DOG_TASK_SPEED_BUMP_WALK_ENABLE != 0U)
+    //    /* A speed-bump walk ends by completed gait cycles, not elapsed wall
+    //     * time.  Line-based trot steering is deliberately disabled here
+    //     * because the walk implementation has one shared forward step. */
+    //    if (s_speed_bump_walk_cycle_count >=
+    //        DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT)
+    //    {
+    //        DogTask_BeginTrackToBlue(now_ms);
+    //    }
+    //    else
+    //    {
+    //        s_is_track_correcting = 0U;
+    //    }
+    //#else
+    //    if (elapsed_ms >= DOG_TASK_SPEED_BUMP_EXIT_DELAY_MS)
+    //    {
+    //        DogTask_BeginTrackToBlue(now_ms);
+    //    }
+    //    else if (track.valid != 0U)
+    //    {
+    //        s_has_seen_track = 1U;
+    //        s_last_track_ms = now_ms;
+    //        DogTask_ApplyTrackError(track.error);
+    //    }
+    //    else if ((s_has_seen_track != 0U) &&
+    //             ((uint32_t)(now_ms - s_last_track_ms) < DOG_TASK_TRACK_RECOVER_MS))
+    //    {
+    //        /* 帧间空档保持上一帧纠偏，与普通循迹逻辑一致。 */
+    //        s_is_track_correcting =
+    //            (uint8_t)(s_last_track_recover_motion != DOG_TASK_MOTION_FORWARD);
+    //    }
+    //    else if ((s_has_seen_track != 0U) &&
+    //             ((uint32_t)(now_ms - s_last_track_ms) >= DOG_TASK_TRACK_RECOVER_MS))
+    //    {
+    //        s_is_track_correcting = 0U;
+    //        DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
+    //    }
+    //#endif
+    //}
     else if (s_event_state == DOG_TASK_EVENT_BLACK_TRACK_DELAY)
     {
         if (elapsed_ms >= DOG_TASK_BLACK_TRACK_DELAY_MS)
@@ -1862,11 +1869,13 @@ void DogTask_Run(void)
         DogTask_SetCorrectionLed(0U);
     }
 
-    if (DogTask_UpdateSpeedBumpWalk(now_ms) != 0U)
-    {
-        /* 减速带 walk 本帧已推进。 */
-    }
-    else if ((s_motion != DOG_TASK_MOTION_STOP) &&
+    /* 减速带任务已注释：主流程不再推进减速带 walk。 */
+    //if (DogTask_UpdateSpeedBumpWalk(now_ms) != 0U)
+    //{
+    //    /* 减速带 walk 本帧已推进。 */
+    //}
+    //else
+    if ((s_motion != DOG_TASK_MOTION_STOP) &&
         ((uint32_t)(now_ms - s_last_gait_ms) >= DogTask_GetGaitPeriodMs()))
     {
         s_last_gait_ms = now_ms;
