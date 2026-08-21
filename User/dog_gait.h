@@ -68,6 +68,9 @@ void DogGait_SetWalkParams(float step_height_mm,
                            float speed_freq,
                            float cg_base_x_mm,
                            float imu_gain_mm);
+void DogGait_SetWalkSideStepLengths(float left_step_length_mm,
+                                    float right_step_length_mm);
+void DogGait_SetWalkBodyMaxStep(float max_step_mm);
 void DogGait_SetWalkPitchAngleGain(float pitch_angle_gain);
 void DogGait_SetWalkBodyKpFrontToRear(float body_kp);
 void DogGait_SetWalkBodyKpRearToFront(float body_kp);
