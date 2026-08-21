@@ -38,13 +38,13 @@
 #define DOG_TASK_SPEED_BUMP_WALK_ORDER_TRANSITION_UPDATES 2U // 2: 周期切换过渡 200 ms。
 #define DOG_TASK_SPEED_BUMP_WALK_FRONT_HEIGHT_MM 0.0f  // 前腿对支撑面高度；减速带首轮保持平地基准。
 #define DOG_TASK_SPEED_BUMP_WALK_REAR_HEIGHT_MM  0.0f  // 后腿对支撑面高度；减速带首轮保持平地基准。
-/* 减速带 walk 暂不启用预加载侧向补偿；以下均为 0，仅保留接口以便后续按需恢复。 */
+/* 减速带 walk 当前仅保留 LB 与 extra LB 两路侧向补偿，其余传 0。 */
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LF_Y_MM           0.0f
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_RF_Y_MM           0.0f
-#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_Y_MM           -2.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_Y_MM           -2.0f  // 减速带标定的 LB 基础预加载侧向补偿。
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LF_Y_MM     0.0f
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_RF_Y_MM     0.0f
-#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LB_Y_MM     -10.0f
+#define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_EXTRA_LB_Y_MM     -10.0f // 减速带标定的 LB 额外预加载侧向补偿。
 #define DOG_TASK_SPEED_BUMP_WALK_PRELOAD_LB_RIGHT_RF_Y_MM  0.0f
 #define DOG_TASK_SPEED_BUMP_WALK_CYCLE_COUNT     10U   // 完成该数量的完整 walk 周期后退出减速带。
 #define DOG_TASK_SPEED_BUMP_TEST_DURATION_MS 50000U // 独立过减速带测试的超时兜底；walk 正常按周期数结束，约 20 s。

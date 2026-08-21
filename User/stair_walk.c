@@ -33,6 +33,7 @@
 #define STAIR_WALK_TEST_PRELOAD_EXTRA_LF_Y_MM     6.0f
 #define STAIR_WALK_TEST_PRELOAD_EXTRA_RF_Y_MM    -6.0f
 #define STAIR_WALK_TEST_PRELOAD_EXTRA_LB_Y_MM     7.0f
+/* 旧交替腿序的标定参数；当前固定 left-first，暂不生效，保留以备恢复交替腿序。 */
 #define STAIR_WALK_TEST_PRELOAD_LB_RIGHT_RF_Y_MM 15.0f
 // #define STAIR_WALK_TEST_STEP_H_MM             0.0f // 爬楼梯时的最大抬腿高度，单位 mm；较高的抬腿用于跨过台阶边缘。
 // #define STAIR_WALK_TEST_STEP_LEN_MM           0.0f // 每一步在前后方向上的步长参数，单位 mm；正值表示向前行走。

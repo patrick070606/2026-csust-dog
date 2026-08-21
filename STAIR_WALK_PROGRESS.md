@@ -87,7 +87,7 @@ uint8_t DogGait_IsWalkCycleDone(void);
 
 `DogGait_SetWalkPhaseCgGain()` 把前后腿阶段动态重心目标缩放系数拆成独立参数；减速带由 `DOG_TASK_SPEED_BUMP_WALK_PHASE_CG_GAIN` 设置，上台阶由 `STAIR_WALK_TEST_PHASE_CG_GAIN` 设置。
 
-`DogGait_SetWalkPreloadSideOffsets()` 把预加载侧向补偿的最终 y 偏移按场景拆分；减速带当前全部传 `0.0f`，该补偿在减速带 walk 中不产生效果，上台阶保留原标定值 `1.0f / -1.0f / 10.0f / 6.0f / -6.0f / 7.0f / 15.0f`。
+`DogGait_SetWalkPreloadSideOffsets()` 把预加载侧向补偿的最终 y 偏移按场景拆分；减速带当前传 `0.0f / 0.0f / -2.0f / 0.0f / 0.0f / -10.0f / 0.0f`，其中仅 LB 与 extra LB 两路实际叠加，其余为 0；上台阶保留原标定值 `1.0f / -1.0f / 10.0f / 6.0f / -6.0f / 7.0f / 15.0f`。当前上台阶固定为 `LF -> RF -> LB -> RB`，旧交替腿序对应的 `lb_right_rf_y_mm`（`15.0f`）暂不生效，保留为后续恢复交替腿序时的标定参数。
 
 当前 WALK 是单腿顺序步态，相序为：
 

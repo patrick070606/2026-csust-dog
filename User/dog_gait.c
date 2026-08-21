@@ -280,7 +280,7 @@ static uint8_t s_walk_second_front_to_rear_hold_limit = DOG_GAIT_WALK_SECOND_FRO
 static uint8_t s_walk_rb_final_preload_stable_limit = DOG_GAIT_WALK_RB_FINAL_PRELOAD_STABLE_UPDATES; // RB 起摆前额外预加载稳定更新次数。
 static uint8_t s_walk_rear_preload_release_hold_limit = DOG_GAIT_WALK_REAR_PRELOAD_RELEASE_HOLD_UPDATES; // 预加载释放后的冻结更新次数。
 static uint8_t s_walk_order_transition_limit = DOG_GAIT_WALK_ORDER_TRANSITION_UPDATES; // 周期切换平滑过渡更新次数。
-/* 预加载侧向补偿的最终 y 偏移；默认保留上楼梯标定值，减速带场景可整体清零。 */
+/* 预加载侧向补偿的最终 y 偏移；默认保留上楼梯标定值，减速带场景按需单独配置。 */
 static float s_walk_preload_lf_y_mm = -DOG_GAIT_WALK_RB_LEFT_FRONT_PRELOAD_MM;
 static float s_walk_preload_rf_y_mm = -DOG_GAIT_WALK_RB_RIGHT_FRONT_PRELOAD_MM;
 static float s_walk_preload_lb_y_mm = -DOG_GAIT_WALK_RB_LEFT_REAR_PRELOAD_MM;
@@ -1240,7 +1240,7 @@ static float DogGait_GetWalkPreloadSideAdjust(DogGaitLeg_t leg)
         }
         else if (leg == DOG_GAIT_LEG_RF)
         {
-            /* Even cycle remains unchanged: preload RF before LB swings. */
+            /* 旧交替腿序分支；当前 walk 固定 left-first，parity 恒为 0，暂不可达。 */
             adjustment += s_walk_lb_right_preload_rf_y_mm;
         }
     }
