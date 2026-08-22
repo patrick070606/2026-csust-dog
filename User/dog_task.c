@@ -1261,9 +1261,10 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
         if (StairWalk_IsFinished() != 0U)
         {
             DogTask_SendK230Yes();
-            s_task_stage = DOG_TASK_STAGE_WAIT_BLACK;
-            DogTask_BeginPlatformTrackBoost();
-            DogTask_ResumeTracking(now_ms);
+            /* Keep recover-stair-work behavior: after the stair walk finishes,
+             * proceed directly to downhill tracking instead of waiting for a
+             * black-frame event. */
+            DogTask_BeginDownhillTrack(now_ms);
         }
     }
     else if (s_event_state == DOG_TASK_EVENT_ORANGE_TRACK_DELAY)
