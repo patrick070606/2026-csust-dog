@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "DAPLink 烧录并调试",
+      "name": "DAPLink Cortex-Debug (Live Watch)",
       "type": "cortex-debug",
       "request": "launch",
       "servertype": "openocd",
@@ -12,21 +12,24 @@
       "device": "STM32F103C8",
       "interface": "swd",
       "runToEntryPoint": "main",
-      "serverpath": "openocd",
+      "svdFile": "C:/Users/12403/AppData/Local/stm32cube/packs/STMicroelectronics/stm32f1xx_dfp/1.2.0/SVD/STM32F103.svd",
+      "armToolchainPath": "C:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344/tools/bin",
+      "gdbPath": "C:/ST/STM32CubeIDE_1.19.0/STM32CubeIDE/plugins/com.st.stm32cube.ide.mcu.externaltools.gnu-tools-for-stm32.13.3.rel1.win32_1.0.0.202411081344/tools/bin/arm-none-eabi-gdb.exe",
+      "serverpath": "C:/Users/12403/AppData/Local/Microsoft/WinGet/Packages/xpack-dev-tools.openocd-xpack_Microsoft.Winget.Source_8wekyb3d8bbwe/xpack-openocd-0.12.0-7/bin/openocd.exe",
+      "searchDir": [
+        "C:/Users/12403/AppData/Local/Microsoft/WinGet/Packages/xpack-dev-tools.openocd-xpack_Microsoft.Winget.Source_8wekyb3d8bbwe/xpack-openocd-0.12.0-7/openocd/scripts"
+      ],
       "configFiles": [
         "${workspaceFolder}/.vscode/cmsis-dap.cfg",
         "target/stm32f1x.cfg"
       ],
       "openOCDLaunchCommands": [
-        "transport select swd",
         "adapter speed 1000"
       ],
-      "postLaunchCommands": [
-        "monitor reset halt"
-      ],
-      "overrideRestartCommands": [
-        "monitor reset halt"
-      ],
+      "liveWatch": {
+        "enabled": true,
+        "samplesPerSecond": 4
+      },
       "showDevDebugOutput": "raw"
     },
     {
@@ -68,29 +71,6 @@
       "gdbPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
       "stlinkPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
       "serverpath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
-      "liveWatch": {
-        "enabled": true,
-        "samplesPerSecond": 4
-      },
-      "showDevDebugOutput": "raw"
-    },
-    {
-      "name": "Cortex-Debug OpenOCD (Live Watch)",
-      "type": "cortex-debug",
-      "request": "launch",
-      "servertype": "openocd",
-      "cwd": "${workspaceFolder}",
-      "executable": "${workspaceFolder}/build/Debug/DogRobot.elf",
-      "device": "STM32F103C8",
-      "runToEntryPoint": "main",
-      "svdFile": "C:/Users/zhou/AppData/Local/stm32cube/packs/STMicroelectronics/stm32f1xx_dfp/1.2.0/SVD/STM32F103.svd",
-      "armToolchainPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin",
-      "gdbPath": "C:/Users/zhou/AppData/Local/stm32cube/bundles/gnu-gdb-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
-      "serverpath": "openocd",
-      "configFiles": [
-        "${workspaceFolder}/.vscode/cmsis-dap.cfg",
-        "target/stm32f1x.cfg"
-      ],
       "liveWatch": {
         "enabled": true,
         "samplesPerSecond": 4
