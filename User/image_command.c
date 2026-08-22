@@ -294,7 +294,11 @@ static void ImageCommand_FinishFrame(void)
     {
         s_latest_command = command;
         s_has_command = 1U;
-        if ((command == IMAGE_COMMAND_BLACK) && (has_error != 0U))
+
+        /* 颜色事件与循迹误差可在同一帧到达，例如
+         * "E:12,C:orange"。颜色命令交给任务状态机处理，E 字段
+         * 仍是有效的循迹数据；不能因颜色不是 black 就把它当作丢线。 */
+        if (has_error != 0U)
         {
             s_latest_track.error = error;
             s_latest_track.valid = 1U;
