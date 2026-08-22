@@ -3,10 +3,12 @@
 # Functions:
 # 1. White-track error output.
 # 2. The full-width center fifth detects brown, orange, green, blue, and purple targets.
-# 3. UART status: E:<error>,C:<none|brown|orange|green|blue|purple|black>.
-# 4. Fork-test mode can bypass the blue/black stair-recognition sequence and
-#    send only the green fork event.
-# 5. UART continuously sends E:<error> separately from discrete events.
+# 3. UART status: E:<error>,C:<none|brown|orange|green|blue|purple>.
+# 4. After blue C:blue, wait until STM32 replies Yes.
+# 5. Yes starts a non-blocking 6s wait, then green recognition resumes.
+# 6. Black-frame code is retained for restoration but is inactive.
+# 7. Blue-platform recognition is disabled.
+# 8. UART continuously sends E:<error> separately from discrete events.
 
 import os
 import time
@@ -32,6 +34,7 @@ UART_RX_HEX_DISPLAY_MAX_BYTES = 8
 
 MERGE_MARGIN = 8
 PRINT_INTERVAL_MS = 500
+RX_DISPLAY_HOLD_MS = 1000
 
 
 # ============================================================
@@ -43,14 +46,15 @@ PRINT_INTERVAL_MS = 500
 WHITE_TRACK_THRESHOLD = (50, 100, -30, 30, -30, 30)
 
 LINE_ROIS = [
-    # x,   y,    w,    h,  weight
-    (0,   340, 640,  90, 0.55),
-    (0,   240, 640,  80, 0.30),
-    (0,   160, 640,  70, 0.15),
+    (0,   370, 640,  50, 0.35),
+    (0,   320, 640,  50, 0.25),
+    (0,   270, 640,  50, 0.18),
+    (0,   220, 640,  50, 0.13),
+    (0,   170, 640,  50, 0.09),
 ]
 
-ERROR_SMOOTH_ALPHA = 0.65
-ERROR_DEADBAND = 3
+ERROR_SMOOTH_ALPHA = 0.55
+ERROR_DEADBAND = 2
 
 
 # ============================================================
@@ -58,14 +62,8 @@ ERROR_DEADBAND = 3
 # ============================================================
 
 # 0: no extra color recognition constraint.
-# 1: use the two fixed color cycles below. Green pauses recognition for 6s.
-GREEN_SEQUENCE_LOCK_ENABLED = 1
-GREEN_SEQUENCE_PAUSE_MS = 6000
-
-# 1: bypass the blue-platform / black-frame stair sequence and emit only green
-#    color events, for testing the fork route on the STM32.
-# 0: run the full color and stair-recognition sequence.
-FORK_TEST_ENABLE = True
+# 1: use the two fixed color cycles below.
+GREEN_SEQUENCE_LOCK_ENABLED = 0
 
 # Cycle 1: blue -> green -> purple -> orange.
 # Cycle 2: blue -> green -> brown -> orange.
@@ -102,7 +100,7 @@ COLOR_CONFIGS = [
     {
         "name": "green",
         "serial_color": "green",
-        "threshold": (27, 43, -41, -19, -4, 28),
+        "threshold": (31, 42, -30, -9, 21, 38),
         "box_color": (0, 255, 0),
         "text_color": (0, 255, 0),
         "min_pixels": 35,
@@ -111,7 +109,7 @@ COLOR_CONFIGS = [
     {
         "name": "blue",
         "serial_color": "blue",
-        "threshold": (16, 36, -10, 18, -35, -15),
+        "threshold":(17, 24, 12, 30, -58, -40),
         "box_color": (0, 80, 255),
         "text_color": (80, 160, 255),
         "min_pixels": 35,
@@ -120,7 +118,7 @@ COLOR_CONFIGS = [
     {
         "name": "orange",
         "serial_color": "orange",
-        "threshold": (49, 68, 8, 32, 31, 59),
+        "threshold": (30, 46, 17, 42, 20, 45),
         "box_color": (255, 140, 0),
         "text_color": (255, 180, 60),
         "min_pixels": 35,
@@ -135,12 +133,13 @@ COLOR_CONFIGS = [
         "box_color": (160, 0, 255),
         "text_color": (200, 80, 255),
         "min_pixels": 35,
+
         "min_area": 35,
     },
     {
         "name": "brown",
         "serial_color": "brown",
-        "threshold": (0, 33, 5, 40, 3, 35),
+        "threshold":(15, 28, 15, 38, -3, 25),
         "box_color": (255, 120, 40),
         "text_color": (255, 160, 80),
         "min_pixels": 45,
@@ -148,14 +147,13 @@ COLOR_CONFIGS = [
     },
 ]
 
-# Target colors are recognized in a full-width fifth. The position changes
-# between the lower (+40) and center locations as the color sequence advances.
+# Blue uses its own full-width fifth. Green, purple, and brown share the
+# second full-width fifth after blue is accepted.
 COLOR_ROI_H = int(IMG_H * 0.2)
-COLOR_ROI_MIDDLE_Y = IMG_H - int(IMG_H * 0.4)
-# This is the original "+40" position: IMG_H - IMG_H * 0.4 + 40.
-COLOR_ROI_DOWN_Y = IMG_H - int(IMG_H * 0.4)
+COLOR_ROI_MIDDLE_Y = IMG_H - int(IMG_H * 0.4) + 40
+COLOR_ROI_DOWN_Y = IMG_H - int(IMG_H * 0.4) - 80
 
-# Start at the lower (+40) location.
+# Start at the blue target location.
 COLOR_ROI = (0, COLOR_ROI_DOWN_Y - COLOR_ROI_H // 2, IMG_W, COLOR_ROI_H)
 
 # Merge nearby color fragments created by motion blur before applying the
@@ -218,7 +216,6 @@ active_color_name = None
 detect_start_ms = 0
 last_print_ms = 0
 
-color_pause_until_ms = 0
 color_cycle_number = 1
 color_cycle_index = 0
 
@@ -233,6 +230,7 @@ uart_rx_buffer = b""
 last_step_event = "BOOT"
 last_rx_command = "NONE"
 last_rx_hex = "NONE"
+rx_display_until_ms = 0
 
 black_frame_detected = False
 
@@ -267,16 +265,8 @@ def set_color_roi_center(center_y):
     COLOR_ROI = (0, center_y - COLOR_ROI_H // 2, IMG_W, COLOR_ROI_H)
 
 
-def is_color_sequence_paused(now):
-    return (
-        GREEN_SEQUENCE_LOCK_ENABLED == 1 and
-        color_pause_until_ms != 0 and
-        time.ticks_diff(color_pause_until_ms, now) > 0
-    )
-
-
-def apply_color_sequence_gate(detection, now):
-    global color_cycle_number, color_cycle_index, color_pause_until_ms
+def apply_color_sequence_gate(detection):
+    global color_cycle_number, color_cycle_index
 
     if GREEN_SEQUENCE_LOCK_ENABLED != 1:
         return detection
@@ -295,12 +285,11 @@ def apply_color_sequence_gate(detection, now):
 
     color_cycle_index += 1
 
-    if detection["name"] == "green":
-        # After green, the frame reappears at the middle location.
+    if detection["name"] == "blue":
+        # Green, purple, and brown share the middle location after blue.
         set_color_roi_center(COLOR_ROI_MIDDLE_Y)
-        color_pause_until_ms = now + GREEN_SEQUENCE_PAUSE_MS
     elif detection["name"] == "orange":
-        # After orange, return to the lower (+40) location for the next loop.
+        # Start the next loop at the blue target location.
         set_color_roi_center(COLOR_ROI_DOWN_Y)
         color_cycle_number = 2 if color_cycle_number == 1 else 1
         color_cycle_index = 0
@@ -368,10 +357,9 @@ def find_track_error(img):
 # COLOR DETECTION IN THE BOTTOM-FIFTH ROI
 # ============================================================
 
-def find_best_color_blob(img, priority=None):
+def find_best_color_blob(img):
     # Priority is important. Red is not an active target color.
-    if priority is None:
-        priority = ("brown", "orange", "green", "blue", "purple")
+    priority = ("brown", "orange", "green", "blue", "purple")
 
     for target_name in priority:
         config = None
@@ -444,15 +432,6 @@ def send_uart_status(error, color_code):
     uart.write(data)
 
 
-def update_color_state(color_code):
-    global step_state, last_step_event
-
-    if step_state == STATE_WAIT_COLOR and color_code == "blue":
-        step_state = STATE_WAIT_STM32
-        reset_step_confirmation()
-        last_step_event = "BLUE TARGET"
-
-
 def reset_step_confirmation():
     global step_hit_count, step_signal_sent
     step_hit_count = 0
@@ -490,8 +469,9 @@ def format_uart_rx_hex(raw_bytes):
     return " ".join(items)
 
 
-def poll_uart_commands():
+def poll_uart_commands(now):
     global step_state, uart_rx_buffer, last_step_event, last_rx_command, last_rx_hex
+    global rx_display_until_ms
 
     chunk = uart.read()
     if not chunk:
@@ -499,6 +479,7 @@ def poll_uart_commands():
 
     last_rx_command = format_uart_rx_for_display(chunk)
     last_rx_hex = format_uart_rx_hex(chunk)
+    rx_display_until_ms = now + RX_DISPLAY_HOLD_MS
     uart_rx_buffer += chunk.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
     if len(uart_rx_buffer) > UART_RX_MAX_BYTES:
@@ -514,15 +495,8 @@ def poll_uart_commands():
     if pending_command.upper().startswith(CMD_CONFIRM_BLUE):
         uart_rx_buffer = b""
         last_rx_command = format_uart_rx_for_display(CMD_CONFIRM_BLUE)
-
-        if step_state == STATE_WAIT_STM32:
-            step_state = STATE_WAIT_BLACK
-            reset_step_confirmation()
-            last_step_event = "RX YES"
-            print("state -> WAIT_BLACK")
-        else:
-            last_step_event = "RX YES IGNORED"
-            print("ignore YES in state:", step_state)
+        last_step_event = "RX YES IGNORED"
+        print("ignore YES; blue pause is automatic")
         return
 
     while b"\n" in uart_rx_buffer:
@@ -534,14 +508,9 @@ def poll_uart_commands():
 
         last_rx_command = format_uart_rx_for_display(command)
 
-        if command == CMD_CONFIRM_BLUE and step_state == STATE_WAIT_STM32:
-            step_state = STATE_WAIT_BLACK
-            reset_step_confirmation()
-            last_step_event = "RX YES"
-            print("state -> WAIT_BLACK")
-        elif command == CMD_CONFIRM_BLUE:
+        if command == CMD_CONFIRM_BLUE:
             last_step_event = "RX YES IGNORED"
-            print("ignore YES in state:", step_state)
+            print("ignore YES; blue pause is automatic")
         else:
             last_step_event = "RX UNKNOWN"
             print("unknown command:", command)
@@ -740,21 +709,41 @@ def process_step_vision(img, now):
 # SCREEN STATUS
 # ============================================================
 
-def draw_status(img, error, serial_color):
+def get_display_step_state():
+    if step_state != STATE_WAIT_COLOR or GREEN_SEQUENCE_LOCK_ENABLED != 1:
+        return step_state
+
+    if color_cycle_number == 1:
+        sequence = COLOR_CYCLE_ONE
+    else:
+        sequence = COLOR_CYCLE_TWO
+
+    return "TO " + sequence[color_cycle_index].upper()
+
+
+def draw_status(img, error, serial_color, now):
+    display_step_state = get_display_step_state()
+    if time.ticks_diff(rx_display_until_ms, now) > 0:
+        rx_text = last_rx_command
+        rx_color = (255, 0, 0)
+    else:
+        rx_text = "None"
+        rx_color = TEXT_COLOR
+
     # Minimal status only.
     img.draw_string_advanced(
         2,
         2,
         18,
-        "E:%d C:%s S:%s B:%d" % (error, serial_color, step_state, 1 if black_frame_detected else 0),
+        "E:%d C:%s S:%s B:%d" % (error, serial_color, display_step_state, 1 if black_frame_detected else 0),
         color=TEXT_COLOR
     )
     img.draw_string_advanced(
         2,
         24,
         18,
-        "RX:%s" % last_rx_command,
-        color=TEXT_COLOR
+        "RX:%s" % rx_text,
+        color=rx_color
     )
     img.draw_string_advanced(
         2,
@@ -790,7 +779,7 @@ try:
         os.exitpoint()
         now = time.ticks_ms()
 
-        poll_uart_commands()
+        poll_uart_commands(now)
         update_black_result_state(now)
 
         img = sensor.snapshot()
@@ -811,15 +800,11 @@ try:
         else:
             filtered_error = last_error
 
-        # 2. Fork test bypasses the stair color sequence and reports green only.
-        if FORK_TEST_ENABLE:
-            draw_color_rois(img)
-            detection = find_best_color_blob(img, ("green",))
-        # Full route: stop color recognition after blue and wait for Yes.
-        elif step_state == STATE_WAIT_COLOR and not is_color_sequence_paused(now):
+        # 2. Recognize colors continuously.
+        if step_state == STATE_WAIT_COLOR:
             draw_color_rois(img)
             detection = find_best_color_blob(img)
-            detection = apply_color_sequence_gate(detection, now)
+            detection = apply_color_sequence_gate(detection)
         else:
             detection = None
 
@@ -831,15 +816,11 @@ try:
         serial_color = detection_to_serial_color(detection)
 
         draw_color_detection(img, detection, elapsed_ms)
-        if not FORK_TEST_ENABLE:
-            update_color_state(serial_color)
-
-        # 3. Black-frame detection and its two boxes run only after blue -> Yes.
-        if not FORK_TEST_ENABLE:
-            process_step_vision(img, now)
+        # 3. Legacy black-frame code is retained but no active path enters WAIT_BLACK.
+        process_step_vision(img, now)
 
         status_color = serial_color
-        if not FORK_TEST_ENABLE and black_frame_detected:
+        if black_frame_detected:
             status_color = "black"
 
         # 4. Send line-tracking error and color name in one frame.
@@ -853,7 +834,7 @@ try:
             )
             last_print_ms = now
 
-        draw_status(img, filtered_error, status_color)
+        draw_status(img, filtered_error, status_color, now)
         Display.show_image(img)
 
 except KeyboardInterrupt:

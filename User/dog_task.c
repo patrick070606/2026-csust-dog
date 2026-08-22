@@ -70,8 +70,8 @@
 #define DOG_TASK_SHIFT_H_MM             45.0f // 表示机器人步态的平移步高，单位毫米。
 
 //0 LF 1 RF 2 LB 3 RB
-float DOG_TASK_SHIFT_R_MML[4] = {20.0f, 80.0f, 20.0f, 80.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
-float DOG_TASK_SHIFT_R_MMR[4] = {80.0f, 20.0f, 80.0f, 20.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MML[4] = {25.0f, 65.0f, 25.0f, 65.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
+float DOG_TASK_SHIFT_R_MMR[4] = {65.0f, 25.0f, 65.0f, 25.0f}; // 表示机器人步态的前进半径，单位毫米。四条腿的前进半径可以不同.
 #define DOG_TASK_TURN_R_MM             15.0f // 表示机器人步态的转弯半径，单位毫米。
 #define DOG_TASK_SPEED_FREQ            0.25f // 表示机器人步态的速度频率，单位为每毫秒的步长。
 
@@ -1261,9 +1261,10 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
         if (StairWalk_IsFinished() != 0U)
         {
             DogTask_SendK230Yes();
-            s_task_stage = DOG_TASK_STAGE_WAIT_BLACK;
-            DogTask_BeginPlatformTrackBoost();
-            DogTask_ResumeTracking(now_ms);
+            /* 楼梯完成后不再等待黑框：立即恢复循迹并进入下坡阶段。
+             * 下坡满足最短运行时间和 IMU 平稳条件后，会自动切到
+             * DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL，此时才接受绿色事件。 */
+            DogTask_BeginDownhillTrack(now_ms);
         }
     }
     else if (s_event_state == DOG_TASK_EVENT_ORANGE_TRACK_DELAY)
