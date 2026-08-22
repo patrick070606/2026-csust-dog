@@ -104,7 +104,7 @@ float DOG_TASK_SHIFT_R_MMR[4] = {65.0f, 25.0f, 65.0f, 25.0f}; // 表示机器人
 
 #define DOG_TASK_BLACK_TRACK_DELAY_MS      3000U // 识别黑框后，按视觉偏差循迹的保持时间。
 #define DOG_TASK_STAIR_WALK_ENABLE         1U // 置 0 跳过上楼梯，直接进入绿色分岔测试阶段。
-#define DOG_TASK_FORK_TEST_ENABLE           0U // 置 1 上电后跳过分岔前全部任务阶段。
+#define DOG_TASK_FORK_TEST_ENABLE           1U // 置 1 上电后跳过分岔前全部任务阶段。
 #define DOG_TASK_FORK_TEST_LAP_COUNT        0U // 分岔测试圈数：1 表示直接测试第二圈绿色后的左转流程。
 
 /* Left/right turn test entry is kept only for reference. */
@@ -186,10 +186,24 @@ typedef enum
     DOG_TASK_STAGE_LAP_PAUSE, // 表示机器人完成一圈后的暂停任务阶段。
     DOG_TASK_STAGE_FINISHED, // 表示机器人任务完成的任务阶段。
 } DogTaskStage_t;
+
+/* STM32 当前唯一允许触发任务切换的目标颜色。
+ * 目标颜色命中后立即推进；后续重复发送的旧颜色只会被忽略。 */
+typedef enum
+{
+    DOG_TASK_TARGET_COLOR_NONE = 0,
+    DOG_TASK_TARGET_COLOR_BLUE,
+    DOG_TASK_TARGET_COLOR_GREEN,
+    DOG_TASK_TARGET_COLOR_PURPLE,
+    DOG_TASK_TARGET_COLOR_BROWN,
+    DOG_TASK_TARGET_COLOR_ORANGE,
+} DogTaskTargetColor_t;
+
 static DogTaskMotion_t s_motion = DOG_TASK_MOTION_STOP; // 当前正在执行的运动模式，例如停止、前进、左转或右转。
 static DogTaskMotion_t s_last_track_recover_motion = DOG_TASK_MOTION_FORWARD; // 短时间丢线时，用来记住上一帧循迹修正方向。
 static DogTaskEventState_t s_event_state = DOG_TASK_EVENT_IDLE; // 当前事件状态机所在状态，例如普通循迹、分岔转向、投掷流程等。
 static DogTaskStage_t s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT; // 当前任务阶段，例如循迹到蓝色平台、爬楼梯或等待黑色线条。
+static DogTaskTargetColor_t s_expected_color = DOG_TASK_TARGET_COLOR_BLUE; // 当前等待的目标颜色。
 static uint32_t s_event_start_ms; // 当前事件状态开始的系统时间，单位毫秒，用于计算事件已经执行多久。
 static uint32_t s_color_pause_ms = DOG_TASK_COLOR_PAUSE_MS; // 颜色暂停事件本次需要保持的时间，单位毫秒。
 static uint32_t s_color_pause_last_stand_ms; // 颜色暂停期间，上一次重新下发站立姿态的时间。
@@ -493,6 +507,108 @@ static uint8_t DogTask_IsEventCommand(ImageCommand_t command)
                      (command == IMAGE_COMMAND_ORANGE));
 }
 
+/* 判断收到的颜色命令是否正是当前目标颜色。 */
+static uint8_t DogTask_IsExpectedColorCommand(ImageCommand_t command)
+{
+    if (s_expected_color == DOG_TASK_TARGET_COLOR_BLUE)
+    {
+        return (uint8_t)(command == IMAGE_COMMAND_PLATFORM);
+    }
+    if (s_expected_color == DOG_TASK_TARGET_COLOR_GREEN)
+    {
+        return (uint8_t)(command == IMAGE_COMMAND_GREEN);
+    }
+    if (s_expected_color == DOG_TASK_TARGET_COLOR_PURPLE)
+    {
+        return (uint8_t)(command == IMAGE_COMMAND_PURPLE);
+    }
+    if (s_expected_color == DOG_TASK_TARGET_COLOR_BROWN)
+    {
+        return (uint8_t)(command == IMAGE_COMMAND_BROWN);
+    }
+    if (s_expected_color == DOG_TASK_TARGET_COLOR_ORANGE)
+    {
+        return (uint8_t)(command == IMAGE_COMMAND_ORANGE);
+    }
+
+    return 0U;
+}
+
+/* 目标颜色命中后立即切换到下一目标。
+ * 第一圈：蓝 -> 绿 -> 紫 -> 橙 -> 蓝；
+ * 第二圈：蓝 -> 绿 -> 棕 -> 橙 -> 完成。 */
+static void DogTask_AdvanceExpectedColor(ImageCommand_t command)
+{
+    if (command == IMAGE_COMMAND_PLATFORM)
+    {
+        s_expected_color = DOG_TASK_TARGET_COLOR_GREEN;
+    }
+    else if (command == IMAGE_COMMAND_GREEN)
+    {
+        s_expected_color = (s_lap_count == 0U) ?
+                               DOG_TASK_TARGET_COLOR_PURPLE :
+                               DOG_TASK_TARGET_COLOR_BROWN;
+    }
+    else if ((command == IMAGE_COMMAND_PURPLE) ||
+             (command == IMAGE_COMMAND_BROWN))
+    {
+        s_expected_color = DOG_TASK_TARGET_COLOR_ORANGE;
+    }
+    else if (command == IMAGE_COMMAND_ORANGE)
+    {
+        s_expected_color = (s_lap_count == 0U) ?
+                               DOG_TASK_TARGET_COLOR_BLUE :
+                               DOG_TASK_TARGET_COLOR_NONE;
+    }
+}
+
+/* 旧颜色和提前出现的下一颜色都不进入事件状态机；若同帧带有 E 字段，
+ * DogTask_Run() 会继续使用该循迹误差，不让无效颜色阻塞循迹。 */
+static uint8_t DogTask_CanExecuteEventCommand(ImageCommand_t command)
+{
+    if ((command == IMAGE_COMMAND_TURN_LEFT) ||
+        (command == IMAGE_COMMAND_TURN_RIGHT))
+    {
+        return 1U;
+    }
+
+    /* 保留旧黑框流程的阶段保护，但当前主流程不会进入 WAIT_BLACK。 */
+    if (command == IMAGE_COMMAND_BLACK)
+    {
+        return (uint8_t)(s_task_stage == DOG_TASK_STAGE_WAIT_BLACK);
+    }
+
+    if (DogTask_IsExpectedColorCommand(command) == 0U)
+    {
+        return 0U;
+    }
+
+    if (command == IMAGE_COMMAND_PLATFORM)
+    {
+        return (uint8_t)(s_task_stage == DOG_TASK_STAGE_TRACK_TO_BLUE);
+    }
+    if (command == IMAGE_COMMAND_GREEN)
+    {
+        return (uint8_t)(s_task_stage == DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL);
+    }
+    if (command == IMAGE_COMMAND_PURPLE)
+    {
+        return (uint8_t)((s_task_stage == DOG_TASK_STAGE_TRACK_TO_THROW) &&
+                         (s_lap_count == 0U));
+    }
+    if (command == IMAGE_COMMAND_BROWN)
+    {
+        return (uint8_t)((s_task_stage == DOG_TASK_STAGE_TRACK_TO_THROW) &&
+                         (s_lap_count != 0U));
+    }
+    if (command == IMAGE_COMMAND_ORANGE)
+    {
+        return (uint8_t)(s_task_stage == DOG_TASK_STAGE_TRACK_TO_ORANGE);
+    }
+
+    return 0U;
+}
+
 /* 结束当前事件流程，清理事件和循迹标志，并恢复普通前进循迹。 */
 static void DogTask_ResumeTracking(uint32_t now_ms)
 {
@@ -508,6 +624,7 @@ static void DogTask_ResumeTracking(uint32_t now_ms)
 /* 进入启动后向左平移阶段，等待一段时间后再开始循迹。 */
 static void DogTask_BeginStartShiftLeft(uint32_t now_ms)
 {
+    s_expected_color = DOG_TASK_TARGET_COLOR_BLUE;
     s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT;
     s_event_state = DOG_TASK_EVENT_START_SHIFT_LEFT;
     s_event_start_ms = now_ms;
@@ -673,6 +790,7 @@ static void DogTask_BeginDownhillTrack(uint32_t now_ms)
 /* 跳过楼梯测试时，直接进入绿色分岔前的普通循迹阶段。 */
 static void DogTask_BeginTrackAfterDownhill(uint32_t now_ms)
 {
+    s_expected_color = DOG_TASK_TARGET_COLOR_GREEN;
     s_task_stage = DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL;
     s_level_start_ms = 0U;
     DogTask_ResumeTracking(now_ms);
@@ -940,6 +1058,7 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     else if ((command == IMAGE_COMMAND_GREEN) &&
              (s_task_stage == DOG_TASK_STAGE_TRACK_AFTER_DOWNHILL))
     {
+        DogTask_AdvanceExpectedColor(command);
         DogTask_SendVisionAck();
         s_task_stage = DOG_TASK_STAGE_GREEN_TURN;
         /* 识别绿色后先按视觉误差循迹，再按圈数差速转向（第一圈右转、第二圈左转）。 */
@@ -948,6 +1067,7 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     else if ((command == IMAGE_COMMAND_ORANGE) &&
              (s_task_stage == DOG_TASK_STAGE_TRACK_TO_ORANGE))
     {
+        DogTask_AdvanceExpectedColor(command);
         DogTask_SendVisionAck();
         DogTask_BeginOrangeTrackDelay(now_ms);
     }
@@ -964,6 +1084,7 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     else if (((command == IMAGE_COMMAND_PURPLE) && (s_task_stage == DOG_TASK_STAGE_TRACK_TO_THROW) && (s_lap_count == 0U)) ||
              ((command == IMAGE_COMMAND_BROWN) && (s_task_stage == DOG_TASK_STAGE_TRACK_TO_THROW) && (s_lap_count != 0U)))
     {
+        DogTask_AdvanceExpectedColor(command);
         DogTask_SendVisionAck();
         s_task_stage = DOG_TASK_STAGE_THROW_TARGET;
         if (((command == IMAGE_COMMAND_PURPLE) && (s_purple_throw_delay_used == 0U)) ||
@@ -999,6 +1120,7 @@ static void DogTask_ExecuteEventCommand(ImageCommand_t command, uint32_t now_ms)
     {
         if (s_task_stage == DOG_TASK_STAGE_TRACK_TO_BLUE)
         {
+            DogTask_AdvanceExpectedColor(command);
             DogTask_SendVisionAck();
 #if (DOG_TASK_STAIR_WALK_ENABLE != 0U)
             DogTask_BeginStairWalk(now_ms);
@@ -1307,10 +1429,17 @@ static void DogTask_UpdateEventState(uint32_t now_ms, ImageTrack_t track)
                 s_lap_count++;
                 s_purple_throw_delay_used = 0U;
                 s_brown_throw_delay_used = 0U;
+#if (DOG_TASK_FORK_TEST_ENABLE != 0U)
+                /* 分岔测试的第二圈也跳过启动平移、蓝色平台和楼梯，
+                 * 直接回到绿色分岔前的循迹阶段。 */
+                DogTask_BeginTrackAfterDownhill(now_ms);
+#else
                 DogTask_BeginStartShiftLeft(now_ms);
+#endif
             }
             else
             {
+                s_expected_color = DOG_TASK_TARGET_COLOR_NONE;
                 s_task_stage = DOG_TASK_STAGE_FINISHED;
                 s_event_state = DOG_TASK_EVENT_IDLE;
                 DogTask_ApplyMotion(DOG_TASK_MOTION_STOP);
@@ -1532,6 +1661,7 @@ void DogTask_Init(void)
     s_platform_yes_last_ms = 0U;
     s_event_state = DOG_TASK_EVENT_IDLE;
     s_task_stage = DOG_TASK_STAGE_START_SHIFT_LEFT;
+    s_expected_color = DOG_TASK_TARGET_COLOR_BLUE;
     s_event_start_ms = s_last_gait_ms;
     s_pending_event_command = IMAGE_COMMAND_NONE;
 #if (DOG_TASK_FORK_TEST_ENABLE != 0U)
@@ -1879,7 +2009,8 @@ void DogTask_Run(void)
     {
         DogTask_UpdateEventState(now_ms, track);
     }
-    else if (DogTask_IsEventCommand(command) != 0U)
+    else if ((DogTask_IsEventCommand(command) != 0U) &&
+             (DogTask_CanExecuteEventCommand(command) != 0U))
     {
         s_is_track_correcting = 0U;
         DogTask_ExecuteEventCommand(command, now_ms);
