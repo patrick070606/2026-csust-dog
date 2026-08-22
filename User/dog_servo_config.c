@@ -13,7 +13,7 @@ static const DogServoConfig_t s_dog_servo_configs[DOG_SERVO_COUNT] = {
     [DOG_SERVO_RF_HIP]  = {1, 1, 500, 12, 180, 900},
     [DOG_SERVO_LB_KNEE] = {8, -1, 500, -32, 290, 900},
     [DOG_SERVO_LB_HIP]  = {7, -1, 500, -7, 100, 895},
-    [DOG_SERVO_RB_KNEE] = {6, 1, 500, 1, 100, 715},
+    [DOG_SERVO_RB_KNEE] = {6, 1, 500, 8, 100, 715},
     [DOG_SERVO_RB_HIP]  = {5, 1, 500, 10, 115, 900},
 };
 
